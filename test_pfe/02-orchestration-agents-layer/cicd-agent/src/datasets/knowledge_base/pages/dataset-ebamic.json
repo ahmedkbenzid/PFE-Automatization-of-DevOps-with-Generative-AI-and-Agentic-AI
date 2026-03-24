@@ -1,0 +1,15 @@
+{
+  "page_id": "dataset-ebamic",
+  "page_type": "dataset",
+  "title": "Example-Based Automatic Migration of Continuous Integration Systems (EBAMIC)",
+  "source": "ebamic",
+  "tags": [
+    "ebamic",
+    "dataset",
+    "metadata"
+  ],
+  "content": "{\n  \"name\": \"Example-Based Automatic Migration of Continuous Integration Systems (EBAMIC)\",\n  \"description\": \"Workflows migrated from other CI/CD platforms to GitHub Actions\",\n  \"size\": \"5k workflow migrations\",\n  \"source\": \"CI/CD system migration studies\",\n  \"platforms\": [\n    \"Jenkins\",\n    \"Travis CI\",\n    \"CircleCI\",\n    \"GitLab CI\",\n    \"Azure Pipelines\"\n  ],\n  \"patterns\": [\n    \"build\",\n    \"test\",\n    \"deploy\",\n    \"security_scan\"\n  ]\n}",
+  "metadata": {
+    "dataset_key": "ebamic"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "example-python-test",
+  "page_type": "workflow_example",
+  "title": "Python Unit Tests",
+  "source": "gha-dataset",
+  "tags": [
+    "workflow-example",
+    "python",
+    "gha-dataset",
+    "push",
+    "pull_request"
+  ],
+  "content": "name: Python Unit Tests\ntrigger: push,pull_request\nlanguage: Python\nsource: gha-dataset\nsuccess_rate: 0.95\n\nyaml:\nname: Python Tests\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        python-version: ['3.9', '3.11']\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@v4\n        with:\n          python-version: ${{ matrix.python-version }}\n          cache: pip\n      - run: pip install -e '.[test]'\n      - run: pytest --cov",
+  "metadata": {
+    "example_id": "py-test-001",
+    "language": "Python",
+    "trigger": "push,pull_request",
+    "success_rate": 0.95
+  }
+}

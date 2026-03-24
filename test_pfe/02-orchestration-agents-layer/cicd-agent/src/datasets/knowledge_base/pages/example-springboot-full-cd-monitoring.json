@@ -1,0 +1,19 @@
+{
+  "page_id": "example-springboot-full-cd-monitoring",
+  "page_type": "workflow_example",
+  "title": "Spring Boot CI/CD with SonarQube, Ansible, Kubernetes, Prometheus and Grafana",
+  "source": "gha-dataset",
+  "tags": [
+    "workflow-example",
+    "java",
+    "gha-dataset",
+    "push"
+  ],
+  "content": "name: Spring Boot CI/CD with SonarQube, Ansible, Kubernetes, Prometheus and Grafana\ntrigger: push\nlanguage: Java\nsource: gha-dataset\nsuccess_rate: 0.9\n\nyaml:\nname: Spring Boot CI/CD\non:\n  push:\n    branches: [main]\njobs:\n  ci:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-java@v4\n        with:\n          java-version: '17'\n          distribution: temurin\n          cache: maven\n      - run: mvn -B clean verify\n      - uses: SonarSource/sonarqube-scan-action@v5\n        env:\n          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}\n          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}\n      - uses: docker/login-action@v3\n        with:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n      - uses: docker/build-push-action@v6\n        with:\n          context: .\n          push: true\n          tags: ${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-microservice:latest\n  deploy:\n    needs: ci\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pip install ansible\n      - run: ansible-playbook deploy/ansible/deploy-k8s.yml -e image=${{ secrets.DOCKERHUB_USERNAME }}/spring-boot-microservice:latest\n  monitoring:\n    needs: deploy\n    runs-on: ubuntu-latest\n    steps:\n      - uses: azure/setup-helm@v4\n      - run: |\n          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts\n          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace",
+  "metadata": {
+    "example_id": "java-cd-ansible-k8s-001",
+    "language": "Java",
+    "trigger": "push",
+    "success_rate": 0.9
+  }
+}

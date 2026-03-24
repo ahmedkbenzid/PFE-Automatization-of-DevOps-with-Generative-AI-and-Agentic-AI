@@ -1,0 +1,18 @@
+{
+  "page_id": "dataset-kaggle-dockerfiles",
+  "page_type": "dataset",
+  "title": "Kaggle Stanford Dockerfiles Dataset",
+  "source": "kaggle-stanfordcompute-dockerfiles",
+  "tags": [
+    "dockerfiles",
+    "dataset",
+    "kaggle",
+    "metadata"
+  ],
+  "content": "{\n  \"name\": \"Dockerfiles\",\n  \"provider\": \"Kaggle / Stanford Research Computing\",\n  \"approx_dockerfile_count\": 129519,\n  \"license\": \"MIT (specified in description)\",\n  \"download_notes\": [\n    \"Kaggle page references upstream GitHub archive links\",\n    \"Public upstream archive examples: https://github.com/vsoch/dockerfiles/archive/1.0.0.zip\",\n    \"Repository mirror: https://github.com/vsoch/dockerfiles\"\n  ],\n  \"dataset_layout\": \"data/<first-char>/<dockerhub-user>/<image-name>/Dockerfile\",\n  \"kaggle_url\": \"https://www.kaggle.com/datasets/stanfordcompute/dockerfiles\"\n}",
+  "metadata": {
+    "dataset_key": "kaggle-stanfordcompute-dockerfiles",
+    "access_type": "public-metadata",
+    "collected_on": "2026-03-24"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "page_id": "dataset-workflow-histories",
+  "page_type": "dataset",
+  "title": "GitHub Actions Workflow Histories",
+  "source": "workflow-histories",
+  "tags": [
+    "workflow-histories",
+    "dataset",
+    "metadata"
+  ],
+  "content": "{\n  \"name\": \"GitHub Actions Workflow Histories\",\n  \"description\": \"Historical execution data of workflows with success/failure metrics\",\n  \"size\": \"100k execution records\",\n  \"source\": \"GitHub Actions API logs\",\n  \"metrics\": [\n    \"execution_time\",\n    \"success_rate\",\n    \"retry_count\"\n  ],\n  \"date_range\": \"2020-2024\"\n}",
+  "metadata": {
+    "dataset_key": "workflow-histories"
+  }
+}

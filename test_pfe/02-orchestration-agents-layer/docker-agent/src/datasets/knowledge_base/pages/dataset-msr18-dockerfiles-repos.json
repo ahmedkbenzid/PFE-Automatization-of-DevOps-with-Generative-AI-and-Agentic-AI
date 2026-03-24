@@ -1,0 +1,18 @@
+{
+  "page_id": "dataset-msr18-dockerfiles-repos",
+  "page_type": "dataset",
+  "title": "MSR18 Docker Dataset GitHub Repository List",
+  "source": "msr18-docker-dataset",
+  "tags": [
+    "dockerfiles",
+    "dataset",
+    "github",
+    "repository-list"
+  ],
+  "content": "{\n  \"raw_csv_url\": \"https://raw.githubusercontent.com/sealuzh/msr18-docker-dataset/master/dockerfiles.csv\",\n  \"local_csv_path\": \"src/datasets/knowledge_base/dockerfiles.csv\",\n  \"row_count\": 440033,\n  \"csv_shape\": \"single-column list of GitHub repository URLs\",\n  \"sample_repositories\": [\n    \"https://github.com/4lexBaum/projekt-5s-dhbw\",\n    \"https://github.com/AAROC/DevOps\",\n    \"https://github.com/1ma-dockertronics/silex-example\",\n    \"https://github.com/1yvT0s/illacceptanything\",\n    \"https://github.com/AndrewRussellHayes/Marina\",\n    \"https://github.com/A-lxe/Gravebot\",\n    \"https://github.com/Brandywine2161/flynn\",\n    \"https://github.com/4devnull/docker\",\n    \"https://github.com/AVOXI/docker-certified-asterisk-13\",\n    \"https://github.com/Andrzej997/Streamer-Spring-Cloud-Config-Server\",\n    \"https://github.com/Acidburn0zzz/kythe\",\n    \"https://github.com/AlbanMontaigu/docker-sensu-server\"\n  ]\n}",
+  "metadata": {
+    "dataset_key": "msr18-docker-dataset",
+    "access_type": "raw-csv",
+    "collected_on": "2026-03-24"
+  }
+}

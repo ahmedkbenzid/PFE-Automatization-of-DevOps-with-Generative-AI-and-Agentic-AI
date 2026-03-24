@@ -1,0 +1,20 @@
+{
+  "page_id": "example-nodejs-test",
+  "page_type": "workflow_example",
+  "title": "Node.js Tests",
+  "source": "gha-dataset",
+  "tags": [
+    "workflow-example",
+    "javascript",
+    "gha-dataset",
+    "push",
+    "pull_request"
+  ],
+  "content": "name: Node.js Tests\ntrigger: push,pull_request\nlanguage: JavaScript\nsource: gha-dataset\nsuccess_rate: 0.92\n\nyaml:\nname: Node.js Tests\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node-version: ['16', '18', '20']\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node-version }}\n          cache: npm\n      - run: npm ci\n      - run: npm test",
+  "metadata": {
+    "example_id": "js-test-001",
+    "language": "JavaScript",
+    "trigger": "push,pull_request",
+    "success_rate": 0.92
+  }
+}

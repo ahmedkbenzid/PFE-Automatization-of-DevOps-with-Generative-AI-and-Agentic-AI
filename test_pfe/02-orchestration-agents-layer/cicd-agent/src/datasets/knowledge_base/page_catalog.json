@@ -1,0 +1,120 @@
+[
+  {
+    "page_id": "dataset-gha-dataset",
+    "title": "GitHub Actions Workflows Dataset",
+    "source": "gha-dataset",
+    "tags": [
+      "gha-dataset",
+      "dataset",
+      "metadata"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\dataset-gha-dataset.json"
+  },
+  {
+    "page_id": "dataset-workflow-histories",
+    "title": "GitHub Actions Workflow Histories",
+    "source": "workflow-histories",
+    "tags": [
+      "workflow-histories",
+      "dataset",
+      "metadata"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\dataset-workflow-histories.json"
+  },
+  {
+    "page_id": "dataset-ebamic",
+    "title": "Example-Based Automatic Migration of Continuous Integration Systems (EBAMIC)",
+    "source": "ebamic",
+    "tags": [
+      "ebamic",
+      "dataset",
+      "metadata"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\dataset-ebamic.json"
+  },
+  {
+    "page_id": "example-python-test",
+    "title": "Python Unit Tests",
+    "source": "gha-dataset",
+    "tags": [
+      "workflow-example",
+      "python",
+      "gha-dataset",
+      "push",
+      "pull_request"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-python-test.json"
+  },
+  {
+    "page_id": "example-nodejs-test",
+    "title": "Node.js Tests",
+    "source": "gha-dataset",
+    "tags": [
+      "workflow-example",
+      "javascript",
+      "gha-dataset",
+      "push",
+      "pull_request"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-nodejs-test.json"
+  },
+  {
+    "page_id": "example-docker-build",
+    "title": "Docker Build and Push",
+    "source": "gha-dataset",
+    "tags": [
+      "workflow-example",
+      "docker",
+      "gha-dataset",
+      "push"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-docker-build.json"
+  },
+  {
+    "page_id": "example-jenkins-migration",
+    "title": "Migrated from Jenkins Pipeline",
+    "source": "ebamic",
+    "tags": [
+      "workflow-example",
+      "mixed",
+      "ebamic",
+      "push",
+      "pull_request"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-jenkins-migration.json"
+  },
+  {
+    "page_id": "example-springboot-sonarqube",
+    "title": "Spring Boot Build, Test and SonarQube Analysis",
+    "source": "gha-dataset",
+    "tags": [
+      "workflow-example",
+      "java",
+      "gha-dataset",
+      "push",
+      "pull_request"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-springboot-sonarqube.json"
+  },
+  {
+    "page_id": "example-springboot-full-cd-monitoring",
+    "title": "Spring Boot CI/CD with SonarQube, Ansible, Kubernetes, Prometheus and Grafana",
+    "source": "gha-dataset",
+    "tags": [
+      "workflow-example",
+      "java",
+      "gha-dataset",
+      "push"
+    ],
+    "page_type": "workflow_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\cicd-agent\\src\\datasets\\knowledge_base\\pages\\example-springboot-full-cd-monitoring.json"
+  }
+]

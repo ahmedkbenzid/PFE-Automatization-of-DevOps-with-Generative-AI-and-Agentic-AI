@@ -1,0 +1,21 @@
+{
+  "page_id": "example-nodejs-multi-stage",
+  "page_type": "dockerfile_example",
+  "title": "Node.js Multi-stage Dockerfile",
+  "source": "docker-agent-seed",
+  "tags": [
+    "dockerfile",
+    "nodejs",
+    "alpine",
+    "multi-stage",
+    "security"
+  ],
+  "content": "FROM node:20-alpine AS builder\nENV NODE_ENV=development\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n\nFROM node:20-alpine AS runner\nENV NODE_ENV=production\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --omit=dev && npm cache clean --force\nCOPY --from=builder /app/dist ./dist\nUSER node\nEXPOSE 3000\nCMD [\"node\", \"dist/main.js\"]",
+  "metadata": {
+    "language": "javascript",
+    "is_multi_stage": true,
+    "ports": [
+      3000
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "example-jenkins-migration",
+  "page_type": "workflow_example",
+  "title": "Migrated from Jenkins Pipeline",
+  "source": "ebamic",
+  "tags": [
+    "workflow-example",
+    "mixed",
+    "ebamic",
+    "push",
+    "pull_request"
+  ],
+  "content": "name: Migrated from Jenkins Pipeline\ntrigger: push,pull_request\nlanguage: Mixed\nsource: ebamic\nsuccess_rate: 0.85\n\nyaml:\nname: Migrated CI\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: chmod +x scripts/build.sh && scripts/build.sh\n  test:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: chmod +x scripts/test.sh && scripts/test.sh\n  deploy:\n    needs: test\n    if: github.ref == 'refs/heads/main'\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: chmod +x scripts/deploy.sh && scripts/deploy.sh",
+  "metadata": {
+    "example_id": "migrate-jenkins-001",
+    "language": "Mixed",
+    "trigger": "push,pull_request",
+    "success_rate": 0.85
+  }
+}

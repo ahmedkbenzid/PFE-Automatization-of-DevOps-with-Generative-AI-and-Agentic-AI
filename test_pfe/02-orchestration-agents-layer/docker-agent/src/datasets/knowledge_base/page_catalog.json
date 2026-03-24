@@ -1,0 +1,69 @@
+[
+  {
+    "page_id": "dataset-kaggle-dockerfiles",
+    "title": "Kaggle Stanford Dockerfiles Dataset",
+    "source": "kaggle-stanfordcompute-dockerfiles",
+    "tags": [
+      "dockerfiles",
+      "dataset",
+      "kaggle",
+      "metadata"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\docker-agent\\src\\datasets\\knowledge_base\\pages\\dataset-kaggle-dockerfiles.json"
+  },
+  {
+    "page_id": "dataset-zenodo-3628771",
+    "title": "Zenodo ICSE 2020 Docker DevOps Artifact",
+    "source": "zenodo-3628771",
+    "tags": [
+      "dockerfiles",
+      "dataset",
+      "zenodo",
+      "icse2020"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\docker-agent\\src\\datasets\\knowledge_base\\pages\\dataset-zenodo-3628771.json"
+  },
+  {
+    "page_id": "dataset-msr18-dockerfiles-repos",
+    "title": "MSR18 Docker Dataset GitHub Repository List",
+    "source": "msr18-docker-dataset",
+    "tags": [
+      "dockerfiles",
+      "dataset",
+      "github",
+      "repository-list"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\docker-agent\\src\\datasets\\knowledge_base\\pages\\dataset-msr18-dockerfiles-repos.json"
+  },
+  {
+    "page_id": "example-nodejs-multi-stage",
+    "title": "Node.js Multi-stage Dockerfile",
+    "source": "docker-agent-seed",
+    "tags": [
+      "dockerfile",
+      "nodejs",
+      "alpine",
+      "multi-stage",
+      "security"
+    ],
+    "page_type": "dockerfile_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\docker-agent\\src\\datasets\\knowledge_base\\pages\\example-nodejs-multi-stage.json"
+  },
+  {
+    "page_id": "dataset-msr18-extracted-dockerfiles-sample",
+    "title": "MSR18 Extracted Dockerfiles Sample",
+    "source": "msr18-docker-dataset",
+    "tags": [
+      "dockerfiles",
+      "dataset",
+      "github",
+      "sample",
+      "real-world"
+    ],
+    "page_type": "dockerfile_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\docker-agent\\src\\datasets\\knowledge_base\\pages\\dataset-msr18-extracted-dockerfiles-sample.json"
+  }
+]

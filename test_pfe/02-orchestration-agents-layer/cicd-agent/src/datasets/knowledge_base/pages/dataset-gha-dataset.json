@@ -1,0 +1,15 @@
+{
+  "page_id": "dataset-gha-dataset",
+  "page_type": "dataset",
+  "title": "GitHub Actions Workflows Dataset",
+  "source": "gha-dataset",
+  "tags": [
+    "gha-dataset",
+    "dataset",
+    "metadata"
+  ],
+  "content": "{\n  \"name\": \"GitHub Actions Workflows Dataset\",\n  \"description\": \"Collection of real GitHub Actions workflows from popular repositories\",\n  \"size\": \"10k workflows\",\n  \"source\": \"GitHub public repositories\",\n  \"languages\": [\n    \"Python\",\n    \"JavaScript\",\n    \"Java\",\n    \"Go\",\n    \"Ruby\",\n    \"Rust\"\n  ],\n  \"categories\": [\n    \"test\",\n    \"build\",\n    \"deploy\",\n    \"release\"\n  ]\n}",
+  "metadata": {
+    "dataset_key": "gha-dataset"
+  }
+}

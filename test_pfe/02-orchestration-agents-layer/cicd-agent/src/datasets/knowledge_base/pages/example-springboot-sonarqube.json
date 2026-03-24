@@ -1,0 +1,20 @@
+{
+  "page_id": "example-springboot-sonarqube",
+  "page_type": "workflow_example",
+  "title": "Spring Boot Build, Test and SonarQube Analysis",
+  "source": "gha-dataset",
+  "tags": [
+    "workflow-example",
+    "java",
+    "gha-dataset",
+    "push",
+    "pull_request"
+  ],
+  "content": "name: Spring Boot Build, Test and SonarQube Analysis\ntrigger: push,pull_request\nlanguage: Java\nsource: gha-dataset\nsuccess_rate: 0.93\n\nyaml:\nname: Spring Boot CI\non: [push, pull_request]\njobs:\n  build-test-sonar:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-java@v4\n        with:\n          java-version: '17'\n          distribution: temurin\n          cache: maven\n      - name: Build and test\n        run: mvn -B clean verify\n      - name: SonarQube scan\n        env:\n          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}\n          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}\n        run: mvn -B sonar:sonar -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.token=$SONAR_TOKEN",
+  "metadata": {
+    "example_id": "java-sonar-001",
+    "language": "Java",
+    "trigger": "push,pull_request",
+    "success_rate": 0.93
+  }
+}

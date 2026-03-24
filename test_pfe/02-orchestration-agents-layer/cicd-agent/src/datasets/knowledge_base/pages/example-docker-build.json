@@ -1,0 +1,19 @@
+{
+  "page_id": "example-docker-build",
+  "page_type": "workflow_example",
+  "title": "Docker Build and Push",
+  "source": "gha-dataset",
+  "tags": [
+    "workflow-example",
+    "docker",
+    "gha-dataset",
+    "push"
+  ],
+  "content": "name: Docker Build and Push\ntrigger: push\nlanguage: Docker\nsource: gha-dataset\nsuccess_rate: 0.88\n\nyaml:\nname: Docker Build\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: docker/setup-buildx-action@v2\n      - uses: docker/build-push-action@v4\n        with:\n          context: .\n          push: false\n          tags: myapp:latest",
+  "metadata": {
+    "example_id": "docker-001",
+    "language": "Docker",
+    "trigger": "push",
+    "success_rate": 0.88
+  }
+}

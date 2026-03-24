@@ -1,0 +1,18 @@
+{
+  "page_id": "dataset-zenodo-3628771",
+  "page_type": "dataset",
+  "title": "Zenodo ICSE 2020 Docker DevOps Artifact",
+  "source": "zenodo-3628771",
+  "tags": [
+    "dockerfiles",
+    "dataset",
+    "zenodo",
+    "icse2020"
+  ],
+  "content": "{\n  \"record_id\": 3628771,\n  \"doi\": \"10.5281/zenodo.3628771\",\n  \"title\": \"ICSE 2020 Artifact for: Learning from, Understanding, and Supporting DevOps Artifacts for Docker\",\n  \"license\": \"mit-license\",\n  \"access_right\": \"open\",\n  \"version\": \"1.0.0\",\n  \"artifact_file\": {\n    \"name\": \"binnacle-icse2020-1.0.0.zip\",\n    \"size_bytes\": 209739455,\n    \"download_url\": \"https://zenodo.org/api/records/3628771/files/binnacle-icse2020-1.0.0.zip/content\"\n  },\n  \"api_record_url\": \"https://zenodo.org/api/records/3628771\",\n  \"web_record_url\": \"https://zenodo.org/records/3628771\"\n}",
+  "metadata": {
+    "dataset_key": "zenodo-3628771",
+    "access_type": "api",
+    "collected_on": "2026-03-24"
+  }
+}
