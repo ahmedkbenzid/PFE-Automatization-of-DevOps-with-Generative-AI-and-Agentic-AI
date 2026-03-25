@@ -16,12 +16,23 @@ class Guardrails:
         Check if the intent is valid and doesn't violate rules.
         """
         guardrail_prompt = PromptTemplate.from_template(
-            "You are a strict security and policy guardrail for an AI platform.\n"
-            "Analyze the input below to determine whether it is safe, related to DevOps/Platform Engineering, "
-            "and does not request harmful or malicious actions.\n\n"
+            "You are a security guardrail for a DevOps automation platform.\n"
+            "Your job is to ALLOW legitimate DevOps requests and BLOCK only truly harmful ones.\n\n"
+            "ALLOWED requests (approve these):\n"
+            "- Requests for Terraform scripts, Dockerfiles, CI/CD pipelines, Kubernetes manifests\n"
+            "- Infrastructure provisioning (EC2, S3, VPC, databases, etc.)\n"
+            "- Container configuration and orchestration\n"
+            "- Monitoring and observability setup\n"
+            "- General DevOps questions and best practices\n"
+            "- Requests mentioning 'script', 'template', 'configuration', 'manifest'\n\n"
+            "BLOCKED requests (only block these):\n"
+            "- Requests for malware, hacking tools, or exploits\n"
+            "- Requests to harm systems or steal data\n"
+            "- Content completely unrelated to DevOps/IT\n\n"
             "Input to analyze: {user_prompt}\n\n"
+            "If the request is about DevOps, infrastructure, or automation - ALLOW it.\n"
             "Return JSON ONLY with this schema:\n"
-            '{{"is_allowed": boolean, "reason": "why it was blocked/approved"}}'
+            '{{"is_allowed": boolean, "reason": "brief explanation"}}'
         )
         
         chain = guardrail_prompt | self.llm

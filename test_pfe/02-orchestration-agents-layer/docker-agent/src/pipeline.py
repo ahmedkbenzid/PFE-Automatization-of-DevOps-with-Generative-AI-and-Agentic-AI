@@ -52,11 +52,55 @@ class DockerPipeline:
         request: UserRequest,
         repository_path: str,
         write_output_files: bool = False,
+        repo_context: Optional[dict] = None,
     ) -> PipelineResult:
+        """Process request to generate Docker configuration.
+
+        Args:
+            request: User request object
+            repository_path: Path to the repository
+            write_output_files: Whether to write output files
+            repo_context: Optional pre-analyzed repository context from orchestrator
+                         (if provided, supplements local analysis)
+        """
         start = time.time()
 
         # Input from orchestrator: user intent + project context
         context, analysis = self.analyze_project.analyze(repository_path)
+
+        # If orchestrator provided repo context, merge/supplement local analysis
+        if repo_context:
+            try:
+                # Supplement local analysis with orchestrator context
+                if repo_context.get('languages') and not analysis.stack_type:
+                    # Try to infer stack from languages
+                    langs = repo_context.get('languages', [])
+                    if 'Python' in langs:
+                        analysis.stack_type = 'python'
+                    elif 'Java' in langs:
+                        analysis.stack_type = 'java'
+                    elif 'JavaScript' in langs or 'TypeScript' in langs:
+                        analysis.stack_type = 'node'
+                    elif 'Go' in langs:
+                        analysis.stack_type = 'go'
+                    elif 'Rust' in langs:
+                        analysis.stack_type = 'rust'
+                    elif 'Ruby' in langs:
+                        analysis.stack_type = 'ruby'
+
+                # Supplement with frameworks info
+                if repo_context.get('frameworks'):
+                    for framework in repo_context.get('frameworks', []):
+                        if framework.lower() == 'spring boot':
+                            analysis.stack_type = analysis.stack_type or 'java'
+                        elif framework.lower() in ('django', 'flask', 'fastapi'):
+                            analysis.stack_type = analysis.stack_type or 'python'
+                        elif framework.lower() in ('next.js', 'nuxt.js', 'angular', 'vue.js', 'react'):
+                            analysis.stack_type = analysis.stack_type or 'node'
+            except (KeyError, AttributeError, TypeError):
+                # If repo_context is malformed, continue with local analysis
+                pass
+
         prompt_stack, prompt_stack_confidence, prompt_stack_scores = self.prompt_intent_resolver.resolve_stack(
             request.text
         )
@@ -138,11 +182,25 @@ class DockerPipeline:
         return images
 
 
-def run_pipeline(request_text: str, repository_path: str, write_output_files: bool = False) -> PipelineResult:
+def run_pipeline(
+    request_text: str,
+    repository_path: str,
+    write_output_files: bool = False,
+    repo_context: Optional[dict] = None,
+) -> PipelineResult:
+    """Run the Docker pipeline.
+
+    Args:
+        request_text: User request text
+        repository_path: Path to the repository
+        write_output_files: Whether to write output files
+        repo_context: Optional pre-analyzed repository context from orchestrator
+    """
     request = UserRequest(text=request_text, repository_path=repository_path)
     pipeline = DockerPipeline()
     return pipeline.process_request(
         request=request,
         repository_path=repository_path,
         write_output_files=write_output_files,
+        repo_context=repo_context,
     )

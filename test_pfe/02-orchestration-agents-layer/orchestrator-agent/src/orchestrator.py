@@ -1,199 +1,180 @@
-if __package__:
-    from .config import OrchestratorConfig
-    from .state_manager import StateManager
-    from .guardrails import Guardrails
-    from .intent_router import IntentRouter
-else:
-    from config import OrchestratorConfig
-    from state_manager import StateManager
-    from guardrails import Guardrails
-    from intent_router import IntentRouter
+"""
+Orchestrator - LangGraph-based Multi-Agent Coordination.
 
-import json
-import os
-import subprocess
-import sys
-from typing import Any, Dict, List
+This module provides the main Orchestrator class that coordinates
+requests through guardrails, routing, and agent execution using LangGraph.
+
+The orchestrator:
+1. Validates requests through security guardrails
+2. Analyzes repositories (local or GitHub)
+3. Routes requests to appropriate agents
+4. Executes agents and collects results
+5. Returns structured output
+
+Architecture:
+- Uses LangGraph for state management and flow control
+- Supports cicd-agent, docker-agent, and iac-agent
+- Provides backward-compatible interface
+"""
+
+from typing import Any, Dict, Optional
+
+# Import the LangGraph-based orchestrator
+if __package__:
+    from .orchestrator_graph import run_orchestrator, get_compiled_graph, visualize_graph
+    from .graph_state import OrchestratorState, create_initial_state, state_to_legacy_format
+    from .config import OrchestratorConfig
+else:
+    from orchestrator_graph import run_orchestrator, get_compiled_graph, visualize_graph
+    from graph_state import OrchestratorState, create_initial_state, state_to_legacy_format
+    from config import OrchestratorConfig
+
 
 class Orchestrator:
+    """
+    LangGraph-based orchestrator for DevOps multi-agent coordination.
+
+    This class provides a backward-compatible interface to the LangGraph
+    orchestration system. It handles:
+    - Security guardrails validation
+    - Repository analysis (local paths and GitHub URLs)
+    - Intent-based routing to specialized agents
+    - Agent execution and result collection
+
+    Usage:
+        orchestrator = Orchestrator()
+        result = orchestrator.process_request(
+            "Create a CI/CD pipeline for my Python project",
+            repository_path="/path/to/repo"
+        )
+
+    The result contains:
+        - status: "completed", "blocked", or "error"
+        - state: Dictionary with agent outputs, errors, etc.
+    """
+
     def __init__(self):
+        """
+        Initialize the orchestrator.
+
+        This validates that required configuration (API keys) is present
+        and prepares the LangGraph for execution.
+        """
         self.config = OrchestratorConfig()
-        
-        # In a real environment, you'd handle API keys robustly
-        api_key = self.config.LLM_API_KEY
-        if not api_key:
+
+        # Validate API key
+        if not self.config.LLM_API_KEY:
             raise ValueError("GROQ_API_KEY is missing from environment. Cannot initialize orchestrator.")
-            
-        self.state_manager = StateManager()
-        self.guardrails = Guardrails(api_key=api_key, model_name=self.config.MODEL_NAME)
-        self.router = IntentRouter(api_key=api_key, model_name=self.config.MODEL_NAME)
 
-    def _resolve_agent_path(self, agent_folder_name: str) -> str:
-        return os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", agent_folder_name)
-        )
+        # Get the compiled graph (this also initializes components)
+        self._graph = get_compiled_graph()
 
-    def _invoke_python_agent(
+    def process_request(
         self,
-        *,
-        agent_name: str,
-        agent_folder_name: str,
-        run_code: str,
-        args: List[str],
-        result_prefix: str,
+        user_prompt: str,
+        repository_path: Optional[str] = None,
+        github_url: Optional[str] = None
     ) -> Dict[str, Any]:
-        agent_path = self._resolve_agent_path(agent_folder_name)
-        if not os.path.exists(agent_path):
-            raise FileNotFoundError(f"Could not find {agent_name} at: {agent_path}")
+        """
+        Process a user request through the orchestration pipeline.
 
-        completed = subprocess.run(
-            [sys.executable, "-c", run_code, *args],
-            cwd=agent_path,
-            capture_output=True,
-            text=True,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-            check=False,
+        This is the main entry point for handling requests. The request
+        flows through:
+        1. Guardrails - Security validation
+        2. Repository Analysis - Extract context from repos
+        3. Intent Routing - Determine target agents
+        4. Agent Execution - Run specialized agents
+        5. Cleanup - Remove temporary resources
+
+        Args:
+            user_prompt: The user's natural language request
+            repository_path: Optional local path to a repository
+            github_url: Optional GitHub URL to clone and analyze
+
+        Returns:
+            Dictionary containing:
+                - status: "completed", "blocked", or "error"
+                - state: {
+                    user_intent: str,
+                    target_agents: List[str],
+                    guardrail_status: str,
+                    repo_context: Dict,
+                    agent_outputs: Dict,
+                    errors: List[str]
+                }
+
+        Example:
+            >>> orchestrator = Orchestrator()
+            >>> result = orchestrator.process_request("Create Terraform for S3")
+            >>> print(result["status"])
+            "completed"
+            >>> print(result["state"]["agent_outputs"]["iac-agent"])
+            {"status": "success", "data": {...}}
+        """
+        return run_orchestrator(
+            user_prompt=user_prompt,
+            repository_path=repository_path,
+            github_url=github_url,
         )
 
-        if completed.returncode != 0:
-            raise RuntimeError((completed.stderr or completed.stdout or f"Unknown {agent_name} error").strip())
-
-        for line in (completed.stdout or "").splitlines():
-            if line.startswith(result_prefix):
-                return json.loads(line[len(result_prefix):])
-
-        raise RuntimeError(f"{agent_name} returned no structured result")
-
-    def process_request(self, user_prompt: str, repository_path: str | None = None) -> dict:
+    def get_graph_visualization(self) -> str:
         """
-        Main entry point for handling a user request through the layer 2 architecture.
+        Get a Mermaid diagram of the orchestration graph.
+
+        This can be rendered at https://mermaid.live for visualization.
+
+        Returns:
+            Mermaid diagram string
         """
-        # --- 1. GUARDRAILS ---
-        print("[Orchestrator] 🛡️ Running Guardrails Check...")
-        guard_result = self.guardrails.validate_input(user_prompt)
-        
-        if not guard_result.get("is_allowed", False):
-            print(f"[Orchestrator] ⛔ Blocked by Guardrails: {guard_result.get('reason')}")
-            self.state_manager.update_guardrail_status("blocked")
-            self.state_manager.add_error(guard_result.get("reason", "Violated input policies."))
-            
-            return {
-                "status": "blocked",
-                "state": self.state_manager.get_state().dict()
-            }
-        
-        self.state_manager.update_guardrail_status("approved")
-        print("[Orchestrator] ✅ Guardrails Passed.")
+        return visualize_graph()
 
-        # --- 2. INTENT ROUTING ---
-        print("[Orchestrator] 🧭 Analyzing User Intent & Routing...")
-        route_result = self.router.route(user_prompt)
-        
-        # Update State
-        primary_agent = route_result.get("primary_agent")
-        secondary_agents = route_result.get("secondary_agents", [])
-        
-        target_agents = []
-        if primary_agent and primary_agent != "error":
-            target_agents.append(primary_agent)
-        target_agents.extend(secondary_agents)
-        
-        self.state_manager.update_intent(
-            intent=route_result.get("reasoning", "Routing execution"), 
-            target_agents=target_agents
-        )
-        self.state_manager.store_agent_output("intent_router", route_result)
-        
-        print(f"[Orchestrator] 🔀 Assigned to: Primary -> {primary_agent} | Secondary -> {secondary_agents}")
-        print(f"[Orchestrator] 💡 Reasoning: {route_result.get('reasoning')}")
 
-        effective_repo_path = repository_path or self.config.DEFAULT_REPOSITORY_PATH
-
-        # --- 3. EXECUTION DISPATCHER ---
-        print("[Orchestrator] 🚀 Dispatching to Target Agents...")
-        for agent in target_agents:
-            if agent == "cicd-agent":
-                print(f"[Orchestrator] -> Invoking {agent} locally")
-                try:
-                    run_code = (
-                        "import json,sys; "
-                        "from dataclasses import asdict; "
-                        "from src.pipeline import CICDPipeline; "
-                        "from src.models.types import UserRequest; "
-                        "req=UserRequest(text=sys.argv[1]); "
-                        "result=CICDPipeline().process_request(req, repo_path=sys.argv[2]); "
-                        "print('CICD_RESULT_JSON=' + json.dumps(asdict(result), default=str))"
-                    )
-                    cicd_result = self._invoke_python_agent(
-                        agent_name="cicd-agent",
-                        agent_folder_name="cicd-agent",
-                        run_code=run_code,
-                        args=[user_prompt, effective_repo_path],
-                        result_prefix="CICD_RESULT_JSON=",
-                    )
-                    
-                    print(f"[Orchestrator] <- Result received from {agent}")
-                    self.state_manager.store_agent_output(agent, {"status": "success", "data": cicd_result})
-                    
-                except Exception as e:
-                    print(f"[Orchestrator] ❌ Error executing {agent}: {str(e)}")
-                    
-                    self.state_manager.store_agent_output(agent, {"status": "error", "message": str(e)})
-                    self.state_manager.add_error(f"{agent} failed: {str(e)}")
-            elif agent == "docker-agent":
-                print(f"[Orchestrator] -> Invoking {agent} locally")
-                try:
-                    run_code = (
-                        "import json,sys; "
-                        "from dataclasses import asdict; "
-                        "from src.pipeline import run_pipeline; "
-                        "result=run_pipeline(sys.argv[1], sys.argv[2], False); "
-                        "print('DOCKER_RESULT_JSON=' + json.dumps(asdict(result), default=str))"
-                    )
-                    docker_result = self._invoke_python_agent(
-                        agent_name="docker-agent",
-                        agent_folder_name="docker-agent",
-                        run_code=run_code,
-                        args=[user_prompt, effective_repo_path],
-                        result_prefix="DOCKER_RESULT_JSON=",
-                    )
-
-                    print(f"[Orchestrator] <- Result received from {agent}")
-                    self.state_manager.store_agent_output(agent, {"status": "success", "data": docker_result})
-
-                except Exception as e:
-                    print(f"[Orchestrator] ❌ Error executing {agent}: {str(e)}")
-                    self.state_manager.store_agent_output(agent, {"status": "error", "message": str(e)})
-                    self.state_manager.add_error(f"{agent} failed: {str(e)}")
-            else:
-                print(f"[Orchestrator] ⚠️ Agent '{agent}' is not yet integrated. Skipping execution.")
-                self.state_manager.store_agent_output(agent, {"status": "skipped", "message": "Not integrated"})
-        
-        return {
-            "status": "completed",
-            "state": self.state_manager.get_state().model_dump() # model_dump() replaces dict() in newer pydantic
-        }
+# =============================================================================
+# DIRECT EXECUTION (for testing)
+# =============================================================================
 
 if __name__ == "__main__":
     import pprint
-    
-    # Let's test the Orchestrator with the complex Spring Boot prompt you used recently!
+
+    # Test prompt
     test_prompt = (
         "if i push in github spring boot micro-service analyse the code with sonarqube "
         "then build with maven then do continuous delivery with ansible to deploy with "
         "kubernetes by pulling a dockerhub image then do monitoring with grafana and prometheus"
     )
-    
+
     try:
-        print(f"=== Testing Orchestrator ===")
+        print("=== Testing LangGraph Orchestrator ===")
         print(f"Prompt: '{test_prompt}'\n")
-        
+
         orchestrator = Orchestrator()
+
+        # Show graph structure
+        print("=== Graph Structure (Mermaid) ===")
+        print(orchestrator.get_graph_visualization())
+        print()
+
+        # Test 1: Prompt-only mode (no repo)
+        print("\n--- Mode 1: Prompt-only (no repository) ---")
         result = orchestrator.process_request(test_prompt)
-        
+
         print("\n=== Final Conversation State ===")
         pprint.pprint(result)
-        
+
+        # Test 2: With local repo path (uncomment to test)
+        # print("\n--- Mode 2: With local repository ---")
+        # result = orchestrator.process_request(
+        #     test_prompt,
+        #     repository_path="/path/to/your/repo"
+        # )
+
+        # Test 3: With GitHub URL (uncomment to test)
+        # print("\n--- Mode 3: With GitHub URL ---")
+        # result = orchestrator.process_request(
+        #     test_prompt,
+        #     github_url="https://github.com/user/repo"
+        # )
+
     except ValueError as e:
         print(f"\nConfiguration Error: {e}")
         print("Please ensure you have a .env file with GROQ_API_KEY in the orchestrator-agent folder.")

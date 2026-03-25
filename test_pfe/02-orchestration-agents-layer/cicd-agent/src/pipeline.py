@@ -14,7 +14,7 @@ from src.config import Config
 from src.models.types import (
     UserRequest, PipelineResult, RequestType, GeneratedWorkflow
 )
-from src.components.llm_client import GroqLLMClient
+from src.components.llm_client import LLMClient
 from src.components.intent_layer import IntentLayer
 from src.components.prompt_intent_resolver import PromptIntentResolver
 from src.components.context_collector import ContextCollector
@@ -29,8 +29,8 @@ from src.datasets.dataset_manager import DatasetManager
 class CICDPipeline:
     """Main CI/CD Agent Pipeline"""
     
-    def __init__(self, api_key: Optional[str] = None, strict_security: bool = False):
-        self.llm_client = GroqLLMClient(api_key=api_key)
+    def __init__(self, strict_security: bool = False):
+        self.llm_client = LLMClient()
         self.intent_layer = IntentLayer(self.llm_client)
         self.prompt_intent_resolver = PromptIntentResolver()
         self.context_collector = ContextCollector()
@@ -51,8 +51,17 @@ class CICDPipeline:
         }
     
     def process_request(self, request: UserRequest, repo_path: Optional[str] = None,
-                       max_retries: Optional[int] = None) -> PipelineResult:
-        """Main pipeline: process user request to generated workflow"""
+                       max_retries: Optional[int] = None,
+                       repo_context: Optional[Dict[str, Any]] = None) -> PipelineResult:
+        """Main pipeline: process user request to generated workflow
+
+        Args:
+            request: User request object
+            repo_path: Optional path to local repository
+            max_retries: Maximum number of retries for generation
+            repo_context: Optional pre-analyzed repository context from orchestrator
+                         (if provided, skips local context collection)
+        """
         
         max_retries = max_retries or Config.MAX_RETRIES
         start_time = time.time()
@@ -76,15 +85,31 @@ class CICDPipeline:
             errors.append(f"Intent extraction failed: {str(e)}")
             return self._create_failed_result(errors, 0, time.time() - start_time)
         
-        # Step 2: Context collection
+        # Step 2: Context collection (use pre-analyzed context if provided)
         print("[STEP 2] Collecting repository context...")
         try:
-            repo_context = self.context_collector.collect_from_local_repo(repo_path) if repo_path else {}
-            print(f"✓ Languages detected: {', '.join(repo_context.get('languages', []))}")
-            print(f"✓ Build system: {repo_context.get('build_system', 'None')}\n")
+            if repo_context:
+                # Use pre-analyzed context from orchestrator
+                print("  (Using pre-analyzed context from orchestrator)")
+                # Convert orchestrator format to local format if needed
+                local_repo_context = {
+                    'languages': repo_context.get('languages', []),
+                    'build_system': repo_context.get('build_system'),
+                    'package_managers': repo_context.get('package_managers', []),
+                    'frameworks': repo_context.get('frameworks', []),
+                    'has_dockerfile': repo_context.get('has_dockerfile', False),
+                    'has_ci_workflows': repo_context.get('has_ci_workflows', False),
+                    'existing_workflows': repo_context.get('existing_workflows', []),
+                }
+            elif repo_path:
+                local_repo_context = self.context_collector.collect_from_local_repo(repo_path)
+            else:
+                local_repo_context = {}
+            print(f"✓ Languages detected: {', '.join(local_repo_context.get('languages', []))}")
+            print(f"✓ Build system: {local_repo_context.get('build_system', 'None')}\n")
         except Exception as e:
             errors.append(f"Context collection failed: {str(e)}")
-            repo_context = {}
+            local_repo_context = {}
         
         # Step 3: Find relevant examples from datasets
         print("[STEP 3] Finding relevant examples from datasets...")
@@ -93,10 +118,10 @@ class CICDPipeline:
             preferred_languages = self._infer_preferred_languages(
                 request.text,
                 intent_metadata.keywords,
-                repo_context,
+                local_repo_context,
             )
 
-            for lang in repo_context.get('languages', []):
+            for lang in local_repo_context.get('languages', []):
                 examples = self.dataset_manager.find_similar_examples(lang)
                 relevant_examples.extend(examples)
 
@@ -118,8 +143,8 @@ class CICDPipeline:
             )
 
             retrieval_query_parts = [request.text, intent_metadata.intent, " ".join(intent_metadata.keywords)]
-            if repo_context.get("languages"):
-                retrieval_query_parts.append(" ".join(repo_context.get("languages", [])))
+            if local_repo_context.get("languages"):
+                retrieval_query_parts.append(" ".join(local_repo_context.get("languages", [])))
             if preferred_languages:
                 retrieval_query_parts.append(" ".join(preferred_languages))
             knowledge_query = " ".join(part for part in retrieval_query_parts if part).strip()
@@ -146,7 +171,7 @@ class CICDPipeline:
                 prompt = self.intent_layer.build_context_prompt(
                     user_request=request,
                     intent=intent_metadata,
-                    repo_context=repo_context,
+                    repo_context=local_repo_context,
                     knowledge_pages=retrieved_knowledge,
                     reference_examples=relevant_examples[:2],
                 )
@@ -227,7 +252,7 @@ class CICDPipeline:
                 workflow_name=f"{request.request_type.value}-workflow",
                 metadata={
                     'intent': intent_metadata.intent,
-                    'repo_context': repo_context,
+                    'repo_context': local_repo_context,
                 }
             )
             checksum_preview = lock_file.checksum[:12] if lock_file and lock_file.checksum else "n/a"
@@ -264,17 +289,23 @@ class CICDPipeline:
             errors=errors,
         )
     
-    def _create_failed_result(self, errors: list, attempts: int, latency_ms: float) -> PipelineResult:
-        """Create a failed pipeline result"""
+    def _create_failed_result(self, errors: list, attempts: int, elapsed_seconds: float) -> PipelineResult:
+        """Create a failed pipeline result
+
+        Args:
+            errors: List of error messages
+            attempts: Number of attempts made
+            elapsed_seconds: Time elapsed in seconds (will be converted to ms)
+        """
         self.metrics['failed_workflows'] += 1
-        
+
         return PipelineResult(
             success=False,
             workflow_yaml="",
             lock_file=None,
             validation_result=None,
             security_audit=None,
-            generation_latency_ms=latency_ms * 1000,
+            generation_latency_ms=elapsed_seconds * 1000,
             attempts=attempts,
             errors=errors,
         )

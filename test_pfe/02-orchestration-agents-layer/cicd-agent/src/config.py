@@ -15,8 +15,14 @@ except UnicodeDecodeError:
 
 class Config:
     """Application configuration"""
-    
-    # Groq LLM Configuration
+
+    # LLM Provider Configuration (ollama or groq)
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
+
+    # Ollama Cloud Configuration (primary)
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud")
+
+    # Groq LLM Configuration (fallback)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     GROQ_FALLBACK_MODELS: list[str] = [
@@ -24,8 +30,14 @@ class Config:
         for model in os.getenv("GROQ_FALLBACK_MODELS", "llama-3.3-70b-versatile,llama3-70b-8192").split(",")
         if model.strip()
     ]
-    GROQ_MAX_TOKENS: int = 2048
-    GROQ_TEMPERATURE: float = 0.3
+
+    # Common LLM Settings
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
+    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+
+    # Legacy aliases
+    GROQ_MAX_TOKENS: int = LLM_MAX_TOKENS
+    GROQ_TEMPERATURE: float = LLM_TEMPERATURE
     
     # GitHub Configuration
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
@@ -46,7 +58,11 @@ class Config:
     @classmethod
     def validate(cls) -> bool:
         """Validate required configuration"""
-        if not cls.GROQ_API_KEY:
-            print("Warning: GROQ_API_KEY not set")
-            return False
+        if cls.LLM_PROVIDER == "ollama":
+            # Ollama cloud models use ollama CLI login, no API key needed here
+            return True
+        else:
+            if not cls.GROQ_API_KEY:
+                print("Warning: GROQ_API_KEY not set")
+                return False
         return True

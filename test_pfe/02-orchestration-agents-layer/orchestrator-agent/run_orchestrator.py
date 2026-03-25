@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+import json
 import os
 import sys
 from typing import Any, Dict, Optional, Set
@@ -11,27 +12,121 @@ def _get_agent_output(state: Dict[str, Any], agent_name: str) -> Optional[Dict[s
     return output if isinstance(output, dict) else None
 
 
-def _infer_requested_artifacts(user_prompt: str, state: Dict[str, Any]) -> Set[str]:
+def _infer_requested_artifacts_with_llm(user_prompt: str, state: Dict[str, Any]) -> Set[str]:
+    """
+    Use LLM to understand which artifacts the user is requesting.
+
+    This is more intelligent than keyword matching - it understands the intent
+    even when the user uses different terms or paraphrases.
+    """
+    try:
+        from src.config import OrchestratorConfig
+        from langchain_groq import ChatGroq
+        from langchain_core.prompts import PromptTemplate
+        from pydantic import SecretStr
+
+        config = OrchestratorConfig()
+        api_key = config.LLM_API_KEY
+
+        if not api_key:
+            return _infer_requested_artifacts_with_keywords(user_prompt, state)
+
+        llm = ChatGroq(
+            api_key=SecretStr(api_key),
+            model=config.MODEL_NAME,
+            temperature=0
+        )
+
+        artifact_prompt = PromptTemplate.from_template(
+            "Analyze the user request and determine which DevOps artifacts they are asking for.\n\n"
+            "Available artifacts:\n"
+            "- yaml: GitHub Actions workflows, CI/CD pipelines, Jenkins pipelines (YAML format)\n"
+            "- dockerfile: Dockerfile, container configurations, Docker Compose\n"
+            "- terraform: Terraform HCL scripts, Infrastructure-as-Code, cloud resources (AWS, Azure, GCP)\n\n"
+            "User Request: {user_prompt}\n\n"
+            "Respond ONLY with a JSON object:\n"
+            '{{\n'
+            '  "requested_artifacts": ["artifact1", "artifact2"],\n'
+            '  "reasoning": "Why these artifacts were selected"\n'
+            '}}\n\n'
+            "If no specific artifacts are mentioned, return an empty array."
+        )
+
+        chain = artifact_prompt | llm
+        response = chain.invoke({"user_prompt": user_prompt})
+
+        raw_content = response.content
+        if isinstance(raw_content, str):
+            content = raw_content.strip()
+        elif isinstance(raw_content, list):
+            content = "".join(
+                part if isinstance(part, str) else str(part.get("text", ""))
+                for part in raw_content
+            ).strip()
+        else:
+            content = str(raw_content).strip()
+
+        if content.startswith("```json"):
+            content = content[7:-3]
+        elif content.startswith("```"):
+            content = content[3:-3]
+
+        result = json.loads(content.strip())
+        requested_artifacts = result.get("requested_artifacts", [])
+        requested = set(requested_artifacts)
+
+        # If still empty, fallback to agent-based inference
+        if not requested:
+            target_agents = state.get("target_agents", []) if isinstance(state, dict) else []
+            if "cicd-agent" in target_agents:
+                requested.add("yaml")
+            if "docker-agent" in target_agents:
+                requested.add("dockerfile")
+            if "iac-agent" in target_agents:
+                requested.add("terraform")
+
+        return requested
+
+    except Exception as e:
+        print(f"[Warning] LLM artifact detection failed: {e}. Using keyword fallback.")
+        return _infer_requested_artifacts_with_keywords(user_prompt, state)
+
+
+def _infer_requested_artifacts_with_keywords(user_prompt: str, state: Dict[str, Any]) -> Set[str]:
+    """
+    Fallback: Use keyword matching when LLM is unavailable.
+    """
     prompt = user_prompt.lower()
     requested: Set[str] = set()
 
     yaml_tokens = ["yaml", "yml", "workflow", "github actions", "gha", "ci", "pipeline"]
     docker_tokens = ["docker", "dockerfile", "container", "image", "compose"]
+    terraform_tokens = ["terraform", "hcl", "iac", "infrastructure", "ec2", "s3", "vpc", "aws", "azure", "gcp"]
 
     if any(token in prompt for token in yaml_tokens):
         requested.add("yaml")
     if any(token in prompt for token in docker_tokens):
         requested.add("dockerfile")
+    if any(token in prompt for token in terraform_tokens):
+        requested.add("terraform")
 
-    # If prompt is ambiguous, infer from routed target agents.
     if not requested:
         target_agents = state.get("target_agents", []) if isinstance(state, dict) else []
         if "cicd-agent" in target_agents:
             requested.add("yaml")
         if "docker-agent" in target_agents:
             requested.add("dockerfile")
+        if "iac-agent" in target_agents:
+            requested.add("terraform")
 
     return requested
+
+
+def _infer_requested_artifacts(user_prompt: str, state: Dict[str, Any]) -> Set[str]:
+    """
+    Main entry point: Try LLM first, fallback to keywords.
+    """
+    return _infer_requested_artifacts_with_llm(user_prompt, state)
 
 
 def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scope: str) -> None:
@@ -39,12 +134,14 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
 
     cicd = _get_agent_output(state, "cicd-agent")
     docker = _get_agent_output(state, "docker-agent")
+    iac = _get_agent_output(state, "iac-agent")
     requested = _infer_requested_artifacts(user_prompt, state)
 
     print("\n=== Agent Artifacts ===")
 
     should_print_yaml = output_scope == "all" or "yaml" in requested
     should_print_docker = output_scope == "all" or "dockerfile" in requested
+    should_print_terraform = output_scope == "all" or "terraform" in requested
 
     if should_print_yaml:
         if cicd and cicd.get("status") == "success":
@@ -78,10 +175,57 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
             print("\n--- Dockerfile (.txt) ---")
             print(f"docker-agent did not succeed: {docker.get('message', docker.get('status', 'unknown'))}")
 
-    if output_scope != "all" and not should_print_yaml and not should_print_docker:
+    if should_print_terraform:
+        if iac and iac.get("status") == "success":
+            iac_data = iac.get("data", {})
+            if isinstance(iac_data, dict):
+                terraform_config = iac_data.get("terraform_config", {})
+                if isinstance(terraform_config, dict):
+                    # Try to get combined HCL or individual files
+                    combined_hcl = terraform_config.get("combined_hcl") or terraform_config.get("get_combined_hcl()")
+
+                    print("\n--- Terraform HCL Scripts ---")
+
+                    # Display individual files if available
+                    if terraform_config.get("providers_tf"):
+                        print("\n# providers.tf")
+                        print(terraform_config.get("providers_tf"))
+
+                    if terraform_config.get("variables_tf"):
+                        print("\n# variables.tf")
+                        print(terraform_config.get("variables_tf"))
+
+                    if terraform_config.get("main_tf"):
+                        print("\n# main.tf")
+                        print(terraform_config.get("main_tf"))
+
+                    if terraform_config.get("outputs_tf"):
+                        print("\n# outputs.tf")
+                        print(terraform_config.get("outputs_tf"))
+
+                    # Display metadata
+                    provider = terraform_config.get("provider")
+                    resources = terraform_config.get("resources", [])
+                    is_valid = terraform_config.get("is_valid", False)
+
+                    print(f"\n--- Terraform Metadata ---")
+                    print(f"Provider: {provider}")
+                    print(f"Resources: {', '.join(resources) if resources else 'None'}")
+                    print(f"Valid: {is_valid}")
+                else:
+                    print("\n--- Terraform HCL Scripts ---")
+                    print("No terraform_config returned by iac-agent.")
+            else:
+                print("\n--- Terraform HCL Scripts ---")
+                print("No data returned by iac-agent.")
+        elif iac:
+            print("\n--- Terraform HCL Scripts ---")
+            print(f"iac-agent did not succeed: {iac.get('message', iac.get('status', 'unknown'))}")
+
+    if output_scope != "all" and not should_print_yaml and not should_print_docker and not should_print_terraform:
         print("No specific artifact requested in prompt; nothing to display.")
-    elif not cicd and not docker:
-        print("No cicd-agent or docker-agent artifacts found in orchestrator output.")
+    elif not cicd and not docker and not iac:
+        print("No agent artifacts found in orchestrator output.")
 
 
 def main() -> int:
@@ -92,6 +236,12 @@ def main() -> int:
         type=str,
         default="",
         help="Target repository path used by downstream agents",
+    )
+    parser.add_argument(
+        "--github-url",
+        type=str,
+        default="",
+        help="GitHub repository URL to clone and analyze (optional)",
     )
     parser.add_argument(
         "--output-scope",
@@ -120,16 +270,19 @@ def main() -> int:
         return 1
 
     repo_path = args.repo_path.strip() if args.repo_path.strip() else None
+    github_url = args.github_url.strip() if args.github_url.strip() else None
 
     print("=== Testing Orchestrator (root launcher) ===")
     print(f"Prompt: '{user_prompt}'")
     if repo_path:
         print(f"Repository Path: '{repo_path}'")
+    if github_url:
+        print(f"GitHub URL: '{github_url}'")
     print()
 
     try:
         orchestrator = Orchestrator()
-        result = orchestrator.process_request(user_prompt, repository_path=repo_path)
+        result = orchestrator.process_request(user_prompt, repository_path=repo_path, github_url=github_url)
         status = result.get("status", "unknown") if isinstance(result, dict) else "unknown"
         errors = result.get("state", {}).get("errors", []) if isinstance(result, dict) else []
         print("\n=== Orchestration Summary ===")
