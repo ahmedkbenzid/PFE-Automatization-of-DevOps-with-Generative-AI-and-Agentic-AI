@@ -151,28 +151,37 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
     try:
         repo_context: RepoContext = _repo_analyzer.analyze(repo_path, github_url)
 
+        # Map new RepoContext to old RepoContextDict for backward compatibility
+        is_available = repo_context.error is None and repo_context.analysis_mode != "prompt-only"
+        source = {
+            "mcp": "github",
+            "local": "local",
+            "prompt-only": "none"
+        }.get(repo_context.analysis_mode, "none")
+
         context_dict: RepoContextDict = {
-            "is_available": repo_context.is_available,
-            "source": repo_context.source,
-            "path": repo_context.path,
+            "is_available": is_available,
+            "source": source,
+            "path": repo_path or "",
             "languages": repo_context.languages,
             "build_system": repo_context.build_system,
             "package_managers": repo_context.package_managers,
             "frameworks": repo_context.frameworks,
             "has_dockerfile": repo_context.has_dockerfile,
             "has_docker_compose": repo_context.has_docker_compose,
-            "has_ci_workflows": repo_context.has_ci_workflows,
-            "existing_workflows": repo_context.existing_workflows,
-            "config_files": repo_context.config_files,
+            "has_ci_workflows": repo_context.has_github_actions,
+            "existing_workflows": repo_context.ci_workflows,
+            "config_files": {},
         }
 
-        if repo_context.is_available:
+        if is_available:
             print(f"[Orchestrator] Repo Analysis Complete:")
+            print(f"    - Source: {source}")
             print(f"    - Languages: {repo_context.languages}")
             print(f"    - Build System: {repo_context.build_system or 'unknown'}")
             print(f"    - Frameworks: {repo_context.frameworks}")
             print(f"    - Has Dockerfile: {repo_context.has_dockerfile}")
-            print(f"    - Has CI Workflows: {repo_context.has_ci_workflows}")
+            print(f"    - Has GitHub Actions: {repo_context.has_github_actions}")
         else:
             print("[Orchestrator] Repository not accessible - using prompt-only mode")
 

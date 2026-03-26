@@ -14,7 +14,23 @@ class Guardrails:
     def validate_input(self, user_prompt: str) -> dict:
         """
         Check if the intent is valid and doesn't violate rules.
+        Fast-path: Common DevOps keywords bypass LLM validation.
         """
+        # Fast-path: DevOps keywords → instant approval
+        devops_keywords = [
+            "github actions", "workflow", "yaml", "yml", "ci/cd", "pipeline",
+            "docker", "dockerfile", "container", "terraform", "hcl", "iac",
+            "kubernetes", "k8s", "helm", "aws", "azure", "gcp",
+            "jenkins", "gitlab", "sonarqube", "maven", "gradle", "npm",
+            "build", "test", "deploy", "ansible", "prometheus", "grafana",
+            "nginx", "apache", "linux", "git", "github", "devops"
+        ]
+
+        prompt_lower = user_prompt.lower()
+        if any(keyword in prompt_lower for keyword in devops_keywords):
+            return {"is_allowed": True, "reason": "DevOps keyword detected (fast-path)"}
+
+        # Slow-path: Use LLM for ambiguous requests
         guardrail_prompt = PromptTemplate.from_template(
             "You are a security guardrail for a DevOps automation platform.\n"
             "Your job is to ALLOW legitimate DevOps requests and BLOCK only truly harmful ones.\n\n"
@@ -23,20 +39,17 @@ class Guardrails:
             "- Infrastructure provisioning (EC2, S3, VPC, databases, etc.)\n"
             "- Container configuration and orchestration\n"
             "- Monitoring and observability setup\n"
-            "- General DevOps questions and best practices\n"
-            "- Requests mentioning 'script', 'template', 'configuration', 'manifest'\n\n"
+            "- General DevOps questions and best practices\n\n"
             "BLOCKED requests (only block these):\n"
             "- Requests for malware, hacking tools, or exploits\n"
             "- Requests to harm systems or steal data\n"
             "- Content completely unrelated to DevOps/IT\n\n"
-            "Input to analyze: {user_prompt}\n\n"
-            "If the request is about DevOps, infrastructure, or automation - ALLOW it.\n"
-            "Return JSON ONLY with this schema:\n"
-            '{{"is_allowed": boolean, "reason": "brief explanation"}}'
+            "Input: {user_prompt}\n"
+            "Return JSON: {{'is_allowed': boolean, 'reason': 'brief explanation'}}"
         )
-        
+
         chain = guardrail_prompt | self.llm
-        
+
         try:
             response = chain.invoke({"user_prompt": user_prompt})
             return self._parse_guardrail_json(response.content)
