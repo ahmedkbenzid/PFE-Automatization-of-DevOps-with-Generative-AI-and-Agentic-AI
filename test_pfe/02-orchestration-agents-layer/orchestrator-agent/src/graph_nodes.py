@@ -340,7 +340,7 @@ def _invoke_python_agent(
     run_code: str,
     args: list,
     result_prefix: str,
-    timeout: int = 120,  # 2 minute timeout per agent
+    timeout: int = 120,
 ) -> Dict[str, Any]:
     """
     Invoke a Python agent as a subprocess and collect results.
@@ -353,26 +353,50 @@ def _invoke_python_agent(
         raise FileNotFoundError(f"Could not find {agent_name} at: {agent_path}")
 
     try:
+        # Prepare environment with PYTHONPATH
+        env = os.environ.copy()
+        env["PYTHONPATH"] = agent_path + os.pathsep + os.environ.get("PYTHONPATH", "")
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        # Pass arguments as JSON to avoid shell escaping issues
+        args_json = json.dumps(args)
+
+        # Modified run_code: deserialize args from JSON
+        safe_run_code = (
+            f"import json, sys; "
+            f"args = json.loads({repr(args_json)}); "
+            f"sys.argv = [''] + args; "
+            f"{run_code}"
+        )
+
         completed = subprocess.run(
-            [sys.executable, "-c", run_code, *args],
+            [sys.executable, "-c", safe_run_code],
             cwd=agent_path,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            env=env,
             check=False,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"{agent_name} timed out after {timeout}s. Agent may be overloaded or stuck.")
 
+    # Debug: print stderr if there's an error
     if completed.returncode != 0:
-        raise RuntimeError((completed.stderr or completed.stdout or f"Unknown {agent_name} error").strip())
+        error_msg = completed.stderr.strip() if completed.stderr else completed.stdout.strip()
+        if not error_msg:
+            error_msg = f"Unknown {agent_name} error (exit code {completed.returncode})"
+        raise RuntimeError(error_msg)
 
+    # Parse result from stdout
     for line in (completed.stdout or "").splitlines():
         if line.startswith(result_prefix):
-            return json.loads(line[len(result_prefix):])
+            try:
+                return json.loads(line[len(result_prefix):])
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"{agent_name} returned invalid JSON: {str(e)}")
 
-    raise RuntimeError(f"{agent_name} returned no structured result")
+    raise RuntimeError(f"{agent_name} returned no structured result. Output: {completed.stdout}")
 
 
 def _execute_cicd_agent(
@@ -387,15 +411,17 @@ def _execute_cicd_agent(
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
 
+        # Simplified run_code - args are now injected via JSON
         run_code = (
-            "import json,sys; "
             "from dataclasses import asdict; "
             "from src.pipeline import CICDPipeline; "
             "from src.models.types import UserRequest; "
-            "req=UserRequest(text=sys.argv[1]); "
-            "repo_ctx=json.loads(sys.argv[3]) if sys.argv[3] != '{}' else None; "
-            "result=CICDPipeline().process_request(req, repo_path=sys.argv[2], repo_context=repo_ctx); "
-            "print('CICD_RESULT_JSON=' + json.dumps(asdict(result), default=str))"
+            "user_prompt = args[0]; "
+            "repo_path = args[1]; "
+            "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+            "req = UserRequest(text=user_prompt); "
+            "result = CICDPipeline().process_request(req, repo_path=repo_path, repo_context=repo_ctx); "
+            "print('CICD_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
         )
 
         cicd_result = _invoke_python_agent(
@@ -404,7 +430,7 @@ def _execute_cicd_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="CICD_RESULT_JSON=",
-            timeout=120,  # 2 minute timeout
+            timeout=120,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")
@@ -412,7 +438,7 @@ def _execute_cicd_agent(
 
     except subprocess.TimeoutExpired as e:
         print(f"[Orchestrator] Timeout executing {agent}: {str(e)}")
-        return {"status": "error", "message": f"{agent} timed out - may be slow to initialize"}
+        return {"status": "error", "message": f"{agent} timed out"}
     except Exception as e:
         print(f"[Orchestrator] Error executing {agent}: {str(e)}")
         return {"status": "error", "message": str(e)}
@@ -425,18 +451,19 @@ def _execute_docker_agent(
 ) -> Dict[str, Any]:
     """Execute the Docker agent."""
     agent = "docker-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally")
+    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
 
         run_code = (
-            "import json,sys; "
             "from dataclasses import asdict; "
             "from src.pipeline import run_pipeline; "
-            "repo_ctx=json.loads(sys.argv[3]) if sys.argv[3] != '{}' else None; "
-            "result=run_pipeline(sys.argv[1], sys.argv[2], False, repo_ctx); "
-            "print('DOCKER_RESULT_JSON=' + json.dumps(asdict(result), default=str))"
+            "user_prompt = args[0]; "
+            "repo_path = args[1]; "
+            "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+            "result = run_pipeline(user_prompt, repo_path, False, repo_ctx); "
+            "print('DOCKER_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
         )
 
         docker_result = _invoke_python_agent(
@@ -445,6 +472,7 @@ def _execute_docker_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="DOCKER_RESULT_JSON=",
+            timeout=120,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")

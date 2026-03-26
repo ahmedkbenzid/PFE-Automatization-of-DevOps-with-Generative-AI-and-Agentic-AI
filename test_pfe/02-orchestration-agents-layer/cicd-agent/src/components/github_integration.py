@@ -1,12 +1,17 @@
 """GitHub integration for workflow management"""
 from typing import Optional, Dict, Any, List
 import json
+import os
+from github import Github, GithubException, InputGitTreeElement
+from github.Repository import Repository
+from github.PullRequest import PullRequest
 
 class GitHubIntegration:
     """Handle GitHub interactions for workflow management"""
-    
+
     def __init__(self, access_token: Optional[str] = None):
-        self.access_token = access_token
+        self.access_token = access_token or os.getenv("GITHUB_TOKEN")
+        self.client = Github(self.access_token) if self.access_token else None
         self.pr_info = None
         self.repo_info = None
     
