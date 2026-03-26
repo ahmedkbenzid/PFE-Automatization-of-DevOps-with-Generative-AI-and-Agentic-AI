@@ -3,3 +3,8 @@ langchain-core
 pydantic
 python-dotenv
 langgraph
+Flask>=3.0.0
+redis>=5.0.0
+rq>=1.15.0
+PyGithub>=2.5.0
+requests>=2.32.0
