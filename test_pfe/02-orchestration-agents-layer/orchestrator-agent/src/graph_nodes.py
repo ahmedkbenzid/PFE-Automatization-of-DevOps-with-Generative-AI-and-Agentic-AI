@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from typing import Any, Dict
 
 from .graph_state import OrchestratorState, RepoContextDict
@@ -149,7 +150,10 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
 
     print("[Orchestrator] Analyzing Repository...")
     try:
-        repo_context: RepoContext = _repo_analyzer.analyze(repo_path, github_url)
+        # Use config setting for deep analysis (default: fast shallow mode)
+        repo_context: RepoContext = _repo_analyzer.analyze(
+            repo_path, github_url, deep=_config.DEEP_REPO_ANALYSIS
+        )
 
         # Map new RepoContext to old RepoContextDict for backward compatibility
         is_available = repo_context.error is None and repo_context.analysis_mode != "prompt-only"

@@ -136,8 +136,17 @@ class _GitHubAPIAnalyzer:
             raise RuntimeError("PyGithub not installed. Run: pip install PyGithub")
 
     def analyse(self, owner: str, repo: str,
-                previous_commit_sha: Optional[str] = None) -> RepoContext:
-        """Analyze repository using GitHub API."""
+                previous_commit_sha: Optional[str] = None,
+                deep: bool = False) -> RepoContext:
+        """Analyze repository using GitHub API.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            previous_commit_sha: Previous commit for change detection
+            deep: If False (default), use fast shallow analysis (single API call).
+                  If True, use deep recursive analysis (multiple API calls).
+        """
         ctx = RepoContext(owner=owner, repo_name=repo, analysis_mode="github")
         ctx.github_url = f"https://github.com/{owner}/{repo}"
 
@@ -152,8 +161,11 @@ class _GitHubAPIAnalyzer:
             if previous_commit_sha and ctx.latest_commit_sha != previous_commit_sha:
                 self._detect_changes(repo_obj, owner, repo, previous_commit_sha, ctx)
 
-            # Step 3 — get file tree
-            paths = self._fetch_tree(repo_obj, ctx)
+            # Step 3 — get file tree (fast or deep)
+            if deep:
+                paths = self._fetch_tree_deep(repo_obj, ctx)
+            else:
+                paths = self._fetch_tree_fast(repo_obj, ctx.latest_commit_sha, ctx)
 
             # Step 4 — classify files
             self._classify_paths(paths, ctx)
@@ -210,8 +222,33 @@ class _GitHubAPIAnalyzer:
         except Exception as e:
             ctx.error = (ctx.error or "") + f" | change detection failed: {str(e)}"
 
-    def _fetch_tree(self, repo_obj: Any, ctx: RepoContext) -> List[str]:
-        """Get file tree from repository."""
+    def _fetch_tree_fast(self, repo_obj: Any, commit_sha: str, ctx: RepoContext) -> List[str]:
+        """Fast tree fetching using GitHub's tree API (single API call).
+
+        Uses recursive=1 to get all files in one request, avoiding N+1 API calls.
+        """
+        paths: List[str] = []
+        try:
+            # Get the tree with recursive flag - single API call regardless of depth
+            tree = repo_obj.get_git_tree(commit_sha, recursive=True)
+
+            for item in tree.tree:
+                if item.type == "blob":  # Only include files, not dirs
+                    paths.append(item.path)
+
+            ctx.tree_snapshot = paths[:200]  # cap for safety
+
+        except Exception as e:
+            ctx.error = f"Failed to fetch tree (fast mode): {str(e)}"
+
+        return paths
+
+    def _fetch_tree_deep(self, repo_obj: Any, ctx: RepoContext) -> List[str]:
+        """Deep tree fetching using recursive get_contents (multiple API calls).
+
+        This is the old behavior - makes many API calls but follows symlinks/nested repos.
+        Only use when deep analysis is explicitly requested.
+        """
         paths: List[str] = []
         try:
             # Get contents recursively
@@ -230,7 +267,7 @@ class _GitHubAPIAnalyzer:
             ctx.tree_snapshot = paths[:200]  # cap for safety
 
         except Exception as e:
-            ctx.error = f"Failed to fetch tree: {str(e)}"
+            ctx.error = f"Failed to fetch tree (deep mode): {str(e)}"
 
         return paths
 
@@ -423,13 +460,20 @@ class RepoAnalyzer:
         self,
         repo_path: Optional[str] = None,
         github_url: Optional[str] = None,
+        deep: bool = False,
     ) -> RepoContext:
         """
         Main entry point. Returns a RepoContext in all cases.
         Errors are recorded in ctx.error, never raised.
+
+        Args:
+            repo_path: Local repository path
+            github_url: GitHub repository URL
+            deep: If False (default), use fast shallow GitHub API analysis.
+                  If True, use deep recursive analysis (slower but more thorough).
         """
         if github_url:
-            return self._analyze_via_github_api(github_url)
+            return self._analyze_via_github_api(github_url, deep=deep)
         if repo_path:
             return self._analyze_local(repo_path)
         return RepoContext(analysis_mode="prompt-only")
@@ -442,10 +486,14 @@ class RepoAnalyzer:
 
     # -- Private --------------------------------------------------------------
 
-    def _analyze_via_github_api(self, github_url: str) -> RepoContext:
+    def _analyze_via_github_api(self, github_url: str, deep: bool = False) -> RepoContext:
         """
         Parse URL → use PyGithub to analyze remotely → return.
         No cloning, no Docker, no temp dirs, no filesystem writes.
+
+        Args:
+            github_url: GitHub repository URL
+            deep: If False, use fast tree API. If True, use deep recursive analysis.
         """
         try:
             owner, repo = _parse_github_url(github_url)
@@ -476,7 +524,7 @@ class RepoAnalyzer:
 
         try:
             analyzer = _GitHubAPIAnalyzer(token)
-            return analyzer.analyse(owner, repo, previous_sha)
+            return analyzer.analyse(owner, repo, previous_sha, deep=deep)
         except Exception as exc:
             return RepoContext(
                 owner=owner, repo_name=repo,
@@ -507,13 +555,24 @@ def analyze_repo(
     repo_path: Optional[str] = None,
     github_url: Optional[str] = None,
     mcp_config: Optional[MCPClientConfig] = None,
+    deep: bool = False,
 ) -> RepoContext:
     """
     Quick function to analyze a repository.
 
+    Args:
+        repo_path: Local repository path
+        github_url: GitHub repository URL
+        mcp_config: Optional MCP client configuration
+        deep: If False (default), use fast GitHub API tree endpoint.
+              If True, use deep recursive analysis (slower).
+
     Examples:
-        # GitHub API mode — reads repo via API, no cloning or Docker
+        # GitHub API mode — fast shallow analysis (default)
         ctx = analyze_repo(github_url="https://github.com/user/repo")
+
+        # GitHub API mode — deep analysis
+        ctx = analyze_repo(github_url="https://github.com/user/repo", deep=True)
 
         # Local mode
         ctx = analyze_repo(repo_path="/path/to/repo")
@@ -527,6 +586,6 @@ def analyze_repo(
     config = mcp_config or MCPClientConfig()
     analyzer = RepoAnalyzer(mcp_config=config)
     try:
-        return analyzer.analyze(repo_path=repo_path, github_url=github_url)
+        return analyzer.analyze(repo_path=repo_path, github_url=github_url, deep=deep)
     finally:
         analyzer.cleanup()

@@ -16,6 +16,11 @@ class OrchestratorConfig:
     GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
     GITHUB_MCP_ENABLED = os.getenv("MCP_GITHUB_ENABLED", "true").lower() == "true"
 
+    # Repository Analysis
+    # Set to True for deep recursive analysis (slower, more thorough)
+    # Default False uses fast GitHub tree API (single API call)
+    DEEP_REPO_ANALYSIS = os.getenv("DEEP_REPO_ANALYSIS", "false").lower() == "true"
+
     # Artifact Storage
     PROJECT_ROOT = Path(__file__).parent.parent.parent
     ARTIFACT_DB_PATH = os.getenv(
