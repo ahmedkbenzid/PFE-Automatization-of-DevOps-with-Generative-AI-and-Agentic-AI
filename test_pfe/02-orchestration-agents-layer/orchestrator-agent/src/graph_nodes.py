@@ -340,22 +340,30 @@ def _invoke_python_agent(
     run_code: str,
     args: list,
     result_prefix: str,
+    timeout: int = 120,  # 2 minute timeout per agent
 ) -> Dict[str, Any]:
     """
     Invoke a Python agent as a subprocess and collect results.
+
+    Args:
+        timeout: Maximum seconds to wait for agent completion (default: 120s)
     """
     agent_path = _resolve_agent_path(agent_folder_name)
     if not os.path.exists(agent_path):
         raise FileNotFoundError(f"Could not find {agent_name} at: {agent_path}")
 
-    completed = subprocess.run(
-        [sys.executable, "-c", run_code, *args],
-        cwd=agent_path,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", run_code, *args],
+            cwd=agent_path,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"{agent_name} timed out after {timeout}s. Agent may be overloaded or stuck.")
 
     if completed.returncode != 0:
         raise RuntimeError((completed.stderr or completed.stdout or f"Unknown {agent_name} error").strip())
@@ -374,7 +382,7 @@ def _execute_cicd_agent(
 ) -> Dict[str, Any]:
     """Execute the CICD agent."""
     agent = "cicd-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally")
+    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
@@ -396,11 +404,15 @@ def _execute_cicd_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="CICD_RESULT_JSON=",
+            timeout=120,  # 2 minute timeout
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")
         return {"status": "success", "data": cicd_result}
 
+    except subprocess.TimeoutExpired as e:
+        print(f"[Orchestrator] Timeout executing {agent}: {str(e)}")
+        return {"status": "error", "message": f"{agent} timed out - may be slow to initialize"}
     except Exception as e:
         print(f"[Orchestrator] Error executing {agent}: {str(e)}")
         return {"status": "error", "message": str(e)}
