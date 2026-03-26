@@ -29,7 +29,7 @@ class PageIndexKnowledgeBase:
         os.makedirs(self.pages_dir, exist_ok=True)
 
     def save_pages(self, pages: List[KnowledgePage]) -> None:
-        """Persist pages and both official and compatibility indexes."""
+        """Persist pages and build proper hierarchical PageIndex with correct start/end indices."""
         index_items: List[Dict[str, Any]] = []
 
         for page in pages:
@@ -52,34 +52,14 @@ class PageIndexKnowledgeBase:
         with open(self.catalog_path, "w", encoding="utf-8") as file:
             json.dump(index_items, file, indent=2, ensure_ascii=False)
 
-        # Save official PageIndex tree format.
-        children = []
-        for idx, item in enumerate(index_items, start=1):
-            children.append(
-                {
-                    "title": item["title"],
-                    "node_id": str(idx).zfill(4),
-                    "start_index": idx,
-                    "end_index": idx,
-                    "summary": f"Knowledge page from {item['source']}",
-                    "source": item["source"],
-                    "page_ref": os.path.join("pages", os.path.basename(item["path"])).replace("\\", "/"),
-                }
-            )
+        # Build hierarchical structure grouped by page_type and language
+        hierarchy = self._build_hierarchy(index_items)
 
+        # Save official PageIndex tree format with proper indexing
         index_doc = {
             "doc_name": "cicd-agent-knowledge-base",
             "doc_description": "PageIndex tree for CI/CD workflow datasets and examples.",
-            "structure": [
-                {
-                    "title": "CI/CD Knowledge Base",
-                    "node_id": "0000",
-                    "start_index": 1,
-                    "end_index": max(len(children), 1),
-                    "summary": "Root node for CI/CD datasets and workflow examples.",
-                    "nodes": children,
-                }
-            ],
+            "structure": [hierarchy],
         }
 
         with open(self.index_path, "w", encoding="utf-8") as file:
@@ -157,3 +137,92 @@ class PageIndexKnowledgeBase:
 
     def _tokenize(self, text: str) -> set[str]:
         return set(re.findall(r"[a-zA-Z0-9_\-.]+", text.lower()))
+
+    def _build_hierarchy(self, index_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build hierarchical structure with proper start_index and end_index ranges."""
+        # Group items by page_type, then by language/category
+        grouped: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+
+        for item in index_items:
+            page_type = item.get("page_type", "other")
+
+            # Extract language or category from tags
+            tags = item.get("tags", [])
+            language = "general"
+            for tag in tags:
+                if tag.lower() in ["python", "java", "javascript", "typescript", "go", "ruby", "rust", "php", "c#", "docker"]:
+                    language = tag.lower()
+                    break
+
+            if page_type not in grouped:
+                grouped[page_type] = {}
+            if language not in grouped[page_type]:
+                grouped[page_type][language] = []
+
+            grouped[page_type][language].append(item)
+
+        # Build tree with proper indexing
+        current_index = 1
+        category_nodes = []
+        node_counter = 1
+
+        for page_type, language_groups in sorted(grouped.items()):
+            # Type node (e.g., "workflow_example", "dataset")
+            type_start = current_index
+            language_nodes = []
+
+            for language, items in sorted(language_groups.items()):
+                # Language node
+                lang_start = current_index
+                page_nodes = []
+
+                for item in items:
+                    # Leaf node (actual page)
+                    page_nodes.append({
+                        "title": item["title"],
+                        "node_id": f"{node_counter:04d}",
+                        "start_index": current_index,
+                        "end_index": current_index,
+                        "summary": f"{item.get('page_type', 'Page')} from {item.get('source', 'unknown')}",
+                        "source": item.get("source", "unknown"),
+                        "page_ref": os.path.join("pages", os.path.basename(item["path"])).replace("\\", "/"),
+                    })
+                    current_index += 1
+                    node_counter += 1
+
+                # Language group node
+                lang_end = current_index - 1
+                if page_nodes:
+                    language_nodes.append({
+                        "title": f"{language.title()} {page_type.replace('_', ' ').title()}",
+                        "node_id": f"{node_counter:04d}",
+                        "start_index": lang_start,
+                        "end_index": lang_end,
+                        "summary": f"{len(page_nodes)} {language} {page_type} pages",
+                        "nodes": page_nodes,
+                    })
+                    node_counter += 1
+
+            # Type category node
+            type_end = current_index - 1
+            if language_nodes:
+                category_nodes.append({
+                    "title": page_type.replace("_", " ").title(),
+                    "node_id": f"{node_counter:04d}",
+                    "start_index": type_start,
+                    "end_index": type_end,
+                    "summary": f"{type_end - type_start + 1} pages of type {page_type}",
+                    "nodes": language_nodes,
+                })
+                node_counter += 1
+
+        # Root node
+        total_pages = current_index - 1
+        return {
+            "title": "CI/CD Knowledge Base",
+            "node_id": "0000",
+            "start_index": 1,
+            "end_index": max(total_pages, 1),
+            "summary": f"Root node containing {total_pages} CI/CD workflow pages organized by type and language",
+            "nodes": category_nodes,
+        }

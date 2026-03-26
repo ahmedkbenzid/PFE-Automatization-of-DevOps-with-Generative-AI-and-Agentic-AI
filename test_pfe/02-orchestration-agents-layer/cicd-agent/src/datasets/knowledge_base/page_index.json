@@ -7,88 +7,160 @@
       "node_id": "0000",
       "start_index": 1,
       "end_index": 9,
-      "summary": "Root node for CI/CD datasets and workflow examples.",
+      "summary": "Root node containing 9 CI/CD workflow pages organized by type and language",
       "nodes": [
         {
-          "title": "GitHub Actions Workflows Dataset",
-          "node_id": "0001",
-          "start_index": 1,
-          "end_index": 1,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/dataset-gha-dataset.json"
-        },
-        {
-          "title": "GitHub Actions Workflow Histories",
-          "node_id": "0002",
-          "start_index": 2,
-          "end_index": 2,
-          "summary": "Knowledge page from workflow-histories",
-          "source": "workflow-histories",
-          "page_ref": "pages/dataset-workflow-histories.json"
-        },
-        {
-          "title": "Example-Based Automatic Migration of Continuous Integration Systems (EBAMIC)",
-          "node_id": "0003",
-          "start_index": 3,
-          "end_index": 3,
-          "summary": "Knowledge page from ebamic",
-          "source": "ebamic",
-          "page_ref": "pages/dataset-ebamic.json"
-        },
-        {
-          "title": "Python Unit Tests",
-          "node_id": "0004",
-          "start_index": 4,
-          "end_index": 4,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/example-python-test.json"
-        },
-        {
-          "title": "Node.js Tests",
+          "title": "Dataset",
           "node_id": "0005",
-          "start_index": 5,
-          "end_index": 5,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/example-nodejs-test.json"
+          "start_index": 1,
+          "end_index": 3,
+          "summary": "3 pages of type dataset",
+          "nodes": [
+            {
+              "title": "General Dataset",
+              "node_id": "0004",
+              "start_index": 1,
+              "end_index": 3,
+              "summary": "3 general dataset pages",
+              "nodes": [
+                {
+                  "title": "GitHub Actions Workflows Dataset",
+                  "node_id": "0001",
+                  "start_index": 1,
+                  "end_index": 1,
+                  "summary": "dataset from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/dataset-gha-dataset.json"
+                },
+                {
+                  "title": "GitHub Actions Workflow Histories",
+                  "node_id": "0002",
+                  "start_index": 2,
+                  "end_index": 2,
+                  "summary": "dataset from workflow-histories",
+                  "source": "workflow-histories",
+                  "page_ref": "pages/dataset-workflow-histories.json"
+                },
+                {
+                  "title": "Example-Based Automatic Migration of Continuous Integration Systems (EBAMIC)",
+                  "node_id": "0003",
+                  "start_index": 3,
+                  "end_index": 3,
+                  "summary": "dataset from ebamic",
+                  "source": "ebamic",
+                  "page_ref": "pages/dataset-ebamic.json"
+                }
+              ]
+            }
+          ]
         },
         {
-          "title": "Docker Build and Push",
-          "node_id": "0006",
-          "start_index": 6,
-          "end_index": 6,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/example-docker-build.json"
-        },
-        {
-          "title": "Migrated from Jenkins Pipeline",
-          "node_id": "0007",
-          "start_index": 7,
-          "end_index": 7,
-          "summary": "Knowledge page from ebamic",
-          "source": "ebamic",
-          "page_ref": "pages/example-jenkins-migration.json"
-        },
-        {
-          "title": "Spring Boot Build, Test and SonarQube Analysis",
-          "node_id": "0008",
-          "start_index": 8,
-          "end_index": 8,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/example-springboot-sonarqube.json"
-        },
-        {
-          "title": "Spring Boot CI/CD with SonarQube, Ansible, Kubernetes, Prometheus and Grafana",
-          "node_id": "0009",
-          "start_index": 9,
+          "title": "Workflow Example",
+          "node_id": "0017",
+          "start_index": 4,
           "end_index": 9,
-          "summary": "Knowledge page from gha-dataset",
-          "source": "gha-dataset",
-          "page_ref": "pages/example-springboot-full-cd-monitoring.json"
+          "summary": "6 pages of type workflow_example",
+          "nodes": [
+            {
+              "title": "Docker Workflow Example",
+              "node_id": "0007",
+              "start_index": 4,
+              "end_index": 4,
+              "summary": "1 docker workflow_example pages",
+              "nodes": [
+                {
+                  "title": "Docker Build and Push",
+                  "node_id": "0006",
+                  "start_index": 4,
+                  "end_index": 4,
+                  "summary": "workflow_example from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/example-docker-build.json"
+                }
+              ]
+            },
+            {
+              "title": "General Workflow Example",
+              "node_id": "0009",
+              "start_index": 5,
+              "end_index": 5,
+              "summary": "1 general workflow_example pages",
+              "nodes": [
+                {
+                  "title": "Migrated from Jenkins Pipeline",
+                  "node_id": "0008",
+                  "start_index": 5,
+                  "end_index": 5,
+                  "summary": "workflow_example from ebamic",
+                  "source": "ebamic",
+                  "page_ref": "pages/example-jenkins-migration.json"
+                }
+              ]
+            },
+            {
+              "title": "Java Workflow Example",
+              "node_id": "0012",
+              "start_index": 6,
+              "end_index": 7,
+              "summary": "2 java workflow_example pages",
+              "nodes": [
+                {
+                  "title": "Spring Boot Build, Test and SonarQube Analysis",
+                  "node_id": "0010",
+                  "start_index": 6,
+                  "end_index": 6,
+                  "summary": "workflow_example from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/example-springboot-sonarqube.json"
+                },
+                {
+                  "title": "Spring Boot CI/CD with SonarQube, Ansible, Kubernetes, Prometheus and Grafana",
+                  "node_id": "0011",
+                  "start_index": 7,
+                  "end_index": 7,
+                  "summary": "workflow_example from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/example-springboot-full-cd-monitoring.json"
+                }
+              ]
+            },
+            {
+              "title": "Javascript Workflow Example",
+              "node_id": "0014",
+              "start_index": 8,
+              "end_index": 8,
+              "summary": "1 javascript workflow_example pages",
+              "nodes": [
+                {
+                  "title": "Node.js Tests",
+                  "node_id": "0013",
+                  "start_index": 8,
+                  "end_index": 8,
+                  "summary": "workflow_example from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/example-nodejs-test.json"
+                }
+              ]
+            },
+            {
+              "title": "Python Workflow Example",
+              "node_id": "0016",
+              "start_index": 9,
+              "end_index": 9,
+              "summary": "1 python workflow_example pages",
+              "nodes": [
+                {
+                  "title": "Python Unit Tests",
+                  "node_id": "0015",
+                  "start_index": 9,
+                  "end_index": 9,
+                  "summary": "workflow_example from gha-dataset",
+                  "source": "gha-dataset",
+                  "page_ref": "pages/example-python-test.json"
+                }
+              ]
+            }
+          ]
         }
       ]
     }

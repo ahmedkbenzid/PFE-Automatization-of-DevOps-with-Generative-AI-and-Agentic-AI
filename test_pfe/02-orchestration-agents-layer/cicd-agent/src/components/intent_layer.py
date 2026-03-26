@@ -152,7 +152,9 @@ class IntentLayer:
 
         prompt += (
             "\n\n## Output Rules\n"
-            "- Output only YAML text.\n"
+            "- Output ONLY the GitHub Actions workflow YAML text.\n"
+            "- Do NOT include Dockerfile, Docker Compose, or any other artifacts.\n"
+            "- Do NOT generate bonus artifacts beyond what was requested.\n"
             "- Do not wrap output in markdown fences.\n"
             "- Ensure a valid 'on' trigger block is included.\n"
             "- Include at least one job with steps.\n"
