@@ -159,6 +159,10 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
             "prompt-only": "none"
         }.get(repo_context.analysis_mode, "none")
 
+        # Print error details if analysis failed
+        if repo_context.error:
+            print(f"[Orchestrator] ⚠️  Analysis error: {repo_context.error}")
+
         context_dict: RepoContextDict = {
             "is_available": is_available,
             "source": source,
