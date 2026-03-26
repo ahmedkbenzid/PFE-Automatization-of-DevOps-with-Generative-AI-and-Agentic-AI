@@ -1,407 +1,682 @@
 """
 Repository Analyzer - Centralized repo reading for the orchestrator.
-This component is OPTIONAL - the system works without it (prompt-only mode).
+
+Three analysis modes:
+  1. MCP mode  (github_url provided)  → reads repo via GitHub MCP server tools,
+                                         no cloning, no temp dirs, no filesystem writes.
+  2. Local mode (repo_path provided)  → walks local filesystem (unchanged behaviour).
+  3. Prompt-only mode (nothing)       → returns empty RepoContext (unchanged behaviour).
+
+Integrates with Phase 1 GitHub MCP foundation:
+  - Uses github_manager.GitHubURLParser for URL parsing
+  - Tracks commit SHA for change detection (Phase 2)
+  - Compatible with artifact_storage.py for persistence
 """
+
+from __future__ import annotations
+
 import json
 import os
-import subprocess
-import tempfile
+import re
 import shutil
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field, asdict
+import subprocess
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+from .github_manager import GitHubURLParser, ChangeDetector
+from .models.github_types import GitHubRepoInfo, ChangeAnalysis, CommitComparison, ChangedFile
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MCPClientConfig:
+    """
+    Connection config for the GitHub MCP server.
+
+    The server is started as a subprocess (stdio transport).
+    The container must already be pulled:
+        docker pull ghcr.io/github/github-mcp-server
+
+    Required env vars (read from environment at runtime):
+        GITHUB_PERSONAL_ACCESS_TOKEN  - GitHub PAT with repo + read:org scopes
+    """
+    docker_image: str = "ghcr.io/github/github-mcp-server"
+    # Toolsets we actually need — keeps context small for the LLM
+    toolsets: str = "repos,git,actions"
+    # Timeout in seconds for each MCP tool call
+    call_timeout: int = 30
+    # Fallback to PyGithub if Docker not available
+    fallback_to_pygithub: bool = True
+
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
 
 @dataclass
 class RepoContext:
-    """Repository context extracted from analysis"""
-    path: str = ""
-    is_available: bool = False
-    source: str = "none"  # "local", "github", "none"
+    # -- Source ---------------------------------------------------------------
+    owner: str = ""                        # GitHub owner  (MCP mode only)
+    repo_name: str = ""                    # GitHub repo name (MCP mode only)
+    github_url: str = ""                   # Full GitHub URL for artifact tracking
+    default_branch: str = ""              # e.g. "main"
+    latest_commit_sha: str = ""
+    latest_commit_message: str = ""
 
-    # Detected characteristics
+    # -- Change Detection (Phase 2) -------------------------------------------
+    previous_commit_sha: Optional[str] = None  # SHA from storage/cache
+    has_changes: bool = False
+    changed_files: List[str] = field(default_factory=list)  # Files changed since last commit
+    affected_agents: tuple = field(default_factory=tuple)  # Agents needing rerun (cicd-agent, docker-agent, iac-agent)
+    change_summary: str = ""
+
+    # -- Detected characteristics ---------------------------------------------
     languages: List[str] = field(default_factory=list)
+    frameworks: List[str] = field(default_factory=list)
     build_system: Optional[str] = None
     package_managers: List[str] = field(default_factory=list)
-    frameworks: List[str] = field(default_factory=list)
 
-    # Existing configurations
+    # -- Existing configurations ----------------------------------------------
     has_dockerfile: bool = False
     has_docker_compose: bool = False
-    has_ci_workflows: bool = False
-    existing_workflows: List[str] = field(default_factory=list)
+    has_kubernetes: bool = False
+    has_terraform: bool = False
+    has_github_actions: bool = False
+    has_helm: bool = False
+    has_prometheus: bool = False
 
-    # Important files found
-    config_files: Dict[str, bool] = field(default_factory=dict)
+    # -- Important files found ------------------------------------------------
+    ci_workflows: List[str] = field(default_factory=list)
+    terraform_files: List[str] = field(default_factory=list)
+    k8s_manifests: List[str] = field(default_factory=list)
+    dockerfile_paths: List[str] = field(default_factory=list)
+
+    # -- Raw tree snapshot (top-level paths) ----------------------------------
+    tree_snapshot: List[str] = field(default_factory=list)
+
+    # -- Analysis metadata ----------------------------------------------------
+    analysis_mode: str = "prompt-only"    # "mcp" | "local" | "prompt-only"
+    error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
+# ---------------------------------------------------------------------------
+# MCP stdio client (thin, no external SDK dependency)
+# ---------------------------------------------------------------------------
+
+class _MCPStdioClient:
+    """
+    Minimal JSON-RPC 2.0 client over stdio to the GitHub MCP server.
+
+    Lifecycle:
+        with _MCPStdioClient(config) as client:
+            result = client.call("get_file_contents", {"owner": ..., ...})
+    """
+
+    def __init__(self, config: MCPClientConfig) -> None:
+        self._config = config
+        self._proc: Optional[subprocess.Popen] = None
+        self._msg_id = 0
+
+    # -- Context manager ------------------------------------------------------
+
+    def __enter__(self) -> "_MCPStdioClient":
+        token = os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
+        if not token:
+            raise EnvironmentError(
+                "GITHUB_PERSONAL_ACCESS_TOKEN is not set. "
+                "Add it to your .env file and never commit it."
+            )
+        cmd = [
+            "docker", "run", "-i", "--rm",
+            "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+            "-e", f"GITHUB_TOOLSETS={self._config.toolsets}",
+            self._config.docker_image,
+        ]
+        env = {**os.environ, "GITHUB_PERSONAL_ACCESS_TOKEN": token}
+        self._proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+            bufsize=1,
+        )
+        self._initialize()
+        return self
+
+    def __exit__(self, *_) -> None:
+        if self._proc:
+            try:
+                self._proc.stdin.close()
+                self._proc.wait(timeout=5)
+            except Exception:
+                self._proc.kill()
+
+    # -- Public API -----------------------------------------------------------
+
+    def call(self, tool_name: str, params: Dict[str, Any]) -> Any:
+        """
+        Call an MCP tool and return the parsed result content.
+        Raises RuntimeError on protocol errors or tool errors.
+        """
+        self._msg_id += 1
+        request = {
+            "jsonrpc": "2.0",
+            "id": self._msg_id,
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": params},
+        }
+        self._send(request)
+        response = self._recv()
+
+        if "error" in response:
+            raise RuntimeError(
+                f"MCP tool '{tool_name}' returned error: {response['error']}"
+            )
+
+        # MCP tools/call returns { result: { content: [...] } }
+        content_blocks = response.get("result", {}).get("content", [])
+        texts = [b["text"] for b in content_blocks if b.get("type") == "text"]
+        raw = "\n".join(texts)
+
+        # Try to parse as JSON — many tools return JSON strings
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return raw
+
+    # -- Internal helpers -----------------------------------------------------
+
+    def _initialize(self) -> None:
+        """Send MCP initialize handshake."""
+        self._msg_id += 1
+        init_req = {
+            "jsonrpc": "2.0",
+            "id": self._msg_id,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "clientInfo": {"name": "orchestrator-agent", "version": "1.0"},
+                "capabilities": {},
+            },
+        }
+        self._send(init_req)
+        self._recv()  # consume initialize response
+        # Send initialized notification (no response expected)
+        self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def _send(self, payload: Dict[str, Any]) -> None:
+        line = json.dumps(payload) + "\n"
+        self._proc.stdin.write(line)
+        self._proc.stdin.flush()
+
+    def _recv(self) -> Dict[str, Any]:
+        line = self._proc.stdout.readline()
+        if not line:
+            stderr = self._proc.stderr.read()
+            raise RuntimeError(
+                f"MCP server closed stdout unexpectedly. stderr: {stderr}"
+            )
+        return json.loads(line)
+
+
+# ---------------------------------------------------------------------------
+# GitHub URL parser - delegates to Phase 1 GitHubURLParser
+# ---------------------------------------------------------------------------
+
+def _parse_github_url(url: str) -> Tuple[str, str]:
+    """
+    Extract (owner, repo) from GitHub URL using Phase 1 parser.
+
+    Delegates to github_manager.GitHubURLParser for consistency.
+    """
+    repo_info = GitHubURLParser.parse(url)
+    return repo_info.owner, repo_info.repo
+
+
+# ---------------------------------------------------------------------------
+# MCP-based analysis
+# ---------------------------------------------------------------------------
+
+class _MCPRepoAnalyzer:
+    """Uses GitHub MCP tools to analyse a remote repository."""
+
+    _EXT_LANGUAGES: Dict[str, str] = {
+        ".py": "Python",      ".js": "JavaScript",  ".ts": "TypeScript",
+        ".go": "Go",          ".rs": "Rust",         ".java": "Java",
+        ".rb": "Ruby",        ".cs": "C#",           ".cpp": "C++",
+        ".tf": "HCL",         ".yaml": "YAML",       ".yml": "YAML",
+    }
+    _FRAMEWORK_FILES: Dict[str, str] = {
+        "requirements.txt": "Python",    "pyproject.toml": "Python",
+        "package.json":     "Node.js",   "go.mod":         "Go",
+        "pom.xml":          "Java/Maven","build.gradle":   "Java/Gradle",
+        "Cargo.toml":       "Rust",      "Gemfile":        "Ruby",
+        "composer.json":    "PHP",
+    }
+    _PACKAGE_MANAGERS: Dict[str, str] = {
+        "package.json":     "npm/yarn",  "requirements.txt": "pip",
+        "pyproject.toml":   "poetry/pip","go.mod":           "go modules",
+        "Cargo.toml":       "cargo",     "pom.xml":          "maven",
+        "build.gradle":     "gradle",
+    }
+
+    def __init__(self, client: _MCPStdioClient) -> None:
+        self._client = client
+
+    def analyse(self, owner: str, repo: str,
+                previous_commit_sha: Optional[str] = None) -> RepoContext:
+        ctx = RepoContext(owner=owner, repo_name=repo, analysis_mode="mcp")
+        ctx.github_url = f"https://github.com/{owner}/{repo}"
+
+        # Step 1 — latest commit (SHA + message)
+        self._fetch_latest_commit(owner, repo, ctx)
+
+        # Step 2 — detect changes if previous commit is known (Phase 2)
+        if previous_commit_sha and ctx.latest_commit_sha != previous_commit_sha:
+            self._detect_changes(owner, repo, previous_commit_sha, ctx)
+
+        # Step 3 — full recursive tree of file paths
+        paths = self._fetch_tree(owner, repo, ctx)
+
+        # Step 4 — classify everything from paths, zero extra API calls
+        self._classify_paths(paths, ctx)
+
+        return ctx
+
+    # -- Step implementations -------------------------------------------------
+
+    def _fetch_latest_commit(
+        self, owner: str, repo: str, ctx: RepoContext
+    ) -> None:
+        try:
+            data = self._client.call("list_commits", {
+                "owner": owner,
+                "repo": repo,
+                "perPage": 1,
+            })
+            if isinstance(data, list) and data:
+                c = data[0]
+                ctx.latest_commit_sha = c.get("sha", "")[:12]
+                ctx.latest_commit_message = (
+                    c.get("commit", {}).get("message", "").splitlines()[0][:120]
+                )
+        except Exception as exc:
+            ctx.error = f"list_commits failed: {exc}"
+
+    def _detect_changes(
+        self, owner: str, repo: str,
+        previous_sha: str, ctx: RepoContext
+    ) -> None:
+        """Detect what changed between commits using Phase 1 ChangeDetector."""
+        try:
+            # Get commit comparison
+            data = self._client.call("get_commit", {
+                "owner": owner,
+                "repo": repo,
+                "sha": ctx.latest_commit_sha,
+                "include_diff": True,
+            })
+
+            if isinstance(data, dict):
+                files = data.get("files", [])
+                changed_files = []
+
+                for file_data in files:
+                    if isinstance(file_data, dict):
+                        path = file_data.get("filename", "")
+                        status = file_data.get("status", "modified")
+                        if path:
+                            changed_files.append(path)
+                            ctx.changed_files.append(path)
+
+                # Use Phase 1 ChangeDetector to categorize and map to agents
+                comparison = CommitComparison(
+                    base_sha=previous_sha,
+                    head_sha=ctx.latest_commit_sha,
+                    files_changed=[
+                        ChangedFile(path=p, status="modified")
+                        for p in changed_files
+                    ]
+                )
+
+                repo_info = GitHubRepoInfo(owner=owner, repo=ctx.repo_name)
+                analysis = ChangeDetector.analyze_changes(comparison, repo_info)
+
+                ctx.has_changes = analysis.requires_update
+                ctx.affected_agents = tuple(sorted(analysis.affected_agents))
+                ctx.change_summary = analysis.summary
+                ctx.previous_commit_sha = previous_sha
+
+        except Exception as exc:
+            ctx.error = (ctx.error or "") + f" | change detection failed: {exc}"
+
+    def _fetch_tree(
+        self, owner: str, repo: str, ctx: RepoContext
+    ) -> List[str]:
+        paths: List[str] = []
+        try:
+            data = self._client.call("get_repository_tree", {
+                "owner": owner,
+                "repo": repo,
+                "recursive": True,
+            })
+            if isinstance(data, list):
+                paths = [
+                    item["path"] for item in data
+                    if isinstance(item, dict) and "path" in item
+                ]
+            elif isinstance(data, dict):
+                # Some server versions wrap under "tree"
+                paths = [
+                    item["path"] for item in data.get("tree", [])
+                    if "path" in item
+                ]
+            ctx.tree_snapshot = paths[:200]   # cap for prompt safety
+        except Exception as exc:
+            ctx.error = (ctx.error or "") + f" | get_repository_tree failed: {exc}"
+        return paths
+
+    def _classify_paths(self, paths: List[str], ctx: RepoContext) -> None:
+        """
+        Single-pass classification of all repo paths.
+        Derives all RepoContext flags and file lists without additional API calls.
+        """
+        languages_seen: set[str] = set()
+        frameworks_seen: set[str] = set()
+        pm_seen: set[str] = set()
+
+        for path in paths:
+            fname = Path(path).name
+            ext = Path(path).suffix.lower()
+            lower_path = path.lower()
+
+            # Language detection
+            if ext in self._EXT_LANGUAGES:
+                languages_seen.add(self._EXT_LANGUAGES[ext])
+
+            # Framework + package manager detection
+            if fname in self._FRAMEWORK_FILES:
+                frameworks_seen.add(self._FRAMEWORK_FILES[fname])
+            if fname in self._PACKAGE_MANAGERS:
+                pm_seen.add(self._PACKAGE_MANAGERS[fname])
+
+            # Dockerfile
+            if fname == "Dockerfile" or fname.startswith("Dockerfile."):
+                ctx.has_dockerfile = True
+                ctx.dockerfile_paths.append(path)
+
+            # Docker Compose
+            if fname in ("docker-compose.yml", "docker-compose.yaml"):
+                ctx.has_docker_compose = True
+
+            # Terraform
+            if ext == ".tf":
+                ctx.has_terraform = True
+                ctx.terraform_files.append(path)
+
+            # GitHub Actions
+            if ".github/workflows" in lower_path and ext in (".yml", ".yaml"):
+                ctx.has_github_actions = True
+                ctx.ci_workflows.append(path)
+
+            # Kubernetes manifests
+            is_k8s_dir = any(
+                p in lower_path
+                for p in ("k8s/", "kubernetes/", "manifests/")
+            )
+            is_k8s_filename = fname.lower() in (
+                "deployment.yaml", "deployment.yml",
+                "service.yaml", "service.yml",
+                "ingress.yaml", "ingress.yml",
+                "statefulset.yaml", "statefulset.yml",
+                "daemonset.yaml", "daemonset.yml",
+            )
+            if (is_k8s_dir or is_k8s_filename) and ext in (".yml", ".yaml"):
+                ctx.has_kubernetes = True
+                ctx.k8s_manifests.append(path)
+
+            # Helm
+            if fname == "Chart.yaml" or "helm/" in lower_path:
+                ctx.has_helm = True
+
+            # Prometheus
+            if "prometheus" in lower_path:
+                ctx.has_prometheus = True
+
+            # Build system (first match wins)
+            if not ctx.build_system:
+                if fname == "Makefile":
+                    ctx.build_system = "make"
+                elif fname in ("build.gradle", "build.gradle.kts"):
+                    ctx.build_system = "gradle"
+                elif fname == "pom.xml":
+                    ctx.build_system = "maven"
+                elif fname == "CMakeLists.txt":
+                    ctx.build_system = "cmake"
+
+        ctx.languages = sorted(languages_seen)
+        ctx.frameworks = sorted(frameworks_seen)
+        ctx.package_managers = sorted(pm_seen)
+
+
+# ---------------------------------------------------------------------------
+# Local filesystem analysis (unchanged behaviour from original)
+# ---------------------------------------------------------------------------
+
+class _LocalRepoAnalyzer:
+    """Walks a local filesystem path to produce a RepoContext."""
+
+    _EXT_LANGUAGES = _MCPRepoAnalyzer._EXT_LANGUAGES
+    _FRAMEWORK_FILES = _MCPRepoAnalyzer._FRAMEWORK_FILES
+    _PACKAGE_MANAGERS = _MCPRepoAnalyzer._PACKAGE_MANAGERS
+
+    def analyse(self, repo_path: str) -> RepoContext:
+        ctx = RepoContext(analysis_mode="local")
+        languages_seen: set[str] = set()
+        frameworks_seen: set[str] = set()
+        pm_seen: set[str] = set()
+
+        _SKIP_DIRS = {"node_modules", "__pycache__", ".git", "dist", "build",
+                      ".venv", "venv", ".tox"}
+
+        for root, dirs, files in os.walk(repo_path):
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(".") and d not in _SKIP_DIRS
+            ]
+            rel_root = os.path.relpath(root, repo_path)
+
+            for fname in files:
+                rel_path = os.path.join(rel_root, fname).lstrip("./")
+                ext = Path(fname).suffix.lower()
+                lower_rel = rel_path.lower()
+
+                if ext in self._EXT_LANGUAGES:
+                    languages_seen.add(self._EXT_LANGUAGES[ext])
+                if fname in self._FRAMEWORK_FILES:
+                    frameworks_seen.add(self._FRAMEWORK_FILES[fname])
+                if fname in self._PACKAGE_MANAGERS:
+                    pm_seen.add(self._PACKAGE_MANAGERS[fname])
+
+                if fname == "Dockerfile" or fname.startswith("Dockerfile."):
+                    ctx.has_dockerfile = True
+                    ctx.dockerfile_paths.append(rel_path)
+                if fname in ("docker-compose.yml", "docker-compose.yaml"):
+                    ctx.has_docker_compose = True
+                if ext == ".tf":
+                    ctx.has_terraform = True
+                    ctx.terraform_files.append(rel_path)
+                if ".github/workflows" in lower_rel and ext in (".yml", ".yaml"):
+                    ctx.has_github_actions = True
+                    ctx.ci_workflows.append(rel_path)
+                if fname == "Chart.yaml" or "helm/" in lower_rel:
+                    ctx.has_helm = True
+                if any(p in lower_rel for p in ("k8s/", "kubernetes/", "manifests/")):
+                    if ext in (".yml", ".yaml"):
+                        ctx.has_kubernetes = True
+                        ctx.k8s_manifests.append(rel_path)
+
+                if not ctx.build_system:
+                    if fname == "Makefile":
+                        ctx.build_system = "make"
+                    elif fname in ("build.gradle", "build.gradle.kts"):
+                        ctx.build_system = "gradle"
+                    elif fname == "pom.xml":
+                        ctx.build_system = "maven"
+
+        ctx.languages = sorted(languages_seen)
+        ctx.frameworks = sorted(frameworks_seen)
+        ctx.package_managers = sorted(pm_seen)
+        return ctx
+
+
+# ---------------------------------------------------------------------------
+# Public facade
+# ---------------------------------------------------------------------------
+
+@dataclass
 class RepoAnalyzer:
     """
     Centralized repository analyzer for the orchestrator.
-    Supports both local paths and GitHub URLs.
-    Falls back gracefully when no repo is provided.
+
+    Supports three modes:
+        - MCP (GitHub URL)  : calls GitHub MCP server tools, no cloning.
+        - Local (file path) : walks local filesystem.
+        - Prompt-only       : returns empty RepoContext.
+
+    Usage:
+        analyzer = RepoAnalyzer()
+
+        # MCP mode
+        ctx = analyzer.analyze(github_url="https://github.com/user/repo")
+
+        # Local mode
+        ctx = analyzer.analyze(repo_path="/path/to/repo")
+
+        # Prompt-only
+        ctx = analyzer.analyze()
     """
 
-    # File extension to language mapping
-    LANGUAGE_EXTENSIONS = {
-        '.py': 'Python',
-        '.js': 'JavaScript',
-        '.ts': 'TypeScript',
-        '.jsx': 'React',
-        '.tsx': 'React/TypeScript',
-        '.java': 'Java',
-        '.kt': 'Kotlin',
-        '.go': 'Go',
-        '.rb': 'Ruby',
-        '.php': 'PHP',
-        '.cpp': 'C++',
-        '.c': 'C',
-        '.cs': 'C#',
-        '.rs': 'Rust',
-        '.swift': 'Swift',
-        '.scala': 'Scala',
-    }
+    mcp_config: MCPClientConfig = field(default_factory=MCPClientConfig)
+    _temp_dirs: List[str] = field(default_factory=list, repr=False)
 
-    # Build system indicators
-    BUILD_SYSTEMS = {
-        'package.json': 'Node.js/npm',
-        'requirements.txt': 'Python/pip',
-        'setup.py': 'Python/setuptools',
-        'pyproject.toml': 'Python/Poetry',
-        'Pipfile': 'Python/Pipenv',
-        'pom.xml': 'Java/Maven',
-        'build.gradle': 'Java/Gradle',
-        'build.gradle.kts': 'Kotlin/Gradle',
-        'Cargo.toml': 'Rust/Cargo',
-        'go.mod': 'Go',
-        'Gemfile': 'Ruby/Bundler',
-        'composer.json': 'PHP/Composer',
-        'Makefile': 'Make',
-        'CMakeLists.txt': 'CMake',
-    }
-
-    # Package manager indicators
-    PACKAGE_MANAGERS = {
-        'package.json': 'npm',
-        'yarn.lock': 'yarn',
-        'pnpm-lock.yaml': 'pnpm',
-        'package-lock.json': 'npm',
-        'Pipfile.lock': 'pipenv',
-        'poetry.lock': 'poetry',
-        'requirements.txt': 'pip',
-        'go.sum': 'go modules',
-        'Cargo.lock': 'cargo',
-        'Gemfile.lock': 'bundler',
-        'composer.lock': 'composer',
-    }
-
-    # Framework indicators (file -> framework)
-    FRAMEWORK_INDICATORS = {
-        'manage.py': 'Django',
-        'app.py': 'Flask',
-        'fastapi': 'FastAPI',
-        'next.config.js': 'Next.js',
-        'nuxt.config.js': 'Nuxt.js',
-        'angular.json': 'Angular',
-        'vue.config.js': 'Vue.js',
-        'svelte.config.js': 'Svelte',
-        'spring': 'Spring Boot',
-        'rails': 'Ruby on Rails',
-        'laravel': 'Laravel',
-    }
-
-    # Important config files to check
-    CONFIG_FILES = [
-        'README.md',
-        'Dockerfile',
-        'docker-compose.yml',
-        'docker-compose.yaml',
-        '.dockerignore',
-        'Makefile',
-        '.env.example',
-        '.gitignore',
-        'sonar-project.properties',
-        'Jenkinsfile',
-        '.travis.yml',
-        'azure-pipelines.yml',
-        'kubernetes.yml',
-        'k8s/',
-        'helm/',
-    ]
-
-    def __init__(self):
-        self._temp_dir: Optional[str] = None
-
-    def analyze(self, repo_path: Optional[str] = None, github_url: Optional[str] = None) -> RepoContext:
-        """
-        Main entry point for repo analysis.
-
-        Args:
-            repo_path: Local path to repository (optional)
-            github_url: GitHub URL to clone (optional)
-
-        Returns:
-            RepoContext with analysis results, or empty context if no repo provided
-        """
-        context = RepoContext()
-
-        # Determine the effective path
-        effective_path = self._resolve_repo_path(repo_path, github_url, context)
-
-        if not effective_path or not context.is_available:
-            print("[RepoAnalyzer] No repository provided - using prompt-only mode")
-            return context
-
-        context.path = effective_path
-
-        # Run analysis
-        print(f"[RepoAnalyzer] Analyzing repository at: {effective_path}")
-
-        context.languages = self._detect_languages(effective_path)
-        context.build_system = self._detect_build_system(effective_path)
-        context.package_managers = self._detect_package_managers(effective_path)
-        context.frameworks = self._detect_frameworks(effective_path)
-        context.config_files = self._check_config_files(effective_path)
-
-        # Docker-related
-        context.has_dockerfile = context.config_files.get('Dockerfile', False)
-        context.has_docker_compose = (
-            context.config_files.get('docker-compose.yml', False) or
-            context.config_files.get('docker-compose.yaml', False)
-        )
-
-        # CI/CD workflows
-        context.existing_workflows = self._find_ci_workflows(effective_path)
-        context.has_ci_workflows = len(context.existing_workflows) > 0
-
-        print(f"[RepoAnalyzer] Analysis complete: {len(context.languages)} languages, "
-              f"build system: {context.build_system or 'unknown'}")
-
-        return context
-
-    def _resolve_repo_path(
+    def analyze(
         self,
-        repo_path: Optional[str],
-        github_url: Optional[str],
-        context: RepoContext
-    ) -> Optional[str]:
-        """Resolve the repository path from local path or GitHub URL"""
-
-        # Priority 1: Local path
-        if repo_path and os.path.isdir(repo_path):
-            context.is_available = True
-            context.source = "local"
-            return repo_path
-
-        # Priority 2: GitHub URL (clone to temp)
+        repo_path: Optional[str] = None,
+        github_url: Optional[str] = None,
+    ) -> RepoContext:
+        """
+        Main entry point. Returns a RepoContext in all cases.
+        Errors are recorded in ctx.error, never raised.
+        """
         if github_url:
-            cloned_path = self._clone_github_repo(github_url)
-            if cloned_path:
-                context.is_available = True
-                context.source = "github"
-                return cloned_path
+            return self._analyze_via_mcp(github_url)
+        if repo_path:
+            return self._analyze_local(repo_path)
+        return RepoContext(analysis_mode="prompt-only")
 
-        # No repo available
-        context.is_available = False
-        context.source = "none"
-        return None
+    def cleanup(self) -> None:
+        """Remove any temporary directories created during analysis."""
+        for d in self._temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+        self._temp_dirs.clear()
 
-    def _clone_github_repo(self, github_url: str) -> Optional[str]:
-        """Clone a GitHub repository to a temporary directory"""
+    # -- Private --------------------------------------------------------------
+
+    def _analyze_via_mcp(self, github_url: str) -> RepoContext:
+        """
+        Parse URL → start MCP server subprocess → analyse remotely → return.
+        No cloning, no temp dirs, no filesystem writes.
+
+        Optional: retrieves previous commit SHA from artifact storage for change detection.
+        """
         try:
-            self._temp_dir = tempfile.mkdtemp(prefix="repo_analysis_")
-            print(f"[RepoAnalyzer] Cloning {github_url}...")
+            owner, repo = _parse_github_url(github_url)
+        except ValueError as exc:
+            return RepoContext(analysis_mode="mcp", error=str(exc))
 
-            result = subprocess.run(
-                ["git", "clone", "--depth", "1", github_url, self._temp_dir],
-                capture_output=True,
-                text=True,
-                timeout=120,
+        # Try to retrieve previous commit SHA from artifact storage (Phase 2)
+        previous_sha = None
+        try:
+            from .artifact_storage import ArtifactDatabase
+            from .config import OrchestratorConfig
+            db = ArtifactDatabase(OrchestratorConfig.ARTIFACT_DB_PATH)
+            repo_state = db.get_repository_state(github_url)
+            if repo_state:
+                previous_sha = repo_state.last_commit_sha
+        except Exception:
+            # Artifact storage not available yet, proceed without change detection
+            pass
+
+        try:
+            with _MCPStdioClient(self.mcp_config) as client:
+                return _MCPRepoAnalyzer(client).analyse(owner, repo, previous_sha)
+        except EnvironmentError as exc:
+            # Missing PAT — surface clearly
+            return RepoContext(
+                owner=owner, repo_name=repo,
+                analysis_mode="mcp",
+                error=f"Auth error: {exc}",
+            )
+        except Exception as exc:
+            return RepoContext(
+                owner=owner, repo_name=repo,
+                analysis_mode="mcp",
+                error=f"MCP analysis failed: {exc}",
             )
 
-            if result.returncode == 0:
-                print(f"[RepoAnalyzer] Clone successful")
-                return self._temp_dir
-            else:
-                print(f"[RepoAnalyzer] Clone failed: {result.stderr}")
-                return None
-
-        except Exception as e:
-            print(f"[RepoAnalyzer] Error cloning repo: {e}")
-            return None
-
-    def _detect_languages(self, repo_path: str) -> List[str]:
-        """Detect programming languages in the repository"""
-        languages = set()
-
+    def _analyze_local(self, repo_path: str) -> RepoContext:
+        if not os.path.isdir(repo_path):
+            return RepoContext(
+                analysis_mode="local",
+                error=f"Path does not exist or is not a directory: {repo_path}",
+            )
         try:
-            for root, dirs, files in os.walk(repo_path):
-                # Skip hidden and common ignore folders
-                dirs[:] = [d for d in dirs if not d.startswith('.')
-                          and d not in ['node_modules', 'venv', '__pycache__',
-                                       'target', 'build', 'dist', 'vendor']]
-
-                for file in files:
-                    ext = os.path.splitext(file)[1].lower()
-                    if ext in self.LANGUAGE_EXTENSIONS:
-                        languages.add(self.LANGUAGE_EXTENSIONS[ext])
-        except Exception as e:
-            print(f"[RepoAnalyzer] Error detecting languages: {e}")
-
-        return list(languages)
-
-    def _detect_build_system(self, repo_path: str) -> Optional[str]:
-        """Detect the primary build system"""
-        for file, system in self.BUILD_SYSTEMS.items():
-            if os.path.exists(os.path.join(repo_path, file)):
-                return system
-        return None
-
-    def _detect_package_managers(self, repo_path: str) -> List[str]:
-        """Detect package managers used"""
-        managers = []
-        for file, manager in self.PACKAGE_MANAGERS.items():
-            if os.path.exists(os.path.join(repo_path, file)):
-                if manager not in managers:
-                    managers.append(manager)
-        return managers
-
-    def _detect_frameworks(self, repo_path: str) -> List[str]:
-        """Detect frameworks used in the project"""
-        frameworks = []
-
-        for indicator, framework in self.FRAMEWORK_INDICATORS.items():
-            # Check if it's a file
-            if os.path.exists(os.path.join(repo_path, indicator)):
-                if framework not in frameworks:
-                    frameworks.append(framework)
-                continue
-
-            # Check in package.json dependencies (for JS frameworks)
-            package_json_path = os.path.join(repo_path, 'package.json')
-            if os.path.exists(package_json_path):
-                try:
-                    with open(package_json_path, 'r', encoding='utf-8') as f:
-                        pkg = json.load(f)
-                        deps = {**pkg.get('dependencies', {}), **pkg.get('devDependencies', {})}
-                        if indicator in deps and framework not in frameworks:
-                            frameworks.append(framework)
-                except (json.JSONDecodeError, IOError, OSError):
-                    pass
-
-            # Check in pom.xml for Spring
-            pom_path = os.path.join(repo_path, 'pom.xml')
-            if indicator == 'spring' and os.path.exists(pom_path):
-                try:
-                    with open(pom_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        if 'spring-boot' in content.lower() and framework not in frameworks:
-                            frameworks.append(framework)
-                except (IOError, OSError):
-                    pass
-
-        return frameworks
-
-    def _check_config_files(self, repo_path: str) -> Dict[str, bool]:
-        """Check for important configuration files"""
-        config_status = {}
-
-        for config in self.CONFIG_FILES:
-            path = os.path.join(repo_path, config)
-            config_status[config] = os.path.exists(path)
-
-        return config_status
-
-    def _find_ci_workflows(self, repo_path: str) -> List[str]:
-        """Find existing CI/CD workflow files"""
-        workflows = []
-
-        # GitHub Actions
-        gh_workflow_dir = os.path.join(repo_path, '.github', 'workflows')
-        if os.path.exists(gh_workflow_dir):
-            try:
-                for file in os.listdir(gh_workflow_dir):
-                    if file.endswith(('.yml', '.yaml')):
-                        workflows.append(f".github/workflows/{file}")
-            except (IOError, OSError):
-                pass
-
-        # GitLab CI
-        if os.path.exists(os.path.join(repo_path, '.gitlab-ci.yml')):
-            workflows.append('.gitlab-ci.yml')
-
-        # Jenkins
-        if os.path.exists(os.path.join(repo_path, 'Jenkinsfile')):
-            workflows.append('Jenkinsfile')
-
-        # Azure Pipelines
-        if os.path.exists(os.path.join(repo_path, 'azure-pipelines.yml')):
-            workflows.append('azure-pipelines.yml')
-
-        # Travis CI
-        if os.path.exists(os.path.join(repo_path, '.travis.yml')):
-            workflows.append('.travis.yml')
-
-        # CircleCI
-        if os.path.exists(os.path.join(repo_path, '.circleci', 'config.yml')):
-            workflows.append('.circleci/config.yml')
-
-        return workflows
-
-    def cleanup(self):
-        """Clean up temporary directories"""
-        if self._temp_dir and os.path.exists(self._temp_dir):
-            try:
-                shutil.rmtree(self._temp_dir)
-                print(f"[RepoAnalyzer] Cleaned up temp directory")
-            except Exception as e:
-                print(f"[RepoAnalyzer] Error cleaning up: {e}")
-            self._temp_dir = None
+            return _LocalRepoAnalyzer().analyse(repo_path)
+        except Exception as exc:
+            return RepoContext(
+                analysis_mode="local",
+                error=f"Local analysis failed: {exc}",
+            )
 
 
-# Convenience function for quick analysis
+# ---------------------------------------------------------------------------
+# Convenience function (backward-compatible with original API)
+# ---------------------------------------------------------------------------
+
 def analyze_repo(
     repo_path: Optional[str] = None,
-    github_url: Optional[str] = None
+    github_url: Optional[str] = None,
+    mcp_config: Optional[MCPClientConfig] = None,
 ) -> RepoContext:
     """
     Quick function to analyze a repository.
 
-    Usage:
-        # Local repo
-        context = analyze_repo(repo_path="/path/to/repo")
+    Examples:
+        # MCP mode — reads repo remotely, no cloning
+        ctx = analyze_repo(github_url="https://github.com/user/repo")
 
-        # GitHub URL
-        context = analyze_repo(github_url="https://github.com/user/repo")
+        # Local mode
+        ctx = analyze_repo(repo_path="/path/to/repo")
 
-        # No repo (prompt-only mode)
-        context = analyze_repo()  # Returns empty context
-    """
-    analyzer = RepoAnalyzer()
-    try:
-        return analyzer.analyze(repo_path, github_url)
-    finally:
-        analyzer.cleanup()
-
-
-if __name__ == "__main__":
-    # Test the analyzer
-    import sys
-
-    if len(sys.argv) > 1:
-        test_path = sys.argv[1]
-        print(f"Testing with: {test_path}")
-
-        if test_path.startswith("http"):
-            ctx = analyze_repo(github_url=test_path)
-        else:
-            ctx = analyze_repo(repo_path=test_path)
-    else:
-        print("Testing prompt-only mode (no repo)")
+        # Prompt-only
         ctx = analyze_repo()
 
-    print("\n=== Repository Context ===")
-    for key, value in ctx.to_dict().items():
-        print(f"  {key}: {value}")
+    Returns:
+        RepoContext — always, even on failure (check ctx.error).
+    """
+    config = mcp_config or MCPClientConfig()
+    analyzer = RepoAnalyzer(mcp_config=config)
+    try:
+        return analyzer.analyze(repo_path=repo_path, github_url=github_url)
+    finally:
+        analyzer.cleanup()
