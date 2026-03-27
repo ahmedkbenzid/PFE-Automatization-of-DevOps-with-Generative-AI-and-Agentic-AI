@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-47e6accb-334",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/jacoco-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/jacoco-plugin",
+    "commit_hash": "47e6accb704cb8f9e1a4d31416bdcb914509e111",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

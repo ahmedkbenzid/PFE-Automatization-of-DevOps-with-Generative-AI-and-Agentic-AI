@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-41f6b58c-302",
+  "page_type": "workflow_example",
+  "title": "Jira",
+  "source": "zenodo-workflow-histories:hazelcast/hazelcast",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jira.yml",
+  "metadata": {
+    "repository": "hazelcast/hazelcast",
+    "commit_hash": "41f6b58c22b00e409aabd501051c9d47c2bf62f4",
+    "file_path": ".github/workflows/jira.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

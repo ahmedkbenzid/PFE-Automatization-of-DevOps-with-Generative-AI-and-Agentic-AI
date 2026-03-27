@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-02291709-483",
+  "page_type": "workflow_example",
+  "title": "Codecov",
+  "source": "zenodo-workflow-histories:yegor256/rultor",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codecov.yml",
+  "metadata": {
+    "repository": "yegor256/rultor",
+    "commit_hash": "022917091b85e47b4e470c4ef8ac5b2fb9b85afa",
+    "file_path": ".github/workflows/codecov.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bae43db8-295",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:apereo/java-cas-client",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "apereo/java-cas-client",
+    "commit_hash": "bae43db8f41f5a207f2f058f464fc2f791c8524f",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

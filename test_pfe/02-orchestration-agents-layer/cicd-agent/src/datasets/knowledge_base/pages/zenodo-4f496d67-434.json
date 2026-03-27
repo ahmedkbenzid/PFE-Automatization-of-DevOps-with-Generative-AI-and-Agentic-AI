@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4f496d67-434",
+  "page_type": "workflow_example",
+  "title": "Jbang Test",
+  "source": "zenodo-workflow-histories:hawtio/hawtio",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jbang-test.yml",
+  "metadata": {
+    "repository": "hawtio/hawtio",
+    "commit_hash": "4f496d6732c46cce5ef39a3098747d1444a6b70b",
+    "file_path": ".github/workflows/jbang-test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

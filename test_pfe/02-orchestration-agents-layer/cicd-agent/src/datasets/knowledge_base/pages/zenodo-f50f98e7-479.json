@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f50f98e7-479",
+  "page_type": "workflow_example",
+  "title": "Maven Publish",
+  "source": "zenodo-workflow-histories:violetumleditor/violetumleditor",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-publish.yml",
+  "metadata": {
+    "repository": "violetumleditor/violetumleditor",
+    "commit_hash": "f50f98e7f0e831e261d1ac9fc48c4ab68662646c",
+    "file_path": ".github/workflows/maven-publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

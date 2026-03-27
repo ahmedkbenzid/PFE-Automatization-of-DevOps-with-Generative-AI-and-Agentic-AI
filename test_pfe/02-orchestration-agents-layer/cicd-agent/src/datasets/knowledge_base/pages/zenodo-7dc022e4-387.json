@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7dc022e4-387",
+  "page_type": "workflow_example",
+  "title": "Publish Sourceforge",
+  "source": "zenodo-workflow-histories:freeplane/freeplane",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish-sourceforge.yml",
+  "metadata": {
+    "repository": "freeplane/freeplane",
+    "commit_hash": "7dc022e435a9a6d3457d9a59db00e7c67539838e",
+    "file_path": ".github/workflows/publish-sourceforge.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

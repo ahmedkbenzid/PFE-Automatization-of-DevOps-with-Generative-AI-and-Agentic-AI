@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7b797aea-147",
+  "page_type": "workflow_example",
+  "title": "Build Test",
+  "source": "zenodo-workflow-histories:hibernate/hibernate-tools",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build_test.yml",
+  "metadata": {
+    "repository": "hibernate/hibernate-tools",
+    "commit_hash": "7b797aea96dd50c37335a502a3401923d1e31a86",
+    "file_path": ".github/workflows/build_test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

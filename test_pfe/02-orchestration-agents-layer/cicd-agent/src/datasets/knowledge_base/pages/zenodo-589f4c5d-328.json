@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-589f4c5d-328",
+  "page_type": "workflow_example",
+  "title": "Build Pull Request",
+  "source": "zenodo-workflow-histories:apache/tapestry-5",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-pull-request.yaml",
+  "metadata": {
+    "repository": "apache/tapestry-5",
+    "commit_hash": "589f4c5d8935a7a59f7da35174a490709dbfc6f7",
+    "file_path": ".github/workflows/build-pull-request.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

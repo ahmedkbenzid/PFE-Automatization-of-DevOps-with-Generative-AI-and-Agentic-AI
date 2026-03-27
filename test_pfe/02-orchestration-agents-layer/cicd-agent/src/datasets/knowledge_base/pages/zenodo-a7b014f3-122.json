@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a7b014f3-122",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/subversion-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/subversion-plugin",
+    "commit_hash": "a7b014f3fc2c33a4b08ae3fa1a79e2c656996a95",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

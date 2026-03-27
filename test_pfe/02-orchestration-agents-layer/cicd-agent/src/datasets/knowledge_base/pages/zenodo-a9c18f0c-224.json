@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a9c18f0c-224",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:yamcs/yamcs",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "yamcs/yamcs",
+    "commit_hash": "a9c18f0c6f0d042c8390cbfc46d7dcd863290587",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

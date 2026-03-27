@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-edd9b524-32",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:apache/roller",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "apache/roller",
+    "commit_hash": "edd9b524d1e747d5f10ae418774c5883183b6039",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

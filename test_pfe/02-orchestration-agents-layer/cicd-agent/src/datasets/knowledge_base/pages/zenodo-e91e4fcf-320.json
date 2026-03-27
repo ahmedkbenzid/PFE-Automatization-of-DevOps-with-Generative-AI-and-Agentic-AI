@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e91e4fcf-320",
+  "page_type": "workflow_example",
+  "title": "Cd",
+  "source": "zenodo-workflow-histories:jenkinsci/embeddable-build-status-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/cd.yaml",
+  "metadata": {
+    "repository": "jenkinsci/embeddable-build-status-plugin",
+    "commit_hash": "e91e4fcf87ad0c1703e3e8a77d47a56bc37d95a1",
+    "file_path": ".github/workflows/cd.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

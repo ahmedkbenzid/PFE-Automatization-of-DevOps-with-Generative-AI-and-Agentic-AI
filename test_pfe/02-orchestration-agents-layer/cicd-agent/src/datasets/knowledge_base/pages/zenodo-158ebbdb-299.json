@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-158ebbdb-299",
+  "page_type": "workflow_example",
+  "title": "Codescan",
+  "source": "zenodo-workflow-histories:dspace/dspace",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codescan.yml",
+  "metadata": {
+    "repository": "dspace/dspace",
+    "commit_hash": "158ebbdbf68b80f1623a18d4433a9016623a29e8",
+    "file_path": ".github/workflows/codescan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

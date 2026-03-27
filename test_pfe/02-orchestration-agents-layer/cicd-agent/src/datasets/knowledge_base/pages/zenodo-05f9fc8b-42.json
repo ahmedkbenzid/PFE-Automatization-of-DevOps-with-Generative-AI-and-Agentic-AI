@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-05f9fc8b-42",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:fusesource/jansi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "fusesource/jansi",
+    "commit_hash": "05f9fc8b68d4d4b2fd9cf0a706e116e16c7e2091",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

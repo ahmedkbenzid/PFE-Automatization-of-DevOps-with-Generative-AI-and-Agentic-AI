@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-351fa7fc-197",
+  "page_type": "workflow_example",
+  "title": "Examples Workflow",
+  "source": "zenodo-workflow-histories:fluentlenium/fluentlenium",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/examples-workflow.yml",
+  "metadata": {
+    "repository": "fluentlenium/fluentlenium",
+    "commit_hash": "351fa7fcca161a09f41c7e644c9ac4623afc270d",
+    "file_path": ".github/workflows/examples-workflow.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

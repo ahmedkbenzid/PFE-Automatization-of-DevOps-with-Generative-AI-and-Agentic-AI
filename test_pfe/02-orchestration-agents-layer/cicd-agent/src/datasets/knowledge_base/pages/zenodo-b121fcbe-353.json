@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b121fcbe-353",
+  "page_type": "workflow_example",
+  "title": "Gradle Check",
+  "source": "zenodo-workflow-histories:slugify/slugify",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle-check.yml",
+  "metadata": {
+    "repository": "slugify/slugify",
+    "commit_hash": "b121fcbe61583f1f59f7f4d46c842de35d57d3e9",
+    "file_path": ".github/workflows/gradle-check.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

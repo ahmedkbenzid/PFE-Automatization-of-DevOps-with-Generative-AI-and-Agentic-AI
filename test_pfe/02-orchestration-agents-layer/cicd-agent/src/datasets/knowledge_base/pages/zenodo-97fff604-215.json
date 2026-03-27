@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-97fff604-215",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:bwaldvogel/mongo-java-server",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "bwaldvogel/mongo-java-server",
+    "commit_hash": "97fff604d556663cc5cd72f285eabc7639b77b85",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

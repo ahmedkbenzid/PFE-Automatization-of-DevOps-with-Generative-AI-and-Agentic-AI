@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5f9d5530-414",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:odrotbohm/spring-restbucks",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yaml",
+  "metadata": {
+    "repository": "odrotbohm/spring-restbucks",
+    "commit_hash": "5f9d55306458f11136faf587c741cd2738dd1477",
+    "file_path": ".github/workflows/build.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

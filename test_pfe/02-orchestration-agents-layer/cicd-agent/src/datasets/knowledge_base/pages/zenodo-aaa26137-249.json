@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-aaa26137-249",
+  "page_type": "workflow_example",
+  "title": "Cloud Tests",
+  "source": "zenodo-workflow-histories:resteasy/resteasy",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/cloud-tests.yml",
+  "metadata": {
+    "repository": "resteasy/resteasy",
+    "commit_hash": "aaa261373089dc18f66a2c6303e2e9b8ba844f9a",
+    "file_path": ".github/workflows/cloud-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

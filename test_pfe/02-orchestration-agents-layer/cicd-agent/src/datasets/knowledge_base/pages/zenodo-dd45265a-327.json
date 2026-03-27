@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-dd45265a-327",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:jchempaint/jchempaint",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "jchempaint/jchempaint",
+    "commit_hash": "dd45265aba590066799d08e436cc3a3cbc27893e",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

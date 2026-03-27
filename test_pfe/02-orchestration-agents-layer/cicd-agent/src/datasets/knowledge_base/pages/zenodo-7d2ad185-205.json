@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7d2ad185-205",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:apache/kafka",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "apache/kafka",
+    "commit_hash": "7d2ad185206cd4c7089fceb07f9a3f2c016f38d6",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

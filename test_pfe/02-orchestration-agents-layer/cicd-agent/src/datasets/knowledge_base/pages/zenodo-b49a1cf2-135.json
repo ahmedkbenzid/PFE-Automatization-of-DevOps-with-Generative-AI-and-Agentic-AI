@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b49a1cf2-135",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:structr/structr",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yaml",
+  "metadata": {
+    "repository": "structr/structr",
+    "commit_hash": "b49a1cf2afe056c5fd61f731e8980717fe7a5d58",
+    "file_path": ".github/workflows/main.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

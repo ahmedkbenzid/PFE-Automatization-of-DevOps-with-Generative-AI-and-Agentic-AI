@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f176d922-19",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:apache/httpcomponents-client",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "apache/httpcomponents-client",
+    "commit_hash": "f176d922df466bf06924f2b19474352141bafa7c",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

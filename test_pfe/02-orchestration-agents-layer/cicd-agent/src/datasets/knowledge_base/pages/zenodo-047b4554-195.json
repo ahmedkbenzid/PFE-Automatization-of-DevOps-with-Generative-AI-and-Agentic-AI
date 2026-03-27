@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-047b4554-195",
+  "page_type": "workflow_example",
+  "title": "Nebula Ci",
+  "source": "zenodo-workflow-histories:netflix/priam",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/nebula-ci.yml",
+  "metadata": {
+    "repository": "netflix/priam",
+    "commit_hash": "047b45545e98f47a27b17791ac4ec3c0a7f4a5fd",
+    "file_path": ".github/workflows/nebula-ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d8d29ef0-390",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:linkedin/parseq",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "linkedin/parseq",
+    "commit_hash": "d8d29ef03e030adae70bda373f261df455434c61",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

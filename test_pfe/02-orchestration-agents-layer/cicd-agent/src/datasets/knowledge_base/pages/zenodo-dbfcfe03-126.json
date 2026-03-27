@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-dbfcfe03-126",
+  "page_type": "workflow_example",
+  "title": "Spellcheck",
+  "source": "zenodo-workflow-histories:webbukkit/dynmap",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/spellcheck.yaml",
+  "metadata": {
+    "repository": "webbukkit/dynmap",
+    "commit_hash": "dbfcfe03d43247917dbe3b75644f66adffba1f87",
+    "file_path": ".github/workflows/spellcheck.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bc0f0abc-355",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:ron190/jsql-injection",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "ron190/jsql-injection",
+    "commit_hash": "bc0f0abc0740d08903c5a8d68dd937316e0f9a74",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

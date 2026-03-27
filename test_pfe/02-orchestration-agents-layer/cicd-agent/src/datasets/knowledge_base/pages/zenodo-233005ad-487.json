@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-233005ad-487",
+  "page_type": "workflow_example",
+  "title": "Ci Macos",
+  "source": "zenodo-workflow-histories:ccavanaugh/jgnash",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-macOS.yml",
+  "metadata": {
+    "repository": "ccavanaugh/jgnash",
+    "commit_hash": "233005ad9e4510da5da55e82c115ebe87d254e7b",
+    "file_path": ".github/workflows/ci-macOS.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

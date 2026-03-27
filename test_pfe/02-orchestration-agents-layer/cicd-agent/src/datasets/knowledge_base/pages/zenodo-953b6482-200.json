@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-953b6482-200",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:shrinkwrap/resolver",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "shrinkwrap/resolver",
+    "commit_hash": "953b6482ff1bfdf51f61b12b67740c76d4cb2d93",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

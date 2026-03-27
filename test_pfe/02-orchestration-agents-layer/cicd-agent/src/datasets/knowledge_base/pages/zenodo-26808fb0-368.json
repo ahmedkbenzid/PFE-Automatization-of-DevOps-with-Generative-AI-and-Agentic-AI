@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-26808fb0-368",
+  "page_type": "workflow_example",
+  "title": "Build Runtime",
+  "source": "zenodo-workflow-histories:dc37/super-mario-paint",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build_runtime.yml",
+  "metadata": {
+    "repository": "dc37/super-mario-paint",
+    "commit_hash": "26808fb00ca25a3cd9430bf2c6c0c44abda4ab13",
+    "file_path": ".github/workflows/build_runtime.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

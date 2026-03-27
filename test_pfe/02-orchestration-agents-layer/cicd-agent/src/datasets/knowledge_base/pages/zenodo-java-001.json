@@ -1,0 +1,23 @@
+{
+  "page_id": "zenodo-java-001",
+  "page_type": "workflow_example",
+  "title": "Spring Boot Maven Build",
+  "source": "zenodo-workflow-histories:spring-projects/spring-boot",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "java",
+    "build",
+    "test"
+  ],
+  "content": "name: Spring Boot Maven Build\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "spring-projects/spring-boot",
+    "language": "Java",
+    "patterns": [
+      "build",
+      "test"
+    ],
+    "success_rate": 0.89
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-85fa44e2-159",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:elbukkit/magicplugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "elbukkit/magicplugin",
+    "commit_hash": "85fa44e262e7a6c0be76b8229dd31798d8981fd4",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

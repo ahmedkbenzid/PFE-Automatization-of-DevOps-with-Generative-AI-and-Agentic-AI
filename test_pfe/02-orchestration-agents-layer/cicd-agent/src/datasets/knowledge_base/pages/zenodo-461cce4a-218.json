@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-461cce4a-218",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:crossbario/autobahn-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "crossbario/autobahn-java",
+    "commit_hash": "461cce4a05ed2735ac026d3bc00f7afc4f682b52",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

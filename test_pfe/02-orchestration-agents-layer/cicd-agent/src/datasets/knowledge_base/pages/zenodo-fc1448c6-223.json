@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fc1448c6-223",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:apache/tomcat",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "apache/tomcat",
+    "commit_hash": "fc1448c6acda5dcb5b3b5a043af53c3f84fcfad0",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

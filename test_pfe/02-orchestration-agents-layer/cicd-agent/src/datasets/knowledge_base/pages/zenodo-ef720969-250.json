@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ef720969-250",
+  "page_type": "workflow_example",
+  "title": "Pr",
+  "source": "zenodo-workflow-histories:netflix/servo",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/pr.yml",
+  "metadata": {
+    "repository": "netflix/servo",
+    "commit_hash": "ef720969d2e3fa19ef4f8035aa120c5b9107f410",
+    "file_path": ".github/workflows/pr.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

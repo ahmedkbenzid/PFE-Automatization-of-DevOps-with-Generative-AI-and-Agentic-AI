@@ -665,6 +665,96 @@ class GitHubMCPClient:
             files_changed=[],
         )
 
+    def create_pull_request(self, owner: str, repo: str,
+                          title: str, body: str,
+                          head: str, base: str) -> Dict[str, Any]:
+        """Create a pull request via MCP with fallback to PyGithub.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            title: PR title
+            body: PR description
+            head: Head branch (feature branch with changes)
+            base: Base branch (e.g., 'main')
+
+        Returns:
+            Dictionary with PR details (number, url, id, etc.) or error info
+        """
+        # Try MCP first
+        variants = [
+            {
+                "owner": owner,
+                "repo": repo,
+                "title": title,
+                "body": body,
+                "head": head,
+                "base": base,
+            },
+        ]
+
+        for args in variants:
+            try:
+                payload = self.call_tool(
+                    candidates=(
+                        "create_pull_request",
+                        "create_pull",
+                        "mcp_io_github_github_create_pull_request",
+                    ),
+                    arguments=args,
+                )
+
+                if isinstance(payload, dict):
+                    return {
+                        "success": True,
+                        "pr_number": payload.get("number"),
+                        "pr_url": payload.get("html_url") or payload.get("url"),
+                        "pr_id": payload.get("id"),
+                        "head": payload.get("head", {}).get("ref") or head,
+                        "base": payload.get("base", {}).get("ref") or base,
+                        "state": payload.get("state", "open"),
+                        "raw_response": payload,
+                    }
+            except Exception as e:
+                # Log but continue to fallback
+                if hasattr(self, 'logger'):
+                    self.logger.warning(f"MCP create_pull_request failed: {e}")
+
+        # Fallback to PyGithub if MCP not available or failed
+        try:
+            from github import Github
+
+            client = Github(self.token)
+            repo_obj = client.get_user(owner).get_repo(repo)
+
+            pr = repo_obj.create_pull(
+                title=title,
+                body=body,
+                head=head,
+                base=base,
+            )
+
+            return {
+                "success": True,
+                "pr_number": pr.number,
+                "pr_url": pr.html_url,
+                "pr_id": pr.id,
+                "head": pr.head.ref,
+                "base": pr.base.ref,
+                "state": pr.state,
+                "source": "PyGithub",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "owner": owner,
+                "repo": repo,
+                "requested_head": head,
+                "requested_base": base,
+            }
+
 
 class ChangeDetector:
     """Detect what changed and which agents need rerun."""

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-43cc90b5-170",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:gwt-maven-plugin/gwt-maven-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "gwt-maven-plugin/gwt-maven-plugin",
+    "commit_hash": "43cc90b59d4bbe9ab8ade56ec2e20d19c38df09f",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

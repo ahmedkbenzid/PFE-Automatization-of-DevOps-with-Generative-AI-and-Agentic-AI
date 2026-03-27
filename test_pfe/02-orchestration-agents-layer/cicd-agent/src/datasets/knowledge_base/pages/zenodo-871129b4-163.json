@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-871129b4-163",
+  "page_type": "workflow_example",
+  "title": "Qodana",
+  "source": "zenodo-workflow-histories:mcmics/jenkins-control-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/Qodana.yml",
+  "metadata": {
+    "repository": "mcmics/jenkins-control-plugin",
+    "commit_hash": "871129b4750d5daa1f159a8a08ed8c79e3226372",
+    "file_path": ".github/workflows/Qodana.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0cbfec78-361",
+  "page_type": "workflow_example",
+  "title": "Build 2.X",
+  "source": "zenodo-workflow-histories:openmrs/openmrs-core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-2.x.yaml",
+  "metadata": {
+    "repository": "openmrs/openmrs-core",
+    "commit_hash": "0cbfec78d421f49efd3b2dfd89db5dc54177163a",
+    "file_path": ".github/workflows/build-2.x.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

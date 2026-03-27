@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9e84e935-386",
+  "page_type": "workflow_example",
+  "title": "Mariadb",
+  "source": "zenodo-workflow-histories:ebean-orm/ebean",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/mariadb.yml",
+  "metadata": {
+    "repository": "ebean-orm/ebean",
+    "commit_hash": "9e84e93511fb3a5bba484eccadfe8a9f8900b729",
+    "file_path": ".github/workflows/mariadb.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

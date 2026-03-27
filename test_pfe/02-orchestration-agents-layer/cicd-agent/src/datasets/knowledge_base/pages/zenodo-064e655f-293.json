@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-064e655f-293",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:inaturalist/inaturalistandroid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/CI.yml",
+  "metadata": {
+    "repository": "inaturalist/inaturalistandroid",
+    "commit_hash": "064e655f98402c3ab8a7cf32887bf2666ab24e4d",
+    "file_path": ".github/workflows/CI.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f90e9659-106",
+  "page_type": "workflow_example",
+  "title": "Artifactory Staging",
+  "source": "zenodo-workflow-histories:spring-projects/spring-batch",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/artifactory-staging.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-batch",
+    "commit_hash": "f90e96597491a792980d38186647dd3f9ab6af85",
+    "file_path": ".github/workflows/artifactory-staging.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

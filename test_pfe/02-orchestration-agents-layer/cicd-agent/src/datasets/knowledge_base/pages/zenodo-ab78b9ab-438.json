@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ab78b9ab-438",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:md-5/specialsource",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "md-5/specialsource",
+    "commit_hash": "ab78b9abdb1e9004442216f0ab50708255c7a278",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

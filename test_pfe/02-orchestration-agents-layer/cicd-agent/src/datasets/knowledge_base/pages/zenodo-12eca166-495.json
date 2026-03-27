@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-12eca166-495",
+  "page_type": "workflow_example",
+  "title": "Continuous Integration",
+  "source": "zenodo-workflow-histories:asciidoctor/asciidoctorj",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/continuous-integration.yaml",
+  "metadata": {
+    "repository": "asciidoctor/asciidoctorj",
+    "commit_hash": "12eca16694ddfead5e12de45e8ae5e5b7b4b835b",
+    "file_path": ".github/workflows/continuous-integration.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

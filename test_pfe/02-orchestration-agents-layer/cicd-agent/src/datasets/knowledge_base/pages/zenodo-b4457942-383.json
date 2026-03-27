@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b4457942-383",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:xerial/snappy-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "xerial/snappy-java",
+    "commit_hash": "b44579425f181ba17a1b284f08582e18748a1543",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

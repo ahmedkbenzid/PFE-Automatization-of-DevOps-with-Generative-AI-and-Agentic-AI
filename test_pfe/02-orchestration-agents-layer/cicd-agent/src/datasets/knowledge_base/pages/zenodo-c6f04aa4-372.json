@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c6f04aa4-372",
+  "page_type": "workflow_example",
+  "title": "Gradle Wrappers Validation",
+  "source": "zenodo-workflow-histories:jetbrains/intellij-plugins",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/Gradle_wrappers_validation.yml",
+  "metadata": {
+    "repository": "jetbrains/intellij-plugins",
+    "commit_hash": "c6f04aa44127c2a60ce60ea2f38bad7c2c45a044",
+    "file_path": ".github/workflows/Gradle_wrappers_validation.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

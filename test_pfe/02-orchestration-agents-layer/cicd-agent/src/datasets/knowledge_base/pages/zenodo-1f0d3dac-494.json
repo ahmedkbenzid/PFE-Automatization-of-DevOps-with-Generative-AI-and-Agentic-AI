@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1f0d3dac-494",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:skylot/jadx",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "skylot/jadx",
+    "commit_hash": "1f0d3dac0ff7bef3c9fe966d0f23a296bbaf2998",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

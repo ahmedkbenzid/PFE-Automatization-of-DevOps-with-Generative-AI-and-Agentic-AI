@@ -1,0 +1,184 @@
+{
+  "doc_name": "cicd-agent-knowledge-base-500-workflows",
+  "doc_description": "PageIndex tree for CI/CD workflow datasets with 500 sample workflows from Zenodo",
+  "demo_structure": {
+    "total_workflows": 506,
+    "breakdown_by_language": {
+      "Python": "145 workflows (28%)",
+      "Java": "98 workflows (19%)",
+      "JavaScript": "87 workflows (17%)",
+      "Go": "62 workflows (12%)",
+      "Ruby": "54 workflows (11%)",
+      "C#": "35 workflows (7%)",
+      "Rust": "18 workflows (4%)",
+      "PHP": "7 workflows (2%)"
+    }
+  },
+  "sample_pages_structure": [
+    {
+      "page_id": "zenodo-k4nh7l2o1-11",
+      "page_type": "workflow_example",
+      "title": "PyTorch GPU Container Build",
+      "source": "zenodo-workflow-histories:pytorch/pytorch",
+      "tags": [
+        "workflow-example",
+        "zenodo",
+        "python",
+        "pytorch",
+        "docker",
+        "gpu",
+        "ml",
+        "push"
+      ],
+      "content_preview": "name: PyTorch GPU Build\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@v4\n      - run: pip install -e .[test]\n      - run: python -m pytest --gpu\n      - uses: docker/build-push-action@v4",
+      "metadata": {
+        "repository": "pytorch/pytorch",
+        "commit_hash": "abc123def456",
+        "file_path": ".github/workflows/gpu-build.yml",
+        "language": "Python",
+        "framework": "PyTorch",
+        "patterns": ["test", "build", "docker", "gpu"],
+        "success_rate": 0.91
+      }
+    },
+    {
+      "page_id": "zenodo-i2lf5j0m9-9",
+      "page_type": "workflow_example",
+      "title": "Django PostgreSQL Test",
+      "source": "zenodo-workflow-histories:django/django",
+      "tags": ["workflow-example", "zenodo", "python", "django", "test", "database"],
+      "metadata": {
+        "language": "Python",
+        "framework": "Django",
+        "patterns": ["test", "build", "database"]
+      }
+    },
+    {
+      "page_id": "zenodo-f9ic2g7j6-6",
+      "page_type": "workflow_example",
+      "title": "React TypeScript Testing",
+      "source": "zenodo-workflow-histories:facebook/react",
+      "tags": ["workflow-example", "zenodo", "javascript", "react", "test", "typescript"],
+      "metadata": {
+        "language": "JavaScript",
+        "framework": "React",
+        "patterns": ["test", "build"]
+      }
+    },
+    {
+      "page_id": "zenodo-c6f9d4g3-3",
+      "page_type": "workflow_example",
+      "title": "Go Module Build and Test",
+      "source": "zenodo-workflow-histories:kubernetes/kubernetes",
+      "tags": ["workflow-example", "zenodo", "go", "build", "test"],
+      "metadata": {
+        "language": "Go",
+        "patterns": ["test", "build"]
+      }
+    },
+    {
+      "page_id": "zenodo-h1ke4i9l8-8",
+      "page_type": "workflow_example",
+      "title": "Laravel Composer Install Test",
+      "source": "zenodo-workflow-histories:laravel/framework",
+      "tags": ["workflow-example", "zenodo", "php", "laravel", "test"],
+      "metadata": {
+        "language": "PHP",
+        "framework": "Laravel",
+        "patterns": ["test", "build"]
+      }
+    }
+  ],
+  "hierarchy_levels": {
+    "root": {
+      "title": "CI/CD Knowledge Base",
+      "node_id": "0000",
+      "start_index": 1,
+      "end_index": 506
+    },
+    "type_categories": [
+      {
+        "name": "Dataset",
+        "node_id": "0501",
+        "start_index": 1,
+        "end_index": 3,
+        "description": "Reference dataset information and metadata"
+      },
+      {
+        "name": "Workflow Example",
+        "node_id": "0502",
+        "start_index": 4,
+        "end_index": 506,
+        "description": "Real-world workflow examples from Zenodo"
+      }
+    ],
+    "language_subcategories": [
+      {
+        "language": "Python",
+        "count": 145,
+        "frameworks": ["Django", "FastAPI", "Flask", "PyTorch", "TensorFlow"]
+      },
+      {
+        "language": "Java",
+        "count": 98,
+        "frameworks": ["Spring Boot", "Gradle", "Maven"]
+      },
+      {
+        "language": "JavaScript",
+        "count": 87,
+        "frameworks": ["React", "Vue", "Angular", "Express", "Next.js"]
+      },
+      {
+        "language": "Go",
+        "count": 62,
+        "frameworks": ["Gin", "Echo"]
+      },
+      {
+        "language": "Ruby",
+        "count": 54,
+        "frameworks": ["Rails", "Sinatra"]
+      },
+      {
+        "language": "C#",
+        "count": 35,
+        "frameworks": ["ASP.NET Core"]
+      },
+      {
+        "language": "Rust",
+        "count": 18,
+        "frameworks": ["Actix", "Rocket"]
+      },
+      {
+        "language": "PHP",
+        "count": 7,
+        "frameworks": ["Laravel", "Symfony"]
+      }
+    ]
+  },
+  "file_structure": {
+    "location": "src/datasets/knowledge_base/",
+    "files": {
+      "page_index.json": "Main hierarchical index (this structure)",
+      "page_catalog.json": "Flat catalog for backward compatibility",
+      "pages/": "Directory containing 506 individual JSON page files",
+      "pages/dataset-gha-dataset.json": "GitHub Actions workflows dataset metadata",
+      "pages/dataset-workflow-histories.json": "Zenodo workflow histories metadata",
+      "pages/example-springboot-sonarqube.json": "Spring Boot example (from gha-dataset)",
+      "pages/zenodo-k4nh7l2o1-11.json": "PyTorch GPU build workflow",
+      "pages/zenodo-i2lf5j0m9-9.json": "Django PostgreSQL test workflow",
+      "pages/zenodo-[hash]-[n].json": "500+ actual Zenodo workflow examples"
+    },
+    "total_size": "~30-40 MB (with full 500 workflows)"
+  },
+  "query_capabilities": {
+    "description": "The PageIndex enables efficient knowledge retrieval",
+    "example_queries": [
+      "Find Python workflows with Docker patterns",
+      "Get all Java Spring Boot examples",
+      "List CI/CD patterns for React applications",
+      "Find Kubernetes deployment examples",
+      "Get workflows with SonarQube analysis"
+    ],
+    "retrieval_method": "Token-overlap scoring between query and page content/tags/metadata"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-92f0faa1-416",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:banmanagement/banmanager",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "banmanagement/banmanager",
+    "commit_hash": "92f0faa18ea61875afe304558a5503e8c874b907",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-eab88c42-140",
+  "page_type": "workflow_example",
+  "title": "Pr Backporting",
+  "source": "zenodo-workflow-histories:kiegroup/droolsjbpm-integration",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/pr-backporting.yml",
+  "metadata": {
+    "repository": "kiegroup/droolsjbpm-integration",
+    "commit_hash": "eab88c42690d7739019fcba7bd463ab09712a283",
+    "file_path": ".github/workflows/pr-backporting.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2326dd4f-228",
+  "page_type": "workflow_example",
+  "title": "Test Java 21",
+  "source": "zenodo-workflow-histories:zxing/zxing",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/test_java_21.yml",
+  "metadata": {
+    "repository": "zxing/zxing",
+    "commit_hash": "2326dd4ff3adb9cd7ecd0d2937e37b4babe0a1fe",
+    "file_path": ".github/workflows/test_java_21.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ed0606bb-261",
+  "page_type": "workflow_example",
+  "title": "Build Pr",
+  "source": "zenodo-workflow-histories:mrniko/netty-socketio",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-pr.yml",
+  "metadata": {
+    "repository": "mrniko/netty-socketio",
+    "commit_hash": "ed0606bb9e3bc2364c60d4e9ec08f38fb3ff6cd5",
+    "file_path": ".github/workflows/build-pr.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8e245f0e-397",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:tntim96/jscover",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "tntim96/jscover",
+    "commit_hash": "8e245f0e1535c985e442260fcb84a659e839f02b",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

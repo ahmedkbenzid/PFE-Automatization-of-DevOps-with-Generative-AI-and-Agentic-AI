@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-66b34c8f-191",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/github-oauth-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/github-oauth-plugin",
+    "commit_hash": "66b34c8f61cf21eb315daa0ee2cc3352cf67ba61",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

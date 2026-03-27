@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e66cac21-49",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:jruby/joni",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "jruby/joni",
+    "commit_hash": "e66cac216ce5670bfd4b112dd3d8114d3143d952",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

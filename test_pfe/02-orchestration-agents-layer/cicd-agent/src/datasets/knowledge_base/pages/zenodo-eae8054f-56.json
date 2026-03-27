@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-eae8054f-56",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:citrusframework/citrus",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "citrusframework/citrus",
+    "commit_hash": "eae8054f503a6741f2ca90df74449d466792fc58",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

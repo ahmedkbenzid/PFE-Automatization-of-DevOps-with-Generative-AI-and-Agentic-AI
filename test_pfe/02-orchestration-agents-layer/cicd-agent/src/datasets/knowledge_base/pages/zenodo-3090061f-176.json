@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3090061f-176",
+  "page_type": "workflow_example",
+  "title": "Ci 5.X Stable",
+  "source": "zenodo-workflow-histories:eclipse-vertx/vert.x",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-5.x-stable.yml",
+  "metadata": {
+    "repository": "eclipse-vertx/vert.x",
+    "commit_hash": "3090061fee918e43a328f74161d1edbd5d19abec",
+    "file_path": ".github/workflows/ci-5.x-stable.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

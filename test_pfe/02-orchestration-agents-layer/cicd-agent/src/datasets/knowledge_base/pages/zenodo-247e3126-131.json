@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-247e3126-131",
+  "page_type": "workflow_example",
+  "title": "Plantuml Snapshot",
+  "source": "zenodo-workflow-histories:hallvard/plantuml",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/plantuml-snapshot.yml",
+  "metadata": {
+    "repository": "hallvard/plantuml",
+    "commit_hash": "247e31264cccc9ecaa3b78a23c8ef33b55fcb4e2",
+    "file_path": ".github/workflows/plantuml-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

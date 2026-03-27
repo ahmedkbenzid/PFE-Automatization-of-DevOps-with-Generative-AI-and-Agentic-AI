@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bfc33bde-491",
+  "page_type": "workflow_example",
+  "title": "Docs Build",
+  "source": "zenodo-workflow-histories:elastic/elasticsearch-hadoop",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/docs-build.yml",
+  "metadata": {
+    "repository": "elastic/elasticsearch-hadoop",
+    "commit_hash": "bfc33bdecf4159c8a4b585714769668f866928e7",
+    "file_path": ".github/workflows/docs-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

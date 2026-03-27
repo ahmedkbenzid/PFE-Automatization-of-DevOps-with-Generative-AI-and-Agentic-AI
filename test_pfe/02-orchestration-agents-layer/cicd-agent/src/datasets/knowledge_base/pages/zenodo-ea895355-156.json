@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ea895355-156",
+  "page_type": "workflow_example",
+  "title": "Check",
+  "source": "zenodo-workflow-histories:jopt-simple/jopt-simple",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/check.yml",
+  "metadata": {
+    "repository": "jopt-simple/jopt-simple",
+    "commit_hash": "ea89535527ef77e832e99388f336cf537868d14f",
+    "file_path": ".github/workflows/check.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

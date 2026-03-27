@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d6394bf7-367",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:dcache/nfs4j",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "dcache/nfs4j",
+    "commit_hash": "d6394bf76799e3d98fb81a4db17c2e32542d2ecf",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

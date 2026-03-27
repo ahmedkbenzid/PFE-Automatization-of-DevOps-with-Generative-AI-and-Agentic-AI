@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-870c03b2-78",
+  "page_type": "workflow_example",
+  "title": "Publish Maven",
+  "source": "zenodo-workflow-histories:mixpanel/mixpanel-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish-maven.yml",
+  "metadata": {
+    "repository": "mixpanel/mixpanel-android",
+    "commit_hash": "870c03b2c9efdf78ce228107deebf00074e0c1e7",
+    "file_path": ".github/workflows/publish-maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

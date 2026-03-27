@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b943810e-306",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:hamcrest/javahamcrest",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "hamcrest/javahamcrest",
+    "commit_hash": "b943810ea32c72d4ae94488e76be8318eaa3239d",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

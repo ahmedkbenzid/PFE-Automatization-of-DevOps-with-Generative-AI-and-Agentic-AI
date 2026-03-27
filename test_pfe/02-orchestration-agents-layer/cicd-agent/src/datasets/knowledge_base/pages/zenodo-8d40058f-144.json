@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8d40058f-144",
+  "page_type": "workflow_example",
+  "title": "Monitorissues",
+  "source": "zenodo-workflow-histories:jfrog/build-info",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/monitorIssues.yml",
+  "metadata": {
+    "repository": "jfrog/build-info",
+    "commit_hash": "8d40058f07195be5ffd8f0acad13321c16bd1ca2",
+    "file_path": ".github/workflows/monitorIssues.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

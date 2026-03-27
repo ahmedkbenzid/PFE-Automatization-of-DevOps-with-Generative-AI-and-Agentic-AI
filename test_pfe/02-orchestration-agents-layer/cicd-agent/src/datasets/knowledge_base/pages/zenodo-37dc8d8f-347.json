@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-37dc8d8f-347",
+  "page_type": "workflow_example",
+  "title": "Sonarcloud",
+  "source": "zenodo-workflow-histories:damianszczepanik/cucumber-reporting",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/sonarcloud.yml",
+  "metadata": {
+    "repository": "damianszczepanik/cucumber-reporting",
+    "commit_hash": "37dc8d8fb2e90038d1e2c4012706014c789fe5f3",
+    "file_path": ".github/workflows/sonarcloud.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

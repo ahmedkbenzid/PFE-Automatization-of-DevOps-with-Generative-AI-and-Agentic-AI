@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fa3b7cc8-55",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:quran/quran_android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "quran/quran_android",
+    "commit_hash": "fa3b7cc89802adde5574f2adba4abcc350bc02d6",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

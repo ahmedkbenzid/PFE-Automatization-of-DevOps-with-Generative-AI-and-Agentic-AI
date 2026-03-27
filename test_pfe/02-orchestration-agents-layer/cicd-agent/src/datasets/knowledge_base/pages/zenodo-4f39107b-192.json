@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4f39107b-192",
+  "page_type": "workflow_example",
+  "title": "Code Cleanliness",
+  "source": "zenodo-workflow-histories:eclipse-cdt/cdt",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/code-cleanliness.yml",
+  "metadata": {
+    "repository": "eclipse-cdt/cdt",
+    "commit_hash": "4f39107b144affa6f3fb11c5ada092371e6371b8",
+    "file_path": ".github/workflows/code-cleanliness.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

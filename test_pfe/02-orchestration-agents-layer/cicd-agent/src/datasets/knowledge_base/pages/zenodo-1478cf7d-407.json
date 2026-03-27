@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1478cf7d-407",
+  "page_type": "workflow_example",
+  "title": "Auto Build",
+  "source": "zenodo-workflow-histories:pilot51/voicenotify",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/auto-build.yml",
+  "metadata": {
+    "repository": "pilot51/voicenotify",
+    "commit_hash": "1478cf7db6ff87cdcce4dbf70dce9e37a6160df1",
+    "file_path": ".github/workflows/auto-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

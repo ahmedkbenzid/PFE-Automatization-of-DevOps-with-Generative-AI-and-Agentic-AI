@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-379e3209-164",
+  "page_type": "workflow_example",
+  "title": "Website",
+  "source": "zenodo-workflow-histories:jodaorg/joda-money",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/website.yml",
+  "metadata": {
+    "repository": "jodaorg/joda-money",
+    "commit_hash": "379e32095f887926b12c61f81da764ef5f2f653f",
+    "file_path": ".github/workflows/website.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

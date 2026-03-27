@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fc638380-160",
+  "page_type": "workflow_example",
+  "title": "Maven On Pull Request",
+  "source": "zenodo-workflow-histories:knowm/yank",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven_on_pull_request.yml",
+  "metadata": {
+    "repository": "knowm/yank",
+    "commit_hash": "fc6383802259e7503e807e53a1a452bf2a2003f2",
+    "file_path": ".github/workflows/maven_on_pull_request.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-84ee1b27-423",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:pac4j/play-pac4j",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "pac4j/play-pac4j",
+    "commit_hash": "84ee1b27bcb11bead4e5440aafef11cde5be6485",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

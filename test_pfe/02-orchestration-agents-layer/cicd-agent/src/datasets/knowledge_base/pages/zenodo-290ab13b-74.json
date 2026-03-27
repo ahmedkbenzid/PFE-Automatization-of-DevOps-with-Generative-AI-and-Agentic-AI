@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-290ab13b-74",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:vrapper/vrapper",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "vrapper/vrapper",
+    "commit_hash": "290ab13be7bab5ca4bfe1b76d72a76c71002866d",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a67c4767-315",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:enonic/xp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "enonic/xp",
+    "commit_hash": "a67c476735ccff121d4a50f04f74af1fd7ea4048",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-61d201e7-133",
+  "page_type": "workflow_example",
+  "title": "Tests",
+  "source": "zenodo-workflow-histories:plantuml/plantuml-server",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/tests.yml",
+  "metadata": {
+    "repository": "plantuml/plantuml-server",
+    "commit_hash": "61d201e772a3b024ec6ef593f79e9aab0bcf7d92",
+    "file_path": ".github/workflows/tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

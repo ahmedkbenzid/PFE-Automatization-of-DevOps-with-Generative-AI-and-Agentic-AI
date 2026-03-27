@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-901fbb96-350",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:ralscha/extdirectspring",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "ralscha/extdirectspring",
+    "commit_hash": "901fbb966367ef524830634bb9fba155820aa6a0",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

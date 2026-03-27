@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a5540ad5-39",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:qos-ch/slf4j",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "qos-ch/slf4j",
+    "commit_hash": "a5540ad51066b4b15132fdf27ead630519541d35",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

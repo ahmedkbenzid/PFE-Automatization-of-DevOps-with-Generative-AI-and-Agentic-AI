@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a8addd71-222",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:globalbioticinteractions/globalbioticinteractions",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "globalbioticinteractions/globalbioticinteractions",
+    "commit_hash": "a8addd716e5e4002b46207f2b547b49a2f9922af",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

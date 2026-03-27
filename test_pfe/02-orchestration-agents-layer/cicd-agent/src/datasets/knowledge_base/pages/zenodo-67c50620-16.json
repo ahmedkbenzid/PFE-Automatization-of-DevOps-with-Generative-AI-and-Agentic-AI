@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-67c50620-16",
+  "page_type": "workflow_example",
+  "title": "Slow Tests",
+  "source": "zenodo-workflow-histories:jdbi/jdbi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/slow-tests.yml",
+  "metadata": {
+    "repository": "jdbi/jdbi",
+    "commit_hash": "67c50620316e59ed7d4811b4135271e5492b041a",
+    "file_path": ".github/workflows/slow-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f0e92c92-59",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:hierynomus/sshj",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "hierynomus/sshj",
+    "commit_hash": "f0e92c920f60fac546db7bf1332e572dbb88f7f7",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

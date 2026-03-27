@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-56ef78ef-227",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:randomizedtesting/randomizedtesting",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "randomizedtesting/randomizedtesting",
+    "commit_hash": "56ef78efa2b28b61d9f9234bc3f0a7da86b72987",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

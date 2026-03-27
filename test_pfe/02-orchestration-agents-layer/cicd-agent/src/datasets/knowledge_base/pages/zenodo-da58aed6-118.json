@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-da58aed6-118",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/android-emulator-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/android-emulator-plugin",
+    "commit_hash": "da58aed656500cbb5201c71abae49fa1fb7187b7",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

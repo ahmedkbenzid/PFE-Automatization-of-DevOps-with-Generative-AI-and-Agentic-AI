@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-843195b2-43",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:flori/json",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "flori/json",
+    "commit_hash": "843195b2b4cda8e78994113b52a663c59daa636a",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

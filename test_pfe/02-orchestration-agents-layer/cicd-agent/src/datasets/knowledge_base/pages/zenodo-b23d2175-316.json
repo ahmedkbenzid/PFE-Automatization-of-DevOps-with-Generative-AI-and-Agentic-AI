@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b23d2175-316",
+  "page_type": "workflow_example",
+  "title": "Generate Files",
+  "source": "zenodo-workflow-histories:familysearch/gedcom",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/generate-files.yml",
+  "metadata": {
+    "repository": "familysearch/gedcom",
+    "commit_hash": "b23d2175a5f81a484cb52d8b6cb285ab6193b529",
+    "file_path": ".github/workflows/generate-files.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

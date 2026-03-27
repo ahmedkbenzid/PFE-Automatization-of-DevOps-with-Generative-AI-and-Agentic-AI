@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5dc5cc87-64",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:graylog2/graylog2-server",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "graylog2/graylog2-server",
+    "commit_hash": "5dc5cc874085e5bb8f1a0ae82ac40c01bc130894",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3021550c-184",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:msgpack/msgpack-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/CI.yml",
+  "metadata": {
+    "repository": "msgpack/msgpack-java",
+    "commit_hash": "3021550c18f65985db7ea2e0fd12339d0c75fd1e",
+    "file_path": ".github/workflows/CI.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

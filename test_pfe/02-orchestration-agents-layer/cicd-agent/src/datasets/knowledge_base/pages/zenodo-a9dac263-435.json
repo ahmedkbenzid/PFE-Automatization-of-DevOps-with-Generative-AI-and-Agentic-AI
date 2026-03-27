@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a9dac263-435",
+  "page_type": "workflow_example",
+  "title": "Weather",
+  "source": "zenodo-workflow-histories:apps4av/avare",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/weather.yml",
+  "metadata": {
+    "repository": "apps4av/avare",
+    "commit_hash": "a9dac2633bcb06ed00fd551d0b16ba3fe7f59e4e",
+    "file_path": ".github/workflows/weather.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

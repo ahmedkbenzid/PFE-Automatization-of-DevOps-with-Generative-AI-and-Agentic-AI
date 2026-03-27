@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4bd9c676-97",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:rest-assured/rest-assured",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "rest-assured/rest-assured",
+    "commit_hash": "4bd9c676511b66e6157152be735a297ad0fe69df",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

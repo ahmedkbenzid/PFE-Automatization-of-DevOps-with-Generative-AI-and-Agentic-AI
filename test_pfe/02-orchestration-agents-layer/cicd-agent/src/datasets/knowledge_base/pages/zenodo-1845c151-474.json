@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1845c151-474",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:mybatis/ehcache-cache",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "mybatis/ehcache-cache",
+    "commit_hash": "1845c151e7d943cc89dff893f92e455625ba4edb",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

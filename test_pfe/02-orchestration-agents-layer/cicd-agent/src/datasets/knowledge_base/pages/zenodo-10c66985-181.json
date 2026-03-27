@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-10c66985-181",
+  "page_type": "workflow_example",
+  "title": "Publish",
+  "source": "zenodo-workflow-histories:liferay/liferay-ide",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish.yml",
+  "metadata": {
+    "repository": "liferay/liferay-ide",
+    "commit_hash": "10c66985f20bc161a4067450dafdc97b9b118ec0",
+    "file_path": ".github/workflows/publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

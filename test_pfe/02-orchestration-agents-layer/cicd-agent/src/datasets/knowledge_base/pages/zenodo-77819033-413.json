@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-77819033-413",
+  "page_type": "workflow_example",
+  "title": "Android",
+  "source": "zenodo-workflow-histories:ukanth/afwall",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/android.yml",
+  "metadata": {
+    "repository": "ukanth/afwall",
+    "commit_hash": "7781903380d125a8fbfd9c7ec51b093350ebe532",
+    "file_path": ".github/workflows/android.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

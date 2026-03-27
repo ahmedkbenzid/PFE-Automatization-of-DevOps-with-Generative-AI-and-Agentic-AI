@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-27ad87d9-142",
+  "page_type": "workflow_example",
+  "title": "Maven Publish",
+  "source": "zenodo-workflow-histories:enginehub/commandhelper",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-publish.yml",
+  "metadata": {
+    "repository": "enginehub/commandhelper",
+    "commit_hash": "27ad87d9ef91961bfc89542593411361d3d26bae",
+    "file_path": ".github/workflows/maven-publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

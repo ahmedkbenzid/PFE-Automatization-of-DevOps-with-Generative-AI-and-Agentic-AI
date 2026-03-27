@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-45def60c-289",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:marginallyclever/makelangelo-software",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "marginallyclever/makelangelo-software",
+    "commit_hash": "45def60ccf0bfd0d26671c7562431eb660775971",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a9751d5f-246",
+  "page_type": "workflow_example",
+  "title": "Application Packaging",
+  "source": "zenodo-workflow-histories:ata4/bspsrc",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/application-packaging.yml",
+  "metadata": {
+    "repository": "ata4/bspsrc",
+    "commit_hash": "a9751d5f5e69653340eb0c4fd41381056baef009",
+    "file_path": ".github/workflows/application-packaging.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

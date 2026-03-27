@@ -73,10 +73,10 @@ class ZenodoDatasetIngester:
         if cache_file.exists():
             print(f"[Ingest] Validating cached file: {cache_file}")
             if self._validate_gzip_file(cache_file):
-                print(f"[Ingest] ✓ Cache file is valid")
+                print(f"[Ingest] [OK] Cache file is valid")
                 return cache_file
             else:
-                print(f"[Ingest] ✗ Cache file is corrupted, deleting...")
+                print(f"[Ingest] [FAIL] Cache file is corrupted, deleting...")
                 cache_file.unlink()
 
         print(f"[Ingest] Downloading Workflow Histories dataset (257.7 MB)...")

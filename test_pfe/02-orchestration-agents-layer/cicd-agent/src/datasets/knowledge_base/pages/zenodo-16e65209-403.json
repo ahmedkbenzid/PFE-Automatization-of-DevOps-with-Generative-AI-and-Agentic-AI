@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-16e65209-403",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:cloudinary/cloudinary_java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "cloudinary/cloudinary_java",
+    "commit_hash": "16e652092390e0c0ab618b32e6d21b58702ff8ee",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

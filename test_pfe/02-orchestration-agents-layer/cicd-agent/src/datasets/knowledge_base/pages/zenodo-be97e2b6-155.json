@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-be97e2b6-155",
+  "page_type": "workflow_example",
+  "title": "Integration Tests",
+  "source": "zenodo-workflow-histories:arquillian/arquillian-core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/integration-tests.yml",
+  "metadata": {
+    "repository": "arquillian/arquillian-core",
+    "commit_hash": "be97e2b6bf06a6df3ad87ed46e6b526941ee7562",
+    "file_path": ".github/workflows/integration-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

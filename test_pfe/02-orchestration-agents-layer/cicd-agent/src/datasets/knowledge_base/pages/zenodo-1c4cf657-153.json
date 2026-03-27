@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1c4cf657-153",
+  "page_type": "workflow_example",
+  "title": "Call.Platform Uploads",
+  "source": "zenodo-workflow-histories:multiverse/multiverse-portals",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/call.platform_uploads.yml",
+  "metadata": {
+    "repository": "multiverse/multiverse-portals",
+    "commit_hash": "1c4cf6572d2f95a87522499b75e28f2faf255597",
+    "file_path": ".github/workflows/call.platform_uploads.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

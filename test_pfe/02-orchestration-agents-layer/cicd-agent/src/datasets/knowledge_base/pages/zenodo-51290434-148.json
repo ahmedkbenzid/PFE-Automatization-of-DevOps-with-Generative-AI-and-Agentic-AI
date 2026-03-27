@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-51290434-148",
+  "page_type": "workflow_example",
+  "title": "Cpp",
+  "source": "zenodo-workflow-histories:indy256/codelibrary",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/cpp.yml",
+  "metadata": {
+    "repository": "indy256/codelibrary",
+    "commit_hash": "512904340fba3732d2f3583aa34f3dcb1ae3818f",
+    "file_path": ".github/workflows/cpp.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-582dc40d-379",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:apache/drill",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "apache/drill",
+    "commit_hash": "582dc40dacf0c85de18f0a4a0d72cac966da73f6",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

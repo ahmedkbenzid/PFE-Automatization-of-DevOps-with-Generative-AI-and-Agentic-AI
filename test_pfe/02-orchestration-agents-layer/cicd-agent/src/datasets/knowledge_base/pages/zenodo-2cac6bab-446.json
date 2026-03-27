@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2cac6bab-446",
+  "page_type": "workflow_example",
+  "title": "Renovate Auto Merge",
+  "source": "zenodo-workflow-histories:camunda/camunda-bpm-platform",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/renovate-auto-merge.yml",
+  "metadata": {
+    "repository": "camunda/camunda-bpm-platform",
+    "commit_hash": "2cac6bab89e615fc679515b6200e16b801c6de54",
+    "file_path": ".github/workflows/renovate-auto-merge.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

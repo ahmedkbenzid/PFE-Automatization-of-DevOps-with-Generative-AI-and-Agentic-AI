@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-86659002-340",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:airlift/airlift",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "airlift/airlift",
+    "commit_hash": "8665900294ff4b32a33618473599eb6f061cce6e",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

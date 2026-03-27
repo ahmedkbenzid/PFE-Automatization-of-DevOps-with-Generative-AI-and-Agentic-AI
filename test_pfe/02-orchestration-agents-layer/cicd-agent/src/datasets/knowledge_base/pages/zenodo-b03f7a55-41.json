@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b03f7a55-41",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:haraldk/twelvemonkeys",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "haraldk/twelvemonkeys",
+    "commit_hash": "b03f7a5582a19ca1f41eb5cff87ebc4173b60605",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

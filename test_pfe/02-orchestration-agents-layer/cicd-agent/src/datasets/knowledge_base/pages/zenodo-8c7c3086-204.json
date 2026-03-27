@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8c7c3086-204",
+  "page_type": "workflow_example",
+  "title": "Project",
+  "source": "zenodo-workflow-histories:spring-projects/spring-data-cassandra",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/project.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-data-cassandra",
+    "commit_hash": "8c7c30867af8aea7947a3ff321aa7abb28a633e2",
+    "file_path": ".github/workflows/project.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

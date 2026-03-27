@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-828d0bd6-72",
+  "page_type": "workflow_example",
+  "title": "Build Only",
+  "source": "zenodo-workflow-histories:wildfly/wildfly",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-only.yml",
+  "metadata": {
+    "repository": "wildfly/wildfly",
+    "commit_hash": "828d0bd6748645222d95b03ec0640f27f85d481a",
+    "file_path": ".github/workflows/build-only.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

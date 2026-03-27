@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-aa349706-310",
+  "page_type": "workflow_example",
+  "title": "Continuous Integration",
+  "source": "zenodo-workflow-histories:wala/wala",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/continuous-integration.yml",
+  "metadata": {
+    "repository": "wala/wala",
+    "commit_hash": "aa349706f797bd0a10df3f059bb0676097f4ccbe",
+    "file_path": ".github/workflows/continuous-integration.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

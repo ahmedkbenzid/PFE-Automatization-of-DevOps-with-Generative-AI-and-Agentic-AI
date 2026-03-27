@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2de21c81-396",
+  "page_type": "workflow_example",
+  "title": "Build And Test",
+  "source": "zenodo-workflow-histories:uwetrottmann/tmdb-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-and-test.yml",
+  "metadata": {
+    "repository": "uwetrottmann/tmdb-java",
+    "commit_hash": "2de21c81eeffad791ee3b8803423b728faca7971",
+    "file_path": ".github/workflows/build-and-test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

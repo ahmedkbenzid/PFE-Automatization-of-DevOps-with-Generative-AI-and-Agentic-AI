@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-910d0334-323",
+  "page_type": "workflow_example",
+  "title": "Spotbugs",
+  "source": "zenodo-workflow-histories:find-sec-bugs/find-sec-bugs",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/spotbugs.yml",
+  "metadata": {
+    "repository": "find-sec-bugs/find-sec-bugs",
+    "commit_hash": "910d0334344ed8afd838e86c4772349681853267",
+    "file_path": ".github/workflows/spotbugs.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

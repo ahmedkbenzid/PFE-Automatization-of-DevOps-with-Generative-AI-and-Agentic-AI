@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bc7d9be1-405",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:dschadow/java-web-security",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "dschadow/java-web-security",
+    "commit_hash": "bc7d9be13feda66997f3584ad0d63439f26dd126",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

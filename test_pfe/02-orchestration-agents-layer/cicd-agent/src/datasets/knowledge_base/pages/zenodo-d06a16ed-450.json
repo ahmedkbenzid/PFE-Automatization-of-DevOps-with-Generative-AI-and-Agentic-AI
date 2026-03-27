@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d06a16ed-450",
+  "page_type": "workflow_example",
+  "title": "Scorecard",
+  "source": "zenodo-workflow-histories:reactivex/rxjava",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/scorecard.yml",
+  "metadata": {
+    "repository": "reactivex/rxjava",
+    "commit_hash": "d06a16ed81ea58a175024c078e803ea03fe246a9",
+    "file_path": ".github/workflows/scorecard.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

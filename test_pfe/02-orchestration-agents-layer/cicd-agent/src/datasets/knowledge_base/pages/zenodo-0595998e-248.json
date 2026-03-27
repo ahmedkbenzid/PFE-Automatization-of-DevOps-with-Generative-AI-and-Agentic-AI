@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0595998e-248",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:lightbend/config",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "lightbend/config",
+    "commit_hash": "0595998eb98ab5a100045efe680465d4f4b58d4f",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

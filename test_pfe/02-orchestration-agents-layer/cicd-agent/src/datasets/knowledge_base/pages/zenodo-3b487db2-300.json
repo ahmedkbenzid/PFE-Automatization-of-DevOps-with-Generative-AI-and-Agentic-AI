@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3b487db2-300",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:ibotpeaches/apktool",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "ibotpeaches/apktool",
+    "commit_hash": "3b487db20c568b8da122efb573a2b11f2aa8d790",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9a066905-70",
+  "page_type": "workflow_example",
+  "title": "Checks No Exception Workflow",
+  "source": "zenodo-workflow-histories:sevntu-checkstyle/sevntu.checkstyle",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/checks-no-exception-workflow.yml",
+  "metadata": {
+    "repository": "sevntu-checkstyle/sevntu.checkstyle",
+    "commit_hash": "9a066905ca4cfa8c74e032cea9851e52a0b7f8bc",
+    "file_path": ".github/workflows/checks-no-exception-workflow.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

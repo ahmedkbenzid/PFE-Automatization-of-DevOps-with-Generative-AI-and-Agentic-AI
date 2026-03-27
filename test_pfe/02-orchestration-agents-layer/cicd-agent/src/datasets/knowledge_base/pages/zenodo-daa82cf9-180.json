@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-daa82cf9-180",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:wvengen/proguard-maven-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "wvengen/proguard-maven-plugin",
+    "commit_hash": "daa82cf98aa9311193375c9601ebce549af6c89a",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

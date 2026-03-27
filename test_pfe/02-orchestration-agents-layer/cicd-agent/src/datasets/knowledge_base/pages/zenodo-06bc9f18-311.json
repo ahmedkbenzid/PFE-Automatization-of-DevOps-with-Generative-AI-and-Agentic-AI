@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-06bc9f18-311",
+  "page_type": "workflow_example",
+  "title": "Test",
+  "source": "zenodo-workflow-histories:dita-ot/dita-ot",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/test.yml",
+  "metadata": {
+    "repository": "dita-ot/dita-ot",
+    "commit_hash": "06bc9f1863573a3f33a0555cf08a2d803eeb008b",
+    "file_path": ".github/workflows/test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

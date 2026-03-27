@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2dbad3a5-377",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:jeremylong/dependencycheck",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "jeremylong/dependencycheck",
+    "commit_hash": "2dbad3a516bcb1f34c69c91e98b11e0cd08df8bd",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

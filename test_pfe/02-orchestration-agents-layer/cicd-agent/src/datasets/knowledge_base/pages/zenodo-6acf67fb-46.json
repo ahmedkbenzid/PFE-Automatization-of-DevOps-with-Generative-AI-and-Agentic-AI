@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6acf67fb-46",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:sirthias/parboiled",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "sirthias/parboiled",
+    "commit_hash": "6acf67fb45004094740b6cbfa2c10f5a3734f2e7",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-70a46862-171",
+  "page_type": "workflow_example",
+  "title": "Publish Curseforge",
+  "source": "zenodo-workflow-histories:garbagemule/mobarena",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish-curseforge.yml",
+  "metadata": {
+    "repository": "garbagemule/mobarena",
+    "commit_hash": "70a46862b093bfa57c204a66b115d3fe85d446d1",
+    "file_path": ".github/workflows/publish-curseforge.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

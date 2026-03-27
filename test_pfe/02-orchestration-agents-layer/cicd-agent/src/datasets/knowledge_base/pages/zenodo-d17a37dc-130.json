@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d17a37dc-130",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:wicketstuff/core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "wicketstuff/core",
+    "commit_hash": "d17a37dce817d69c40cd02599f3b0a040d43071e",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

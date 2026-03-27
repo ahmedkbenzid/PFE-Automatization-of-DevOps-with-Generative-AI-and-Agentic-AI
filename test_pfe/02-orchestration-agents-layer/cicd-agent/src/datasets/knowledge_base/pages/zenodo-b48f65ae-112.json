@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b48f65ae-112",
+  "page_type": "workflow_example",
+  "title": "Release Milestone",
+  "source": "zenodo-workflow-histories:spring-projects/spring-framework",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release-milestone.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-framework",
+    "commit_hash": "b48f65aed6c35ee702519c4da9845003b1e7aa66",
+    "file_path": ".github/workflows/release-milestone.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

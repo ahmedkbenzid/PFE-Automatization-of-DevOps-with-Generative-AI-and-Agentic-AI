@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fafcead5-263",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:heroku/webapp-runner",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "heroku/webapp-runner",
+    "commit_hash": "fafcead53d6e320e1f942d2d970e8db1e26fdb35",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

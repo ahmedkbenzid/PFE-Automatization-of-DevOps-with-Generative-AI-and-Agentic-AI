@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-76c2d444-120",
+  "page_type": "workflow_example",
+  "title": "Crowdin",
+  "source": "zenodo-workflow-histories:jenkinsci/jira-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/crowdin.yml",
+  "metadata": {
+    "repository": "jenkinsci/jira-plugin",
+    "commit_hash": "76c2d4445376147eeacc2a1124d81a851844f315",
+    "file_path": ".github/workflows/crowdin.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

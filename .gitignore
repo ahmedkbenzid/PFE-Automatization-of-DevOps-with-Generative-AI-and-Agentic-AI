@@ -5,3 +5,8 @@ __pycache__/
 .env/
 .venv/
 replacements.txt
+
+# Large dataset files
+test_pfe/02-orchestration-agents-layer/cicd-agent/src/datasets/cache/
+*.csv.gz
+*.csv

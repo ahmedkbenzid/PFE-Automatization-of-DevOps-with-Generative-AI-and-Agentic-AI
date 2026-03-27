@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9130fd37-318",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:spring-projects/spring-hateoas",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yaml",
+  "metadata": {
+    "repository": "spring-projects/spring-hateoas",
+    "commit_hash": "9130fd37b97ab93f52fc5a8f5d0257ac5cfc3186",
+    "file_path": ".github/workflows/build.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

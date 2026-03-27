@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4d78b072-254",
+  "page_type": "workflow_example",
+  "title": "Scorecard",
+  "source": "zenodo-workflow-histories:fasterxml/jackson-core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/scorecard.yml",
+  "metadata": {
+    "repository": "fasterxml/jackson-core",
+    "commit_hash": "4d78b072e14dde451b339d6420f9df940f14ad78",
+    "file_path": ".github/workflows/scorecard.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

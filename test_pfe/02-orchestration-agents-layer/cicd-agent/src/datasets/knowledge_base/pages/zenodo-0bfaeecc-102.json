@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0bfaeecc-102",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:infinispan/infinispan",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "infinispan/infinispan",
+    "commit_hash": "0bfaeecc871ecd5cf5614e7c67270b5aa42b0ac8",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

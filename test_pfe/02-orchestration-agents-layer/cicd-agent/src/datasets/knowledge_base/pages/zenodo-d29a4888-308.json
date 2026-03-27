@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d29a4888-308",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:jetbrains/intellij-samples",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "jetbrains/intellij-samples",
+    "commit_hash": "d29a4888a6f99f2156e9a234e98e13da2a2d78c1",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

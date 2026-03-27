@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5f420f92-312",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:traccar/traccar",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "traccar/traccar",
+    "commit_hash": "5f420f924e9184b4fa4c1288df69ed6ab3be1edb",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

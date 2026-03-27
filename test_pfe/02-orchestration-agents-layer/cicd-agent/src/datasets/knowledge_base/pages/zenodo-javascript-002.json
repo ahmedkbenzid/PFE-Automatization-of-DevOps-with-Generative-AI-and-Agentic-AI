@@ -1,0 +1,23 @@
+{
+  "page_id": "zenodo-javascript-002",
+  "page_type": "workflow_example",
+  "title": "Vue.js Build Deploy",
+  "source": "zenodo-workflow-histories:vuejs/core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "javascript",
+    "build",
+    "deploy"
+  ],
+  "content": "name: Vue.js Build Deploy\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "vuejs/core",
+    "language": "Javascript",
+    "patterns": [
+      "build",
+      "deploy"
+    ],
+    "success_rate": 0.9
+  }
+}

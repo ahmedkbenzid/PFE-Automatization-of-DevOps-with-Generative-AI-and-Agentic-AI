@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1b6b4a87-48",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:erlang/erlide_eclipse",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yaml",
+  "metadata": {
+    "repository": "erlang/erlide_eclipse",
+    "commit_hash": "1b6b4a87b75c0eefd84e9c8937d6e5a9327d4138",
+    "file_path": ".github/workflows/build.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

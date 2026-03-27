@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4765a65f-380",
+  "page_type": "workflow_example",
+  "title": "Updaterulemetadata",
+  "source": "zenodo-workflow-histories:sonarsource/sonar-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/UpdateRuleMetadata.yml",
+  "metadata": {
+    "repository": "sonarsource/sonar-java",
+    "commit_hash": "4765a65ffb5364e64c3f311f477a9f18b8bbcd44",
+    "file_path": ".github/workflows/UpdateRuleMetadata.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

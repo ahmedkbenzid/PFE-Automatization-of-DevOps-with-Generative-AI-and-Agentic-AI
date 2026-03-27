@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-02f41ff9-453",
+  "page_type": "workflow_example",
+  "title": "Ci Lazypg",
+  "source": "zenodo-workflow-histories:tada/pljava",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-lazypg.yml",
+  "metadata": {
+    "repository": "tada/pljava",
+    "commit_hash": "02f41ff9104c9f103ebf6a5ce56c7c347f7f2d43",
+    "file_path": ".github/workflows/ci-lazypg.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

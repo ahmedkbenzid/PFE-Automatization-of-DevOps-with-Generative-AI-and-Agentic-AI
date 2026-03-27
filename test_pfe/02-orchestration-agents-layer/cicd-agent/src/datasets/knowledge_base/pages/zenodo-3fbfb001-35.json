@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3fbfb001-35",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:apache/directory-server",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "apache/directory-server",
+    "commit_hash": "3fbfb001973dff51d2e87efe83ccc1f79fa1b5d2",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

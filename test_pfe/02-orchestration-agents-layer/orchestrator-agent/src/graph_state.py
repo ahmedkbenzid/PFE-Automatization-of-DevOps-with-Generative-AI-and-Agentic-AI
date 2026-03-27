@@ -36,6 +36,12 @@ class OrchestratorState(TypedDict, total=False):
     repository_path: Optional[str]
     github_url: Optional[str]
 
+    # PR creation parameters (optional)
+    create_pr: bool
+    branch_name: str
+    pr_title: str
+    pr_body: str
+
     # Guardrails results
     guardrails_passed: bool
     guardrails_reason: str
@@ -52,6 +58,9 @@ class OrchestratorState(TypedDict, total=False):
     # Agent execution results
     agent_outputs: Dict[str, Any]
     current_agent_index: int  # Track which agent we're executing
+
+    # PR creation results (optional)
+    pr_details: Dict[str, Any]
 
     # Final status
     status: str  # "pending", "blocked", "completed", "error"
@@ -115,14 +124,20 @@ def state_to_legacy_format(state: OrchestratorState) -> Dict[str, Any]:
 
     This ensures backward compatibility with the existing CLI interface.
     """
+    legacy_state = {
+        "user_intent": state.get("user_intent", state.get("routing_reasoning", "")),
+        "target_agents": state.get("target_agents", []),
+        "guardrail_status": "approved" if state.get("guardrails_passed") else "blocked",
+        "repo_context": state.get("repo_context", {}),
+        "agent_outputs": state.get("agent_outputs", {}),
+        "errors": state.get("errors", []),
+    }
+
+    # Add PR details if available
+    if state.get("pr_details"):
+        legacy_state["pr_details"] = state.get("pr_details")
+
     return {
         "status": state.get("status", "pending"),
-        "state": {
-            "user_intent": state.get("user_intent", state.get("routing_reasoning", "")),
-            "target_agents": state.get("target_agents", []),
-            "guardrail_status": "approved" if state.get("guardrails_passed") else "blocked",
-            "repo_context": state.get("repo_context", {}),
-            "agent_outputs": state.get("agent_outputs", {}),
-            "errors": state.get("errors", []),
-        }
+        "state": legacy_state,
     }

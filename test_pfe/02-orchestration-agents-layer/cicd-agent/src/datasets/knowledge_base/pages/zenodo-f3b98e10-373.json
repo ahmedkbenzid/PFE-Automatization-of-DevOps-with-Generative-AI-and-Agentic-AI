@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f3b98e10-373",
+  "page_type": "workflow_example",
+  "title": "Assembly",
+  "source": "zenodo-workflow-histories:robo-code/robocode",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/assembly.yml",
+  "metadata": {
+    "repository": "robo-code/robocode",
+    "commit_hash": "f3b98e10e6f9ed1f895f2181c41c45df899d86d1",
+    "file_path": ".github/workflows/assembly.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

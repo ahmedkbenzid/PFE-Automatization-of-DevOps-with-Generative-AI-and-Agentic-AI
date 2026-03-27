@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-cd9424c5-472",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/cucumber-reports-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/cucumber-reports-plugin",
+    "commit_hash": "cd9424c5f573dd52830b9dbd282fea532b7c8d81",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

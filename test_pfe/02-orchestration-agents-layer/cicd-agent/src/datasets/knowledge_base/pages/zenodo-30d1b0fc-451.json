@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-30d1b0fc-451",
+  "page_type": "workflow_example",
+  "title": "Test",
+  "source": "zenodo-workflow-histories:jetbrains/jediterm",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/test.yml",
+  "metadata": {
+    "repository": "jetbrains/jediterm",
+    "commit_hash": "30d1b0fc54697d59123b7e92589b24c31b84f43b",
+    "file_path": ".github/workflows/test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

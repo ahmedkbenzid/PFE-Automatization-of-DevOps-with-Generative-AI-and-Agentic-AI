@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7a872ab9-208",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:groovy/gmavenplus",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "groovy/gmavenplus",
+    "commit_hash": "7a872ab9d2c0540eb982e081f79c2066cd739225",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

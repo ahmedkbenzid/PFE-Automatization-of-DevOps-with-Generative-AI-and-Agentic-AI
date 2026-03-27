@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8cd93e15-273",
+  "page_type": "workflow_example",
+  "title": "It Template",
+  "source": "zenodo-workflow-histories:knowm/xchange",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/it-template.yaml",
+  "metadata": {
+    "repository": "knowm/xchange",
+    "commit_hash": "8cd93e156cc02b7e662b122c179bb7b5068ffcbf",
+    "file_path": ".github/workflows/it-template.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

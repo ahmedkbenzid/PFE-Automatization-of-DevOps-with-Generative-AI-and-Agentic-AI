@@ -1,0 +1,23 @@
+{
+  "page_id": "zenodo-python-001",
+  "page_type": "workflow_example",
+  "title": "Django PostgreSQL Test",
+  "source": "zenodo-workflow-histories:django/django",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "python",
+    "test",
+    "database"
+  ],
+  "content": "name: Django PostgreSQL Test\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "django/django",
+    "language": "Python",
+    "patterns": [
+      "test",
+      "database"
+    ],
+    "success_rate": 0.89
+  }
+}

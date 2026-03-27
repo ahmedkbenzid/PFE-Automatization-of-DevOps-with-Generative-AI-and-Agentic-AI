@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d2aa0819-162",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:cdi-unit/cdi-unit",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "cdi-unit/cdi-unit",
+    "commit_hash": "d2aa0819ec578a4a2af7251b649b3d13ca16bcbc",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

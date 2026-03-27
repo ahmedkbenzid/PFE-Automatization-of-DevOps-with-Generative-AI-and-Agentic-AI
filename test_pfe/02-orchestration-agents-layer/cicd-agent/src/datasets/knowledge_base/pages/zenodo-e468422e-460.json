@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e468422e-460",
+  "page_type": "workflow_example",
+  "title": "Build And Deploy",
+  "source": "zenodo-workflow-histories:openpnp/openpnp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build_and_deploy.yml",
+  "metadata": {
+    "repository": "openpnp/openpnp",
+    "commit_hash": "e468422e544562b1e7b6cb7b3dc88df6de4f9b11",
+    "file_path": ".github/workflows/build_and_deploy.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-83ba2bb5-77",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:shrinkwrap/shrinkwrap",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "shrinkwrap/shrinkwrap",
+    "commit_hash": "83ba2bb58ed9c90c94225df3668f849600a44413",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

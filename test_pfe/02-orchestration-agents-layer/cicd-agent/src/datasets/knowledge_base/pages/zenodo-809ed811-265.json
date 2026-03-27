@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-809ed811-265",
+  "page_type": "workflow_example",
+  "title": "Pr.Test",
+  "source": "zenodo-workflow-histories:multiverse/multiverse-inventories",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/pr.test.yml",
+  "metadata": {
+    "repository": "multiverse/multiverse-inventories",
+    "commit_hash": "809ed81172240aab5ec06d902c2df49a7a5da480",
+    "file_path": ".github/workflows/pr.test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5141a3b3-321",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:geosolutions-it/imageio-ext",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "geosolutions-it/imageio-ext",
+    "commit_hash": "5141a3b3c170efcc907ac5c3342e38f9c5ea226f",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

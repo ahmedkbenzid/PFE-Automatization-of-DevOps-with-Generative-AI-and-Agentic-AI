@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-34a78807-50",
+  "page_type": "workflow_example",
+  "title": "Async",
+  "source": "zenodo-workflow-histories:apache/aries",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/async.yml",
+  "metadata": {
+    "repository": "apache/aries",
+    "commit_hash": "34a788074c9a70dd39354f14cae06d1ef77cf12f",
+    "file_path": ".github/workflows/async.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

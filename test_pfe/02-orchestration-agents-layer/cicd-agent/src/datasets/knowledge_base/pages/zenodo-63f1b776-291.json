@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-63f1b776-291",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:ubergeek42/weechat-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "ubergeek42/weechat-android",
+    "commit_hash": "63f1b7762b94f15fddf59afc88d6a708f34a238a",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

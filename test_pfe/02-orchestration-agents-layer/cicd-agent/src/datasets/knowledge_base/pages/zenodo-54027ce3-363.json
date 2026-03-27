@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-54027ce3-363",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:gradle/native-platform",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "gradle/native-platform",
+    "commit_hash": "54027ce359575b19ff5001405f6ff9ac57410f59",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

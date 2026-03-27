@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-50eae895-219",
+  "page_type": "workflow_example",
+  "title": "Release To Maven Central",
+  "source": "zenodo-workflow-histories:opensagres/xdocreport",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release-to-maven-central.yml",
+  "metadata": {
+    "repository": "opensagres/xdocreport",
+    "commit_hash": "50eae8958857bc80c9b935026eb13fb0b8a539e9",
+    "file_path": ".github/workflows/release-to-maven-central.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

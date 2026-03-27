@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-865ea1a7-242",
+  "page_type": "workflow_example",
+  "title": "License",
+  "source": "zenodo-workflow-histories:apache/opennlp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/license.yml",
+  "metadata": {
+    "repository": "apache/opennlp",
+    "commit_hash": "865ea1a781091ef087d2282c263dd6d89b541c7a",
+    "file_path": ".github/workflows/license.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

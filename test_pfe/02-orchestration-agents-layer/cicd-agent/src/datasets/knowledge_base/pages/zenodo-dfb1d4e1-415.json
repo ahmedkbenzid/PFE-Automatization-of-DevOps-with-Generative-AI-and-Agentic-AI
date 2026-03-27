@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-dfb1d4e1-415",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:vivo-project/vivo",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "vivo-project/vivo",
+    "commit_hash": "dfb1d4e125404fc1c7f7c7a258a0611d3c0854b3",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

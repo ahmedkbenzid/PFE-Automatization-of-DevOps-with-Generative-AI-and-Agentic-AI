@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d381d895-351",
+  "page_type": "workflow_example",
+  "title": "Create Jira",
+  "source": "zenodo-workflow-histories:segmentio/analytics-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/create_jira.yml",
+  "metadata": {
+    "repository": "segmentio/analytics-java",
+    "commit_hash": "d381d895b4df21ec70fa9b5f71a6319c8e7d69be",
+    "file_path": ".github/workflows/create_jira.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

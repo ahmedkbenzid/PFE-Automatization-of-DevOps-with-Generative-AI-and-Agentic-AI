@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9847eaf1-331",
+  "page_type": "workflow_example",
+  "title": "Macos",
+  "source": "zenodo-workflow-histories:mapstruct/mapstruct",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/macos.yml",
+  "metadata": {
+    "repository": "mapstruct/mapstruct",
+    "commit_hash": "9847eaf195cb891c5a47df96db2b90a1b335b75b",
+    "file_path": ".github/workflows/macos.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

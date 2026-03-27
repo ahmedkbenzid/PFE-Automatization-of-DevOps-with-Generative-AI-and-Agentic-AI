@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3ae260fa-81",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:apache/karaf",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "apache/karaf",
+    "commit_hash": "3ae260fa267e4398aa9187c91882f82f6952c83b",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

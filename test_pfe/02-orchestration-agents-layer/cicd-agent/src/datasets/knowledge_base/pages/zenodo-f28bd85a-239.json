@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f28bd85a-239",
+  "page_type": "workflow_example",
+  "title": "Maven Test",
+  "source": "zenodo-workflow-histories:chocoteam/choco-solver",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-test.yml",
+  "metadata": {
+    "repository": "chocoteam/choco-solver",
+    "commit_hash": "f28bd85a132f236907135186338af88ab95d05bf",
+    "file_path": ".github/workflows/maven-test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

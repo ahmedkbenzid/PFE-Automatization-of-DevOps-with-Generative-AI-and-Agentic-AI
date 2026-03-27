@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3989d6c0-264",
+  "page_type": "workflow_example",
+  "title": "Build Master",
+  "source": "zenodo-workflow-histories:stefanhendriks/dune-ii---the-maker",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build_master.yml",
+  "metadata": {
+    "repository": "stefanhendriks/dune-ii---the-maker",
+    "commit_hash": "3989d6c02c22c9b066bf7b542c09869060f9bff7",
+    "file_path": ".github/workflows/build_master.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7512914a-421",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:modesty/pdf2json",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "modesty/pdf2json",
+    "commit_hash": "7512914af4dd9f53259c4cdb6f0283832c81150b",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

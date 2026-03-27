@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5e7db6b2-473",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:ikarus23/mifareclassictool",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "ikarus23/mifareclassictool",
+    "commit_hash": "5e7db6b2e3dc6107bdf014eafa4154a180dac7f3",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

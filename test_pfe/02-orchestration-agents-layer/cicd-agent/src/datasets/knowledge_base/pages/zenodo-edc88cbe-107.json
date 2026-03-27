@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-edc88cbe-107",
+  "page_type": "workflow_example",
+  "title": "Verify Staged Artifacts",
+  "source": "zenodo-workflow-histories:spring-projects/spring-amqp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/verify-staged-artifacts.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-amqp",
+    "commit_hash": "edc88cbee1a024a4f803c8af4ccf467ecc4f4c8d",
+    "file_path": ".github/workflows/verify-staged-artifacts.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

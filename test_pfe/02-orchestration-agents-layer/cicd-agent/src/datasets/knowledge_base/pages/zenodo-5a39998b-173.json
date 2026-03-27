@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5a39998b-173",
+  "page_type": "workflow_example",
+  "title": "Reduce Readme",
+  "source": "zenodo-workflow-histories:jboss-developer/jboss-eap-quickstarts",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/reduce_readme.yml",
+  "metadata": {
+    "repository": "jboss-developer/jboss-eap-quickstarts",
+    "commit_hash": "5a39998be9232469838737d55ef1c7a5497eea1f",
+    "file_path": ".github/workflows/reduce_readme.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

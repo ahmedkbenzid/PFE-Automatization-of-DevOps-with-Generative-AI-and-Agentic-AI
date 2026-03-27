@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3529e3af-213",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:fasterxml/jackson-datatype-joda",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "fasterxml/jackson-datatype-joda",
+    "commit_hash": "3529e3af736cc9f83d78f25b674707ac2a8233df",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

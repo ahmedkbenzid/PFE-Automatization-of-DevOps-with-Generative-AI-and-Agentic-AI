@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-526e3fb6-436",
+  "page_type": "workflow_example",
+  "title": "Maven Deploy",
+  "source": "zenodo-workflow-histories:dianping/cat",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-deploy.yml",
+  "metadata": {
+    "repository": "dianping/cat",
+    "commit_hash": "526e3fb63492bd77736cde65abef806658e18252",
+    "file_path": ".github/workflows/maven-deploy.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

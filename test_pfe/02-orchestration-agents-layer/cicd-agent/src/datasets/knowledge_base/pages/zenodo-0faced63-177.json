@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0faced63-177",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:jsqlparser/jsqlparser",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "jsqlparser/jsqlparser",
+    "commit_hash": "0faced63a5e009c66bafb3e77e27ba8ce82926b4",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

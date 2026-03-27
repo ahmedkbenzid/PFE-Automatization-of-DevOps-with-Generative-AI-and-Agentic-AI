@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-66d11565-461",
+  "page_type": "workflow_example",
+  "title": "Scorecards",
+  "source": "zenodo-workflow-histories:koral--/android-gif-drawable",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/scorecards.yml",
+  "metadata": {
+    "repository": "koral--/android-gif-drawable",
+    "commit_hash": "66d115657cfe7afa974befe711c55be3a5d628fc",
+    "file_path": ".github/workflows/scorecards.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

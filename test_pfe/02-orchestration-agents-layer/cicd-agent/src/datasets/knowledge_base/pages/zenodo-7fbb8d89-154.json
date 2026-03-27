@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7fbb8d89-154",
+  "page_type": "workflow_example",
+  "title": "Bk Ci",
+  "source": "zenodo-workflow-histories:apache/bookkeeper",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/bk-ci.yml",
+  "metadata": {
+    "repository": "apache/bookkeeper",
+    "commit_hash": "7fbb8d89f880579035b5ba2752caf8583d34611a",
+    "file_path": ".github/workflows/bk-ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

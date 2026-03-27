@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1847eb6b-189",
+  "page_type": "workflow_example",
+  "title": "Dry Run Release",
+  "source": "zenodo-workflow-histories:liquibase/liquibase-hibernate",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/dry-run-release.yml",
+  "metadata": {
+    "repository": "liquibase/liquibase-hibernate",
+    "commit_hash": "1847eb6b5edb3614f7543fb2a688b400321c3906",
+    "file_path": ".github/workflows/dry-run-release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

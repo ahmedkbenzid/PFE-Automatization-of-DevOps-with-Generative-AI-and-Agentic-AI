@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e661155b-385",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:activiti/activiti",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "activiti/activiti",
+    "commit_hash": "e661155b92cc72f053ec97f9ec03f3b6b4196383",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

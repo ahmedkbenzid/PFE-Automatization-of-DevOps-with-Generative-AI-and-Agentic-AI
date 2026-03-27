@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7590f806-398",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:inl/blacklab",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "inl/blacklab",
+    "commit_hash": "7590f806fcd5c837fa800057d1eb7eab4f9e88e8",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

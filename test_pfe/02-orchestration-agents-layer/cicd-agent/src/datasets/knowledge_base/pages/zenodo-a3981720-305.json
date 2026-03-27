@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a3981720-305",
+  "page_type": "workflow_example",
+  "title": "Jekyll Gh Pages",
+  "source": "zenodo-workflow-histories:xmlet/htmlflow",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jekyll-gh-pages.yml",
+  "metadata": {
+    "repository": "xmlet/htmlflow",
+    "commit_hash": "a39817209280b6de33354557abc694af018309fe",
+    "file_path": ".github/workflows/jekyll-gh-pages.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

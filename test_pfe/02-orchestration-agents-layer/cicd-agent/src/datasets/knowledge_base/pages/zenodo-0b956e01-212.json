@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0b956e01-212",
+  "page_type": "workflow_example",
+  "title": "Nightly",
+  "source": "zenodo-workflow-histories:labexp/osmtracker-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/nightly.yml",
+  "metadata": {
+    "repository": "labexp/osmtracker-android",
+    "commit_hash": "0b956e01bec3aee9da37793e6e38f0265d887dcd",
+    "file_path": ".github/workflows/nightly.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

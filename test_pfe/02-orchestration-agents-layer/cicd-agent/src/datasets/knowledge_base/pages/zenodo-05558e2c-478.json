@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-05558e2c-478",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:mybatis/mybatis-3",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "mybatis/mybatis-3",
+    "commit_hash": "05558e2cf06e6e89d7654efa9555ff18d74ee673",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

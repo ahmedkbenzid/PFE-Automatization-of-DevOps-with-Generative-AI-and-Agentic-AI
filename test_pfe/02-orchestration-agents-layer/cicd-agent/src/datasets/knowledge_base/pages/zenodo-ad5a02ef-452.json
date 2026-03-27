@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ad5a02ef-452",
+  "page_type": "workflow_example",
+  "title": "Publish",
+  "source": "zenodo-workflow-histories:paulfitz/daff",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish.yml",
+  "metadata": {
+    "repository": "paulfitz/daff",
+    "commit_hash": "ad5a02efd58ea7a2a70bb888f65ab610d136db28",
+    "file_path": ".github/workflows/publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d44056fa-60",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:flyingsaucerproject/flyingsaucer",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "flyingsaucerproject/flyingsaucer",
+    "commit_hash": "d44056fa228dee3954fee81c5f7b79f0cccaf15d",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

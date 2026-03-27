@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5d851f63-430",
+  "page_type": "workflow_example",
+  "title": "Ubuntu 24.04",
+  "source": "zenodo-workflow-histories:libreplan/libreplan",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ubuntu-24.04.yml",
+  "metadata": {
+    "repository": "libreplan/libreplan",
+    "commit_hash": "5d851f6333b7e6d3f01f4f0e2b35a19a71f60683",
+    "file_path": ".github/workflows/ubuntu-24.04.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

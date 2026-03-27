@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a0f9a784-73",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:cbeust/jcommander",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "cbeust/jcommander",
+    "commit_hash": "a0f9a78475afe3733b3bb7af1d83ff74b4be852c",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

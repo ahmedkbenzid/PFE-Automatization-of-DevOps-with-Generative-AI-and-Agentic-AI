@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7387576e-7",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:connectbot/connectbot",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "connectbot/connectbot",
+    "commit_hash": "7387576e8785e2a2fd3d407762de37a67f6223be",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

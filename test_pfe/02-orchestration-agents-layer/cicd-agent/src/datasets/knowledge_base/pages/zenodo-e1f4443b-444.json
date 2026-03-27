@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e1f4443b-444",
+  "page_type": "workflow_example",
+  "title": "Checkstyle",
+  "source": "zenodo-workflow-histories:alluxio/alluxio",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/checkstyle.yml",
+  "metadata": {
+    "repository": "alluxio/alluxio",
+    "commit_hash": "e1f4443bb4ef24bb12d2f7013c94edc36961da31",
+    "file_path": ".github/workflows/checkstyle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

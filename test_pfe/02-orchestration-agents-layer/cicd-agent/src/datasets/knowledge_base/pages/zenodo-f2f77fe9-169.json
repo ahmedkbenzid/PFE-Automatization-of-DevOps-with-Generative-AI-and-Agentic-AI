@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f2f77fe9-169",
+  "page_type": "workflow_example",
+  "title": "Pipeline",
+  "source": "zenodo-workflow-histories:aaberg/sql2o",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/pipeline.yml",
+  "metadata": {
+    "repository": "aaberg/sql2o",
+    "commit_hash": "f2f77fe9c9444a84b7fbe57b44761634a57c550e",
+    "file_path": ".github/workflows/pipeline.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

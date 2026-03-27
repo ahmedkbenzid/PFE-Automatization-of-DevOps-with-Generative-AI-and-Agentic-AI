@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4f2b75d8-322",
+  "page_type": "workflow_example",
+  "title": "Pullrequestclosed",
+  "source": "zenodo-workflow-histories:sonarsource/sonarjs",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/PullRequestClosed.yml",
+  "metadata": {
+    "repository": "sonarsource/sonarjs",
+    "commit_hash": "4f2b75d85f7610d68de349275e08658bf5de4638",
+    "file_path": ".github/workflows/PullRequestClosed.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

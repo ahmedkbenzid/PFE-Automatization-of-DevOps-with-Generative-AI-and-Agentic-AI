@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-226c943b-238",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:alibaba/druid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "alibaba/druid",
+    "commit_hash": "226c943bb1dd03c46cb3635af6ab57d629fc4801",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

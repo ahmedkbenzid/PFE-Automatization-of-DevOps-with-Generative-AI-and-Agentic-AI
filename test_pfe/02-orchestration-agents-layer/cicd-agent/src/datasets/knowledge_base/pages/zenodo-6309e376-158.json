@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6309e376-158",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:hibernate/hibernate-ogm",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "hibernate/hibernate-ogm",
+    "commit_hash": "6309e376e2d63f4df66fbe412d0efacc5fa8a50e",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

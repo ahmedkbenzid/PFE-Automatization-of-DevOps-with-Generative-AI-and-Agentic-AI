@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a155724e-424",
+  "page_type": "workflow_example",
+  "title": "Build And Test",
+  "source": "zenodo-workflow-histories:odnoklassniki/one-nio",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-and-test.yml",
+  "metadata": {
+    "repository": "odnoklassniki/one-nio",
+    "commit_hash": "a155724e582f018902182079df790cc957447907",
+    "file_path": ".github/workflows/build-and-test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fd70ec2f-137",
+  "page_type": "workflow_example",
+  "title": "Default Tests",
+  "source": "zenodo-workflow-histories:git-commit-id/git-commit-id-maven-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/default-tests.yml",
+  "metadata": {
+    "repository": "git-commit-id/git-commit-id-maven-plugin",
+    "commit_hash": "fd70ec2fda1b7270e344068d10be34a0efee91ce",
+    "file_path": ".github/workflows/default-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fa891958-477",
+  "page_type": "workflow_example",
+  "title": "Cd",
+  "source": "zenodo-workflow-histories:jenkinsci/stashnotifier-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/cd.yaml",
+  "metadata": {
+    "repository": "jenkinsci/stashnotifier-plugin",
+    "commit_hash": "fa8919581685c9f152285fab7092d206e1bd9343",
+    "file_path": ".github/workflows/cd.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

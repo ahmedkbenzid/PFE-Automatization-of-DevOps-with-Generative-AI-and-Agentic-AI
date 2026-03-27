@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-49e6279f-410",
+  "page_type": "workflow_example",
+  "title": "Standard Its",
+  "source": "zenodo-workflow-histories:apache/druid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/standard-its.yml",
+  "metadata": {
+    "repository": "apache/druid",
+    "commit_hash": "49e6279ffbc3baa8afbec825cad18564f1515a39",
+    "file_path": ".github/workflows/standard-its.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

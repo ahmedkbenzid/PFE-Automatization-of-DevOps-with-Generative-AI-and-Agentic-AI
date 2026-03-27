@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-82fe004d-217",
+  "page_type": "workflow_example",
+  "title": "Downstream Updates",
+  "source": "zenodo-workflow-histories:bugsnag/bugsnag-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/downstream_updates.yml",
+  "metadata": {
+    "repository": "bugsnag/bugsnag-android",
+    "commit_hash": "82fe004da00981e5eb39637b0c7d58a9093cbaa3",
+    "file_path": ".github/workflows/downstream_updates.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

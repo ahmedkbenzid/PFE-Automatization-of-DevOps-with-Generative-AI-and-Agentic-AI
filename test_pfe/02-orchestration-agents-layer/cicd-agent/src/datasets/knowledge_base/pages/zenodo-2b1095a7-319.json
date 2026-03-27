@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2b1095a7-319",
+  "page_type": "workflow_example",
+  "title": "Nebula Ci",
+  "source": "zenodo-workflow-histories:netflix/archaius",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/nebula-ci.yml",
+  "metadata": {
+    "repository": "netflix/archaius",
+    "commit_hash": "2b1095a7086563106a54daff52ae62b76766369c",
+    "file_path": ".github/workflows/nebula-ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

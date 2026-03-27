@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4da17af7-500",
+  "page_type": "workflow_example",
+  "title": "Mirror",
+  "source": "zenodo-workflow-histories:dcache/dcache",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/mirror.yml",
+  "metadata": {
+    "repository": "dcache/dcache",
+    "commit_hash": "4da17af73f4d3a97c96cf93839744260585010fa",
+    "file_path": ".github/workflows/mirror.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

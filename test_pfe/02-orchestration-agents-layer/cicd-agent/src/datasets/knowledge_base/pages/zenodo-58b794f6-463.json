@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-58b794f6-463",
+  "page_type": "workflow_example",
+  "title": "Tests Pydev",
+  "source": "zenodo-workflow-histories:fabioz/pydev",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/tests-pydev.yml",
+  "metadata": {
+    "repository": "fabioz/pydev",
+    "commit_hash": "58b794f6c8ca59fe2ccf32016333bee48e2c4215",
+    "file_path": ".github/workflows/tests-pydev.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

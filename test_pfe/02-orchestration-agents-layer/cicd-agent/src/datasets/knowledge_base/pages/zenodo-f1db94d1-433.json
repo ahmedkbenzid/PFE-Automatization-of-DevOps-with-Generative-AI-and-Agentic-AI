@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f1db94d1-433",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:deegree/deegree3",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "deegree/deegree3",
+    "commit_hash": "f1db94d147781dd1ea38ea1e60a4ee403be01760",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a1965284-468",
+  "page_type": "workflow_example",
+  "title": "Nebula Ci",
+  "source": "zenodo-workflow-histories:netflix/evcache",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/nebula-ci.yml",
+  "metadata": {
+    "repository": "netflix/evcache",
+    "commit_hash": "a1965284c9b4a967ac3c5da30119f4cd13e54270",
+    "file_path": ".github/workflows/nebula-ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bc84aa06-358",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:ignatov/intellij-erlang",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "ignatov/intellij-erlang",
+    "commit_hash": "bc84aa06b114f60b6b33c04af74c21378a580939",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

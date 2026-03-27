@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7c9e61ed-178",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:google/truth",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "google/truth",
+    "commit_hash": "7c9e61ed191ef04e7aecb8788a5d5163b76f1008",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-33321c59-88",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:hibernate/hibernate-orm",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "hibernate/hibernate-orm",
+    "commit_hash": "33321c595334f5954474f2f94c2031ee41dcb1be",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

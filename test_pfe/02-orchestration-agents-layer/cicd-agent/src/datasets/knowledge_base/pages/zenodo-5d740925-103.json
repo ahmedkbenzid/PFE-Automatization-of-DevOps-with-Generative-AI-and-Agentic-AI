@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5d740925-103",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:infinitest/infinitest",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "infinitest/infinitest",
+    "commit_hash": "5d7409251e89b4c2a0b82d7cc488c76d4a21c8ac",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

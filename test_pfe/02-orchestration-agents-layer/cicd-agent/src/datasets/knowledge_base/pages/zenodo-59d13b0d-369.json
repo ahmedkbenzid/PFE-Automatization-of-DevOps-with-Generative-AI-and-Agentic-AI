@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-59d13b0d-369",
+  "page_type": "workflow_example",
+  "title": "Prestocpp Macos Build",
+  "source": "zenodo-workflow-histories:prestodb/presto",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/prestocpp-macos-build.yml",
+  "metadata": {
+    "repository": "prestodb/presto",
+    "commit_hash": "59d13b0dd24fb32c92b170d2bc1198fb2e842d2b",
+    "file_path": ".github/workflows/prestocpp-macos-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6a8ae43f-221",
+  "page_type": "workflow_example",
+  "title": "",
+  "source": "zenodo-workflow-histories:cloudfoundry/cf-java-client",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: ",
+  "metadata": {
+    "repository": "cloudfoundry/cf-java-client",
+    "commit_hash": "6a8ae43ffa1d9794589261b6d015c574f81f976f",
+    "file_path": "",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7e628dfe-240",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:sloeber/arduino-eclipse-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "sloeber/arduino-eclipse-plugin",
+    "commit_hash": "7e628dfe7a39a8df3b9556d4223b2c42ed267f91",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

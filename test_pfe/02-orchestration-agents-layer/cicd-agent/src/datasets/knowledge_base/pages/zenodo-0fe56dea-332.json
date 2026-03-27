@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0fe56dea-332",
+  "page_type": "workflow_example",
+  "title": "Sync Crowdin",
+  "source": "zenodo-workflow-histories:catrobat/catroid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/sync_crowdin.yml",
+  "metadata": {
+    "repository": "catrobat/catroid",
+    "commit_hash": "0fe56dea386643b10a181d7450d9b2791ce34c64",
+    "file_path": ".github/workflows/sync_crowdin.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a791716f-274",
+  "page_type": "workflow_example",
+  "title": "Test With Selenium Nightly Build",
+  "source": "zenodo-workflow-histories:selenide/selenide",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/test-with-selenium-nightly-build.yml",
+  "metadata": {
+    "repository": "selenide/selenide",
+    "commit_hash": "a791716f48e21f61ec08b0191b05f9fdf2e42672",
+    "file_path": ".github/workflows/test-with-selenium-nightly-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-636ee216-333",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:wolpi/prim-ftpd",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "wolpi/prim-ftpd",
+    "commit_hash": "636ee21681d9b54a2ef9a1b7aaf682f58b843696",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

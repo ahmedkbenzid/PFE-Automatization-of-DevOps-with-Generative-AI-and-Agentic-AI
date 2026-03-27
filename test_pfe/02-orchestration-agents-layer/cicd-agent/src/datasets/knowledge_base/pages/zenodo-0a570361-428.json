@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0a570361-428",
+  "page_type": "workflow_example",
+  "title": "Jberet Main",
+  "source": "zenodo-workflow-histories:jberet/jsr352",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jberet-main.yml",
+  "metadata": {
+    "repository": "jberet/jsr352",
+    "commit_hash": "0a570361deeec44d50a134665986bf98cf864be3",
+    "file_path": ".github/workflows/jberet-main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2aeae43f-304",
+  "page_type": "workflow_example",
+  "title": "Deploy",
+  "source": "zenodo-workflow-histories:openconext/mujina",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/deploy.yml",
+  "metadata": {
+    "repository": "openconext/mujina",
+    "commit_hash": "2aeae43fb2bcd2989b6dc0bc6eccd082d07f8b1d",
+    "file_path": ".github/workflows/deploy.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

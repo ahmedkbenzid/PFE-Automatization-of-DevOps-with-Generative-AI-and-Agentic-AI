@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e9aec597-110",
+  "page_type": "workflow_example",
+  "title": "Dep Build V2",
+  "source": "zenodo-workflow-histories:fasterxml/jackson-datatype-hibernate",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/dep_build_v2.yml",
+  "metadata": {
+    "repository": "fasterxml/jackson-datatype-hibernate",
+    "commit_hash": "e9aec5975a8331badeccdb1b5cf41a3ddf5d509f",
+    "file_path": ".github/workflows/dep_build_v2.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

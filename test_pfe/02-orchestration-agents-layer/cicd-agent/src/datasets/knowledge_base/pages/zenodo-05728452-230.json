@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-05728452-230",
+  "page_type": "workflow_example",
+  "title": "Continuous Integration",
+  "source": "zenodo-workflow-histories:openstreetmap/osmosis",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/continuous-integration.yml",
+  "metadata": {
+    "repository": "openstreetmap/osmosis",
+    "commit_hash": "05728452299043117dd10b003bd3e39f90308d20",
+    "file_path": ".github/workflows/continuous-integration.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

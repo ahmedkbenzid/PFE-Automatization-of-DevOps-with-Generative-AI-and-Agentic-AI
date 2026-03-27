@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3f9a26f5-278",
+  "page_type": "workflow_example",
+  "title": "Windows",
+  "source": "zenodo-workflow-histories:oshi/oshi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/windows.yaml",
+  "metadata": {
+    "repository": "oshi/oshi",
+    "commit_hash": "3f9a26f57a00a28eede2c0a80939da2be4038fec",
+    "file_path": ".github/workflows/windows.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

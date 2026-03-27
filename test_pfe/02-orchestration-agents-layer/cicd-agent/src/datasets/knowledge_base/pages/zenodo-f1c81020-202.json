@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f1c81020-202",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:jetbrains/grammar-kit",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "jetbrains/grammar-kit",
+    "commit_hash": "f1c8102009383ba446baf041b383282338f4c551",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

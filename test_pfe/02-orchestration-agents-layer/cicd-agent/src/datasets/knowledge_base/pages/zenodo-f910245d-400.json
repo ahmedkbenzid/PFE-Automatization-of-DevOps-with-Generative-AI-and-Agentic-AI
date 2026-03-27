@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f910245d-400",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:fasterxml/jackson-jaxrs-providers",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "fasterxml/jackson-jaxrs-providers",
+    "commit_hash": "f910245d17e071f5a34081dfb7cc1868030162bf",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

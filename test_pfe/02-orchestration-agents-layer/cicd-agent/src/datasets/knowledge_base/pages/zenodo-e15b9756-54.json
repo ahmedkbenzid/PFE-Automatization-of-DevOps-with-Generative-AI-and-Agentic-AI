@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e15b9756-54",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:awaitility/awaitility",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "awaitility/awaitility",
+    "commit_hash": "e15b97560d873a7a632dc7cfaabff6d2fea92f50",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

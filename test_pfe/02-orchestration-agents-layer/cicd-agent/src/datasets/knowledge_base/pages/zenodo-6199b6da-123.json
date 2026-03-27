@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6199b6da-123",
+  "page_type": "workflow_example",
+  "title": "Gradle Wrapper Validation",
+  "source": "zenodo-workflow-histories:jenkinsci/gradle-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle-wrapper-validation.yml",
+  "metadata": {
+    "repository": "jenkinsci/gradle-plugin",
+    "commit_hash": "6199b6da4a2cadd1ece2232dc3485e49fcab5a0b",
+    "file_path": ".github/workflows/gradle-wrapper-validation.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

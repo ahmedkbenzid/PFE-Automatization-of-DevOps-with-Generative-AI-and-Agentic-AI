@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b8d5ff6d-114",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:spockframework/spock",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yaml",
+  "metadata": {
+    "repository": "spockframework/spock",
+    "commit_hash": "b8d5ff6d820bb5e7ca4be6a1bfea0cc3e5e87993",
+    "file_path": ".github/workflows/release.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

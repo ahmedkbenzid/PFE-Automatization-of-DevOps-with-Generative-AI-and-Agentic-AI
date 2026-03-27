@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-48f38b57-432",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:linkedin/rest.li",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "linkedin/rest.li",
+    "commit_hash": "48f38b57e6ad54bc6fce3783cf490a07ed571b78",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "page_id": "zenodo-go-001",
+  "page_type": "workflow_example",
+  "title": "Kubernetes Build",
+  "source": "zenodo-workflow-histories:kubernetes/kubernetes",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "go",
+    "build",
+    "test"
+  ],
+  "content": "name: Kubernetes Build\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "kubernetes/kubernetes",
+    "language": "Go",
+    "patterns": [
+      "build",
+      "test"
+    ],
+    "success_rate": 0.89
+  }
+}

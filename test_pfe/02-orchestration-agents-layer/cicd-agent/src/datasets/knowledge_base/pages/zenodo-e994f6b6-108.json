@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e994f6b6-108",
+  "page_type": "workflow_example",
+  "title": "Project",
+  "source": "zenodo-workflow-histories:spring-projects/spring-data-commons",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/project.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-data-commons",
+    "commit_hash": "e994f6b60fe90f0a2bce62c87b56a206a3ae39de",
+    "file_path": ".github/workflows/project.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

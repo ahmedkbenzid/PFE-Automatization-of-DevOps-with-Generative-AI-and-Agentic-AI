@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e5162661-71",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:atmosphere/atmosphere",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "atmosphere/atmosphere",
+    "commit_hash": "e5162661348a418c97861c52e7af40c74c199ce5",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

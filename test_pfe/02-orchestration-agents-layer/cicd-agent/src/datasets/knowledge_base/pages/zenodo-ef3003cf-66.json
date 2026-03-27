@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ef3003cf-66",
+  "page_type": "workflow_example",
+  "title": "Master Build",
+  "source": "zenodo-workflow-histories:apache/mina-sshd",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/master-build.yml",
+  "metadata": {
+    "repository": "apache/mina-sshd",
+    "commit_hash": "ef3003cfb75a20b841c8105e78590cfa9a9f8180",
+    "file_path": ".github/workflows/master-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

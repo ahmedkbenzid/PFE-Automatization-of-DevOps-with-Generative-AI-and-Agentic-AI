@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-eaa65066-484",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:ktuukkan/marine-api",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "ktuukkan/marine-api",
+    "commit_hash": "eaa650668d062903b95774e512cf6cd954c4f258",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-28200584-297",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:apache/jackrabbit-oak",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "apache/jackrabbit-oak",
+    "commit_hash": "282005842d076dd59bbc8d0ec000734e1e9c8c13",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-21f694ef-268",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:cybergarage/cybergarage-upnp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "cybergarage/cybergarage-upnp",
+    "commit_hash": "21f694efe9c4d5dcb55ed6965a24b4dbd02a85c9",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

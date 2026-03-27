@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0a9896b3-276",
+  "page_type": "workflow_example",
+  "title": "System Tests Backend",
+  "source": "zenodo-workflow-histories:getsentry/sentry-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/system-tests-backend.yml",
+  "metadata": {
+    "repository": "getsentry/sentry-java",
+    "commit_hash": "0a9896b319c17ef6dd55b58ec18c552b29f85730",
+    "file_path": ".github/workflows/system-tests-backend.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

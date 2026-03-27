@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c4da31cd-462",
+  "page_type": "workflow_example",
+  "title": "Build And Deploy Snapshot",
+  "source": "zenodo-workflow-histories:spring-projects/spring-ws",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-and-deploy-snapshot.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-ws",
+    "commit_hash": "c4da31cdd4e8c1d06cecf05b4560532cf50b907c",
+    "file_path": ".github/workflows/build-and-deploy-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

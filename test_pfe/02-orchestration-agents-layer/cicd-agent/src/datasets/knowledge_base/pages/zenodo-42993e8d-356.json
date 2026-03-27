@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-42993e8d-356",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:undertow-io/undertow",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "undertow-io/undertow",
+    "commit_hash": "42993e8d2c787541bb686fb97b13bea4649d19bb",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

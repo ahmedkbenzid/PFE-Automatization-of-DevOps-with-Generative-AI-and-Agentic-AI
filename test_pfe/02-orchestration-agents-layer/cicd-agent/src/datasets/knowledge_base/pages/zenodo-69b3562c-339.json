@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-69b3562c-339",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:izpack/izpack",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "izpack/izpack",
+    "commit_hash": "69b3562c0a5279552ca0ad3765efbe72c7931a5c",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

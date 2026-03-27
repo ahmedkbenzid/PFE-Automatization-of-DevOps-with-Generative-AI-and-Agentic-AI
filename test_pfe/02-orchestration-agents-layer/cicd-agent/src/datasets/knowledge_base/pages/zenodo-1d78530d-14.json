@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1d78530d-14",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:apache/commons-lang",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "apache/commons-lang",
+    "commit_hash": "1d78530dcd82d0bc7af9f6782b4ebe3bd1a735e5",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

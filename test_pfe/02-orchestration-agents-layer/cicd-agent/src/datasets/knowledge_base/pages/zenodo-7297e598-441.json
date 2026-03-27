@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7297e598-441",
+  "page_type": "workflow_example",
+  "title": "Scorecard",
+  "source": "zenodo-workflow-histories:marschall/memoryfilesystem",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/scorecard.yml",
+  "metadata": {
+    "repository": "marschall/memoryfilesystem",
+    "commit_hash": "7297e59864b85f26a0b755028ae137efe8838ef1",
+    "file_path": ".github/workflows/scorecard.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

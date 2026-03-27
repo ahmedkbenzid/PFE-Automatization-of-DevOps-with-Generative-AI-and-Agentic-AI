@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ba0239a0-298",
+  "page_type": "workflow_example",
+  "title": "Graal Tests",
+  "source": "zenodo-workflow-histories:http-kit/http-kit",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/graal-tests.yml",
+  "metadata": {
+    "repository": "http-kit/http-kit",
+    "commit_hash": "ba0239a0b1a7ccbd0712bc86bc28a227c001255e",
+    "file_path": ".github/workflows/graal-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

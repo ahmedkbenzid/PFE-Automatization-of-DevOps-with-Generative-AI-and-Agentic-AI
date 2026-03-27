@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7ea5d57f-151",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:chrisvest/stormpot",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "chrisvest/stormpot",
+    "commit_hash": "7ea5d57f11c718cdf36ed943c4f0c8156aaf418b",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

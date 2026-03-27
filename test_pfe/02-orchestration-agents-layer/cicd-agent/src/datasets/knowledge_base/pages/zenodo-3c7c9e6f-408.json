@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3c7c9e6f-408",
+  "page_type": "workflow_example",
+  "title": "Snapshot Release",
+  "source": "zenodo-workflow-histories:openrefine/openrefine",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/snapshot_release.yml",
+  "metadata": {
+    "repository": "openrefine/openrefine",
+    "commit_hash": "3c7c9e6fdef630f7fd1b0685904f2beafd70648f",
+    "file_path": ".github/workflows/snapshot_release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

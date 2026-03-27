@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-654fe75d-465",
+  "page_type": "workflow_example",
+  "title": "Acceptance Tests",
+  "source": "zenodo-workflow-histories:prometheus/client_java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/acceptance-tests.yml",
+  "metadata": {
+    "repository": "prometheus/client_java",
+    "commit_hash": "654fe75d40e697fc37660d38f47d9e4e4d51fdcf",
+    "file_path": ".github/workflows/acceptance-tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

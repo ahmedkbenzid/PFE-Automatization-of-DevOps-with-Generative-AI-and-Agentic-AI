@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-57bf1963-91",
+  "page_type": "workflow_example",
+  "title": "Azure Integration",
+  "source": "zenodo-workflow-histories:geowebcache/geowebcache",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/azure-integration.yml",
+  "metadata": {
+    "repository": "geowebcache/geowebcache",
+    "commit_hash": "57bf19632c5fd0eb063b490eda9f86f60914c190",
+    "file_path": ".github/workflows/azure-integration.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

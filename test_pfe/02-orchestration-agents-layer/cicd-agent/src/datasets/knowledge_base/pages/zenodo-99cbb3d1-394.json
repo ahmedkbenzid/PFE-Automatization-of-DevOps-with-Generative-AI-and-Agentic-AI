@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-99cbb3d1-394",
+  "page_type": "workflow_example",
+  "title": "Add Reviewer",
+  "source": "zenodo-workflow-histories:jscep/jscep",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/add-reviewer.yml",
+  "metadata": {
+    "repository": "jscep/jscep",
+    "commit_hash": "99cbb3d19b11ecb2453f802d1c2141fa707be0f7",
+    "file_path": ".github/workflows/add-reviewer.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

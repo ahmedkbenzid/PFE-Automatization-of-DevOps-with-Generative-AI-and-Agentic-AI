@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d2c3034a-329",
+  "page_type": "workflow_example",
+  "title": "Ghcr",
+  "source": "zenodo-workflow-histories:i2p/i2p.i2p",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ghcr.yml",
+  "metadata": {
+    "repository": "i2p/i2p.i2p",
+    "commit_hash": "d2c3034a47b1cc85c44e30b4b2dd8409c15ebaf6",
+    "file_path": ".github/workflows/ghcr.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

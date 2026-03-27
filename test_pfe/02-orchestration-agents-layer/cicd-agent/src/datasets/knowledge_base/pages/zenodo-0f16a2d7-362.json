@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0f16a2d7-362",
+  "page_type": "workflow_example",
+  "title": "Sync Crowdin Paintroid",
+  "source": "zenodo-workflow-histories:catrobat/paintroid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/sync_crowdin_Paintroid.yml",
+  "metadata": {
+    "repository": "catrobat/paintroid",
+    "commit_hash": "0f16a2d706f350d89e48f4bfe08c6a180de8a6b8",
+    "file_path": ".github/workflows/sync_crowdin_Paintroid.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

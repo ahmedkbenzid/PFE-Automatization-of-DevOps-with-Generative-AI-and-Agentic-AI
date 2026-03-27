@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-68f4f6bd-399",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:spigotmc/bungeecord",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "spigotmc/bungeecord",
+    "commit_hash": "68f4f6bd408fb263841d91907ab819c854c2cf6b",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

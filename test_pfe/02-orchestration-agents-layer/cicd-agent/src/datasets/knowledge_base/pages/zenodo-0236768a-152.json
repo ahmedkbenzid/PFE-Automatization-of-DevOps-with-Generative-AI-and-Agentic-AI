@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0236768a-152",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:archimatetool/archi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "archimatetool/archi",
+    "commit_hash": "0236768a169a5ddcca196fc5765c5118716ac7ec",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

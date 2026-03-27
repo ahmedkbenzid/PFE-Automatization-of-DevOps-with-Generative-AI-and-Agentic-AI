@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-052f429e-150",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:jorensix/tarsosdsp",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "jorensix/tarsosdsp",
+    "commit_hash": "052f429ecd0091103cdeaa495e3f3bb46542f8dd",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-898c1f84-182",
+  "page_type": "workflow_example",
+  "title": "Release Github",
+  "source": "zenodo-workflow-histories:cucumber/cucumber-jvm",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release-github.yml",
+  "metadata": {
+    "repository": "cucumber/cucumber-jvm",
+    "commit_hash": "898c1f84fadece400eec60705d0affbd6f2e5705",
+    "file_path": ".github/workflows/release-github.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

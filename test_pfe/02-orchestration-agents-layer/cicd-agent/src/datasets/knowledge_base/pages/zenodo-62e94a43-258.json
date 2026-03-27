@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-62e94a43-258",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:spring-projects/spring-webflow",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-webflow",
+    "commit_hash": "62e94a4356a5c3be8f9f3b08fb680ad4af766401",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

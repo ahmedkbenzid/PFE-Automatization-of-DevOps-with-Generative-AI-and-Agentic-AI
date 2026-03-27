@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-70cee207-149",
+  "page_type": "workflow_example",
+  "title": "Build And Test",
+  "source": "zenodo-workflow-histories:tbsalling/aismessages",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build_and_test.yml",
+  "metadata": {
+    "repository": "tbsalling/aismessages",
+    "commit_hash": "70cee2078ba08e31d2fce4a481efba573b4ba602",
+    "file_path": ".github/workflows/build_and_test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

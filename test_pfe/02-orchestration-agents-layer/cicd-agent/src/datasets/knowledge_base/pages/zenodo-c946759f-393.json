@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c946759f-393",
+  "page_type": "workflow_example",
+  "title": "Gradle Wrapper Validation",
+  "source": "zenodo-workflow-histories:automattic/simplenote-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle-wrapper-validation.yml",
+  "metadata": {
+    "repository": "automattic/simplenote-android",
+    "commit_hash": "c946759f81b308977f6398eb128ecb116b924787",
+    "file_path": ".github/workflows/gradle-wrapper-validation.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

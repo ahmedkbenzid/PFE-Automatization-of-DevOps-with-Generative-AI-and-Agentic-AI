@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-12dcbdef-417",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:vivo-project/vitro",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "vivo-project/vitro",
+    "commit_hash": "12dcbdef8c6227566d1e489511d2011ccb574416",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-22471a97-220",
+  "page_type": "workflow_example",
+  "title": "Prepare Release",
+  "source": "zenodo-workflow-histories:carrot2/carrot2",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/prepare-release.yml",
+  "metadata": {
+    "repository": "carrot2/carrot2",
+    "commit_hash": "22471a9704825ed14ed101f730ef8af7aa00fb98",
+    "file_path": ".github/workflows/prepare-release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

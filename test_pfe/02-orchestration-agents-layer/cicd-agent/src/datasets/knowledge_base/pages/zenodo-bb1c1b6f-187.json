@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bb1c1b6f-187",
+  "page_type": "workflow_example",
+  "title": "Maven Pulls",
+  "source": "zenodo-workflow-histories:swagger-api/swagger-core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-pulls.yml",
+  "metadata": {
+    "repository": "swagger-api/swagger-core",
+    "commit_hash": "bb1c1b6fece8610438db1153c0891f494247ce2c",
+    "file_path": ".github/workflows/maven-pulls.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

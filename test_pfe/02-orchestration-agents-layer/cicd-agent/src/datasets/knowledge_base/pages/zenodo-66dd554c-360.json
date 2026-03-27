@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-66dd554c-360",
+  "page_type": "workflow_example",
+  "title": "Tests",
+  "source": "zenodo-workflow-histories:jfrog/artifactory-client-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/tests.yml",
+  "metadata": {
+    "repository": "jfrog/artifactory-client-java",
+    "commit_hash": "66dd554c2afa6711a0e8771f7aa7d3f670b26138",
+    "file_path": ".github/workflows/tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

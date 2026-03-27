@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0b79b989-136",
+  "page_type": "workflow_example",
+  "title": "Cd",
+  "source": "zenodo-workflow-histories:jenkinsci/publish-over-ssh-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/cd.yaml",
+  "metadata": {
+    "repository": "jenkinsci/publish-over-ssh-plugin",
+    "commit_hash": "0b79b989d1b902750e8790e4603c907cac2c5eb0",
+    "file_path": ".github/workflows/cd.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

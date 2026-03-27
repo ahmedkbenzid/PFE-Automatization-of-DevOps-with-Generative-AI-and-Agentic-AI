@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4e52cbda-188",
+  "page_type": "workflow_example",
+  "title": "Build Azure Uber Jar",
+  "source": "zenodo-workflow-histories:liquibase/liquibase",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-azure-uber-jar.yml",
+  "metadata": {
+    "repository": "liquibase/liquibase",
+    "commit_hash": "4e52cbda831dfb35fae4b673b74baad8b0cf4d0c",
+    "file_path": ".github/workflows/build-azure-uber-jar.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

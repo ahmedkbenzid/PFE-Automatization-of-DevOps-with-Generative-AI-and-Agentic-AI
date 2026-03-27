@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c43535d4-285",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:graphhopper/graphhopper",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "graphhopper/graphhopper",
+    "commit_hash": "c43535d49fda14858fdb4374bf1dfe9b674873c5",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

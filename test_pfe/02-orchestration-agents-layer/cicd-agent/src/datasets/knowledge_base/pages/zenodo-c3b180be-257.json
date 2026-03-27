@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c3b180be-257",
+  "page_type": "workflow_example",
+  "title": "Sbom Generation",
+  "source": "zenodo-workflow-histories:togglz/togglz",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/sbom-generation.yml",
+  "metadata": {
+    "repository": "togglz/togglz",
+    "commit_hash": "c3b180beef85e759ce8243e82074bd9e40ba5912",
+    "file_path": ".github/workflows/sbom-generation.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

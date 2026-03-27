@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a10aed01-404",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:mockito/mockito",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "mockito/mockito",
+    "commit_hash": "a10aed01a455bf1f45bb25dc1bb887fd171cffee",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d60161b6-235",
+  "page_type": "workflow_example",
+  "title": "Docker Image",
+  "source": "zenodo-workflow-histories:internetarchive/heritrix3",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/docker-image.yml",
+  "metadata": {
+    "repository": "internetarchive/heritrix3",
+    "commit_hash": "d60161b6be45dfdeb773d17038f4eb16d2e2a37c",
+    "file_path": ".github/workflows/docker-image.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

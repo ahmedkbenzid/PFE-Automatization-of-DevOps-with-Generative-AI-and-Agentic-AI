@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1c0132d2-4",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:junit-team/junit4",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "junit-team/junit4",
+    "commit_hash": "1c0132d203eb837c8df12378c47a40f3ae5fd71c",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

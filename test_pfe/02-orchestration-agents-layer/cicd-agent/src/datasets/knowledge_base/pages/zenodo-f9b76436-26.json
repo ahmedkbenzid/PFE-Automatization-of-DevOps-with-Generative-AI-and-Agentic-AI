@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f9b76436-26",
+  "page_type": "workflow_example",
+  "title": "Verify Deploy On Push",
+  "source": "zenodo-workflow-histories:apache/cayenne",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/verify-deploy-on-push.yml",
+  "metadata": {
+    "repository": "apache/cayenne",
+    "commit_hash": "f9b76436f05b488af503dd7b25a8b699c7059cc2",
+    "file_path": ".github/workflows/verify-deploy-on-push.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

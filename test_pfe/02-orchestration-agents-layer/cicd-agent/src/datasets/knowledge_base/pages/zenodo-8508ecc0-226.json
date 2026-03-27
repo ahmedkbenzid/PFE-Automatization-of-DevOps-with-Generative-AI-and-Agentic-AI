@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8508ecc0-226",
+  "page_type": "workflow_example",
+  "title": "Maven Full Its",
+  "source": "zenodo-workflow-histories:apache/accumulo",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-full-its.yaml",
+  "metadata": {
+    "repository": "apache/accumulo",
+    "commit_hash": "8508ecc058f372eed4f0cebf0773c656c346e759",
+    "file_path": ".github/workflows/maven-full-its.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-db6dea82-243",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:mapfish/mapfish-print",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yaml",
+  "metadata": {
+    "repository": "mapfish/mapfish-print",
+    "commit_hash": "db6dea8235375236e7f8d62701688369691e4569",
+    "file_path": ".github/workflows/main.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

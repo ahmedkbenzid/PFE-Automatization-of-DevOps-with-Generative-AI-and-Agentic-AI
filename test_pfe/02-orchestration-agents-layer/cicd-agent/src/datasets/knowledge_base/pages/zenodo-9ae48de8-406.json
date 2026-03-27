@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9ae48de8-406",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:renanse/ardor3d",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "renanse/ardor3d",
+    "commit_hash": "9ae48de87de6b7147236ad11a6cb0c58208721b9",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

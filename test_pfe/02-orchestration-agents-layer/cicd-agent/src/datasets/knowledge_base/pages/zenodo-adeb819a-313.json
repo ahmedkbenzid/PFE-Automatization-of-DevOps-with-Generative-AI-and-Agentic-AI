@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-adeb819a-313",
+  "page_type": "workflow_example",
+  "title": "Auto Approve",
+  "source": "zenodo-workflow-histories:anysoftkeyboard/anysoftkeyboard",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/auto_approve.yml",
+  "metadata": {
+    "repository": "anysoftkeyboard/anysoftkeyboard",
+    "commit_hash": "adeb819a92f8076c7487b99c856c4fe90ef9c7a2",
+    "file_path": ".github/workflows/auto_approve.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

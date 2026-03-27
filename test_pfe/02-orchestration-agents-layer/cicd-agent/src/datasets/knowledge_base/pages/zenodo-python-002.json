@@ -1,0 +1,25 @@
+{
+  "page_id": "zenodo-python-002",
+  "page_type": "workflow_example",
+  "title": "FastAPI Docker Deploy",
+  "source": "zenodo-workflow-histories:tiangolo/fastapi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "python",
+    "build",
+    "docker",
+    "deploy"
+  ],
+  "content": "name: FastAPI Docker Deploy\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "tiangolo/fastapi",
+    "language": "Python",
+    "patterns": [
+      "build",
+      "docker",
+      "deploy"
+    ],
+    "success_rate": 0.9
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-81f93175-196",
+  "page_type": "workflow_example",
+  "title": "Verify Staged Artifacts",
+  "source": "zenodo-workflow-histories:spring-projects/spring-integration",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/verify-staged-artifacts.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-integration",
+    "commit_hash": "81f9317520c0d482e25ae68dc2ec090a27964a30",
+    "file_path": ".github/workflows/verify-staged-artifacts.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c871ca49-392",
+  "page_type": "workflow_example",
+  "title": "Gradle Build",
+  "source": "zenodo-workflow-histories:lmax-exchange/disruptor",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle-build.yml",
+  "metadata": {
+    "repository": "lmax-exchange/disruptor",
+    "commit_hash": "c871ca49826a6be7ada6957f6fbafcfecf7b1f87",
+    "file_path": ".github/workflows/gradle-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

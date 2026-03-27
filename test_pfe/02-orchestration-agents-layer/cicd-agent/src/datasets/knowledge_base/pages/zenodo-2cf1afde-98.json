@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2cf1afde-98",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:modelmapper/modelmapper",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "modelmapper/modelmapper",
+    "commit_hash": "2cf1afdeec170bd473f1337898587030ec68de18",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

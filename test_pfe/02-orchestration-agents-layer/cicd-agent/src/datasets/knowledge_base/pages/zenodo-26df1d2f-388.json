@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-26df1d2f-388",
+  "page_type": "workflow_example",
+  "title": "Android",
+  "source": "zenodo-workflow-histories:wiglenet/wigle-wifi-wardriving",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/android.yml",
+  "metadata": {
+    "repository": "wiglenet/wigle-wifi-wardriving",
+    "commit_hash": "26df1d2f1dc5fd4edab0cf7693b38eecad68e026",
+    "file_path": ".github/workflows/android.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

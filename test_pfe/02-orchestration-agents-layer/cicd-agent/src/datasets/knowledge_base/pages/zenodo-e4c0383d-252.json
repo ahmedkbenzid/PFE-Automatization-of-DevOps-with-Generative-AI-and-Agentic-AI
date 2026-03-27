@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e4c0383d-252",
+  "page_type": "workflow_example",
+  "title": "",
+  "source": "zenodo-workflow-histories:imglib/imglib2",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: ",
+  "metadata": {
+    "repository": "imglib/imglib2",
+    "commit_hash": "e4c0383d0cf3f2358734fae4315d18037b1a39d6",
+    "file_path": "",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-dbdc77f1-76",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:jboss-modules/jboss-modules",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "jboss-modules/jboss-modules",
+    "commit_hash": "dbdc77f19176b4a7a9abd65cab3ae7f5d0c87bcb",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

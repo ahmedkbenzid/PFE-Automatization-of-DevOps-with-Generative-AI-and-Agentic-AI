@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b8a94d32-330",
+  "page_type": "workflow_example",
+  "title": "Build Matrix",
+  "source": "zenodo-workflow-histories:jknack/handlebars.java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-matrix.yml",
+  "metadata": {
+    "repository": "jknack/handlebars.java",
+    "commit_hash": "b8a94d32b57f07e3d286befa3fb3c9c70e66e982",
+    "file_path": ".github/workflows/build-matrix.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

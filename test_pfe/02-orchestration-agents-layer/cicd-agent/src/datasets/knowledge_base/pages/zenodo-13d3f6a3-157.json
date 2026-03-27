@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-13d3f6a3-157",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:kong/unirest-java",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "kong/unirest-java",
+    "commit_hash": "13d3f6a3a33f60e6f75e3b4448bb910fd3f5267f",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

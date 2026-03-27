@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f737e75e-101",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:plantuml/plantuml",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "plantuml/plantuml",
+    "commit_hash": "f737e75e9e7e41ca039e8b2f73f2269f4d5db83e",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

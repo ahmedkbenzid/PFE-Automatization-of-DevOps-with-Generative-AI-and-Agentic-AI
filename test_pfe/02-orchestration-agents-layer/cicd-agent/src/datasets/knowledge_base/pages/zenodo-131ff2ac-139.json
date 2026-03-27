@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-131ff2ac-139",
+  "page_type": "workflow_example",
+  "title": "Generate Status Page",
+  "source": "zenodo-workflow-histories:kiegroup/optaplanner",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/generate_status_page.yaml",
+  "metadata": {
+    "repository": "kiegroup/optaplanner",
+    "commit_hash": "131ff2ac9ab379498005e22e4dbe9bfde7051a46",
+    "file_path": ".github/workflows/generate_status_page.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

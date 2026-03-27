@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1a3e7886-437",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:calimero-project/calimero-core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "calimero-project/calimero-core",
+    "commit_hash": "1a3e7886a4b6b9210d7514a900094d1ff324c130",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

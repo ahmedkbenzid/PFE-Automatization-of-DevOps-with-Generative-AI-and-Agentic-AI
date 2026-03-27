@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-70864020-86",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:dcm4che/dcm4che",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "dcm4che/dcm4che",
+    "commit_hash": "708640205a1028ecafcad37096a734a3b906a1de",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

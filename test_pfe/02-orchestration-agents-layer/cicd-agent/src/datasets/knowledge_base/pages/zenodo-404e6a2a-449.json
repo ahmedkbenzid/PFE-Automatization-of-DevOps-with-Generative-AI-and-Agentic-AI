@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-404e6a2a-449",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:oracle/opengrok",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "oracle/opengrok",
+    "commit_hash": "404e6a2a4d6f70c4c652bff6a24036bad590985c",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

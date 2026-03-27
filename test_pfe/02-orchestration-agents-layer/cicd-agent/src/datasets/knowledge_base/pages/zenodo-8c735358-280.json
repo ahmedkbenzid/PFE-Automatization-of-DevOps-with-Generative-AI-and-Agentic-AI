@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8c735358-280",
+  "page_type": "workflow_example",
+  "title": "Maven 17",
+  "source": "zenodo-workflow-histories:atmosphere/nettosphere",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-17.yml",
+  "metadata": {
+    "repository": "atmosphere/nettosphere",
+    "commit_hash": "8c735358c6d403b20239f19906a5c0a28e94e816",
+    "file_path": ".github/workflows/maven-17.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

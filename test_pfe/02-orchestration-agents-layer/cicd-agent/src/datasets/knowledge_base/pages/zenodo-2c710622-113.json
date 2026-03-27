@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2c710622-113",
+  "page_type": "workflow_example",
+  "title": "Docker Push",
+  "source": "zenodo-workflow-histories:validator/validator",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/docker-push.yml",
+  "metadata": {
+    "repository": "validator/validator",
+    "commit_hash": "2c7106222f670384812211ffb963983759930db4",
+    "file_path": ".github/workflows/docker-push.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

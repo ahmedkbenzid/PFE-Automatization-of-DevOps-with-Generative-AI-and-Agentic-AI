@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bc325092-384",
+  "page_type": "workflow_example",
+  "title": "Ci Develop Snapshot",
+  "source": "zenodo-workflow-histories:pi4j/pi4j",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-develop-snapshot.yml",
+  "metadata": {
+    "repository": "pi4j/pi4j",
+    "commit_hash": "bc325092907131eb3e93ae61f49e0f89c5390988",
+    "file_path": ".github/workflows/ci-develop-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

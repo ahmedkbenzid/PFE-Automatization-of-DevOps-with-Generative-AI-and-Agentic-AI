@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6b882409-67",
+  "page_type": "workflow_example",
+  "title": "Jenkins Security Scan",
+  "source": "zenodo-workflow-histories:jenkinsci/throttle-concurrent-builds-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/jenkins-security-scan.yml",
+  "metadata": {
+    "repository": "jenkinsci/throttle-concurrent-builds-plugin",
+    "commit_hash": "6b8824096349d5535ee620bafa09c005e05ce939",
+    "file_path": ".github/workflows/jenkins-security-scan.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-215c8b6b-251",
+  "page_type": "workflow_example",
+  "title": "Bot Auto Merge",
+  "source": "zenodo-workflow-histories:nuxeo/nuxeo",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/bot-auto-merge.yml",
+  "metadata": {
+    "repository": "nuxeo/nuxeo",
+    "commit_hash": "215c8b6b0c15c0765b9e9ff448ff6d3871e28628",
+    "file_path": ".github/workflows/bot-auto-merge.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

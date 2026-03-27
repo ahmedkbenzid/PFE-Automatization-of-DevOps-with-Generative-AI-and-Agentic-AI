@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-389594c2-165",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:jodaorg/joda-beans",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "jodaorg/joda-beans",
+    "commit_hash": "389594c2bbffce619bd9c6bd24756d9bfb43c67a",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

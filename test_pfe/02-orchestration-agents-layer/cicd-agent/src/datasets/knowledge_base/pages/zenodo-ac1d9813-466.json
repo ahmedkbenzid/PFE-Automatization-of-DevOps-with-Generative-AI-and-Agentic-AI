@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ac1d9813-466",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:kairosdb/kairosdb",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "kairosdb/kairosdb",
+    "commit_hash": "ac1d9813cdda26910e916b5afafce8b12a43c7d5",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

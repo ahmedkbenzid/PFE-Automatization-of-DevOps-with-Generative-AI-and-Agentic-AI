@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e151986d-335",
+  "page_type": "workflow_example",
+  "title": "Test",
+  "source": "zenodo-workflow-histories:openzipkin/zipkin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/test.yml",
+  "metadata": {
+    "repository": "openzipkin/zipkin",
+    "commit_hash": "e151986db4d1de1aea53618f18e4ee3acaa9ed3a",
+    "file_path": ".github/workflows/test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-93dbfd78-94",
+  "page_type": "workflow_example",
+  "title": "Ci Report",
+  "source": "zenodo-workflow-histories:hibernate/hibernate-validator",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-report.yml",
+  "metadata": {
+    "repository": "hibernate/hibernate-validator",
+    "commit_hash": "93dbfd789bf202789ffe89fdc5aba5217da51743",
+    "file_path": ".github/workflows/ci-report.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

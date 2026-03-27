@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d5cc1480-343",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:digital-preservation/droid",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "digital-preservation/droid",
+    "commit_hash": "d5cc148009dc14cbdcaa25091eb86b72407c3915",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

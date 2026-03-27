@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d00e08db-492",
+  "page_type": "workflow_example",
+  "title": "Gradle Wrapper Validation",
+  "source": "zenodo-workflow-histories:netflix/zuul",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle-wrapper-validation.yml",
+  "metadata": {
+    "repository": "netflix/zuul",
+    "commit_hash": "d00e08db2939801ff30c455d95bd1999001fa1e5",
+    "file_path": ".github/workflows/gradle-wrapper-validation.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

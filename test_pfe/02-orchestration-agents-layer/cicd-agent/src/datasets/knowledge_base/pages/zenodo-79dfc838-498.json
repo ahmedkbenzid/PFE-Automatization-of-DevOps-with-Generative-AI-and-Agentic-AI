@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-79dfc838-498",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:forge/roaster",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "forge/roaster",
+    "commit_hash": "79dfc838f93d394d2a1eaa79097bed23063ebb32",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

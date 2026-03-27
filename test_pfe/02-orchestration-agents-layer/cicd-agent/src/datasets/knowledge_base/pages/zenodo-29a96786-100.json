@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-29a96786-100",
+  "page_type": "workflow_example",
+  "title": "Ci Release 4.2",
+  "source": "zenodo-workflow-histories:netty/netty",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-release-4.2.yml",
+  "metadata": {
+    "repository": "netty/netty",
+    "commit_hash": "29a96786c9a5dd00dbdc95107965e44e37ac9ce8",
+    "file_path": ".github/workflows/ci-release-4.2.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

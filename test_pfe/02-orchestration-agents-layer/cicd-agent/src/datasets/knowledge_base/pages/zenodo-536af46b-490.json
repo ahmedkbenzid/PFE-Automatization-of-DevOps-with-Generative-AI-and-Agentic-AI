@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-536af46b-490",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:authme/authmereloaded",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "authme/authmereloaded",
+    "commit_hash": "536af46b2b971355c9bdb90eccf357e697fed5cf",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-36ce9563-489",
+  "page_type": "workflow_example",
+  "title": "Codeql Analysis",
+  "source": "zenodo-workflow-histories:jnrouvignac/autorefactor",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql-analysis.yml",
+  "metadata": {
+    "repository": "jnrouvignac/autorefactor",
+    "commit_hash": "36ce9563e71eb6f0e12c6a464a11c85b666621e5",
+    "file_path": ".github/workflows/codeql-analysis.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "page_id": "zenodo-javascript-001",
+  "page_type": "workflow_example",
+  "title": "React TypeScript Test",
+  "source": "zenodo-workflow-histories:facebook/react",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "javascript",
+    "test",
+    "typescript"
+  ],
+  "content": "name: React TypeScript Test\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "facebook/react",
+    "language": "Javascript",
+    "patterns": [
+      "test",
+      "typescript"
+    ],
+    "success_rate": 0.89
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f8c4f9a1-266",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:caprica/vlcj",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "caprica/vlcj",
+    "commit_hash": "f8c4f9a12decde1ef46c7d4cf3e6d5fd132627da",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

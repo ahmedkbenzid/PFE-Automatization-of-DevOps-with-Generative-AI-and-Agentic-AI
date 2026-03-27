@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7d03a42f-38",
+  "page_type": "workflow_example",
+  "title": "Main",
+  "source": "zenodo-workflow-histories:qos-ch/logback",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main.yml",
+  "metadata": {
+    "repository": "qos-ch/logback",
+    "commit_hash": "7d03a42f4bd41e9eabaa8fc001d70c4f8aa122ef",
+    "file_path": ".github/workflows/main.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

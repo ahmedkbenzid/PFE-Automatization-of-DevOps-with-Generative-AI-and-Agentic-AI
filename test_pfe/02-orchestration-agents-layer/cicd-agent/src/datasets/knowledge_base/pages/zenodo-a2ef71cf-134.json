@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a2ef71cf-134",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:jnr/jnr-ffi",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "jnr/jnr-ffi",
+    "commit_hash": "a2ef71cf39a709000b0b097a99ef4c2e7a8c3969",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

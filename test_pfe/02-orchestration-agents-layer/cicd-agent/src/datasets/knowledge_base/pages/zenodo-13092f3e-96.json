@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-13092f3e-96",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:jmeter-maven-plugin/jmeter-maven-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "jmeter-maven-plugin/jmeter-maven-plugin",
+    "commit_hash": "13092f3e53c1f9e0f87a81c5b47bc5d814530d55",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

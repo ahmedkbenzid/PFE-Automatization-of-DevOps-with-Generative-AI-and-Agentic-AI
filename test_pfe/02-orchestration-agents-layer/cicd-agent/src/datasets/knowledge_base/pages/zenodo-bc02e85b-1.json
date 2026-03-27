@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bc02e85b-1",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:sparklemotion/nokogiri",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "sparklemotion/nokogiri",
+    "commit_hash": "bc02e85b5c555eae939a85599ae4586eacfc2e79",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

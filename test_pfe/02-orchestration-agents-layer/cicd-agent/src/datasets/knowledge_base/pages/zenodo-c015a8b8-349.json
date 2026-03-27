@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c015a8b8-349",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:damianszczepanik/maven-cucumber-reporting",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "damianszczepanik/maven-cucumber-reporting",
+    "commit_hash": "c015a8b84262f166c3f7aea30c140fe9abc08f21",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-cebb0355-111",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:kordamp/json-lib",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "kordamp/json-lib",
+    "commit_hash": "cebb0355322080d5c95b35755a3ca32070d1c387",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

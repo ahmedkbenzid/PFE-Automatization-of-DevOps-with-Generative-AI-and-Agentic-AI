@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1204a793-431",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:apache/cordova-android",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "apache/cordova-android",
+    "commit_hash": "1204a79378a870700a0e200d1ce8c1d09c2e1149",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-42eb0e1c-287",
+  "page_type": "workflow_example",
+  "title": "Build Installer",
+  "source": "zenodo-workflow-histories:nroduit/weasis",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-installer.yml",
+  "metadata": {
+    "repository": "nroduit/weasis",
+    "commit_hash": "42eb0e1c4b0eaf5dabf5b83dae2849dba29cecfe",
+    "file_path": ".github/workflows/build-installer.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

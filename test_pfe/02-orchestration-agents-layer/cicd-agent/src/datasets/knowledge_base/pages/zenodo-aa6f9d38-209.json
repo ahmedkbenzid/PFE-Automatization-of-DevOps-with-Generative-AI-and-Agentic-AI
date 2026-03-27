@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-aa6f9d38-209",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:jshiell/checkstyle-idea",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "jshiell/checkstyle-idea",
+    "commit_hash": "aa6f9d38a2eab7543f8b360d3e69b0867c23fdde",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

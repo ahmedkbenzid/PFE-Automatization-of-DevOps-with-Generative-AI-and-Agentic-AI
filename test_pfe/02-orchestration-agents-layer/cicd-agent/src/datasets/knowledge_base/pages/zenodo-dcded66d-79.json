@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-dcded66d-79",
+  "page_type": "workflow_example",
+  "title": "Ci Actions",
+  "source": "zenodo-workflow-histories:weld/core",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-actions.yml",
+  "metadata": {
+    "repository": "weld/core",
+    "commit_hash": "dcded66da8853a5ec1466ce8ed104efa9b5de47d",
+    "file_path": ".github/workflows/ci-actions.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

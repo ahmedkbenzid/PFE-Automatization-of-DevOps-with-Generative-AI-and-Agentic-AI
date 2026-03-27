@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8a1a3219-58",
+  "page_type": "workflow_example",
+  "title": "Assign Milestone",
+  "source": "zenodo-workflow-histories:dropwizard/metrics",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/assign-milestone.yml",
+  "metadata": {
+    "repository": "dropwizard/metrics",
+    "commit_hash": "8a1a321976c1e2ae0f106a4815a3fe2c650f0b91",
+    "file_path": ".github/workflows/assign-milestone.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6c614071-365",
+  "page_type": "workflow_example",
+  "title": "Build Coffeemud",
+  "source": "zenodo-workflow-histories:bozimmerman/coffeemud",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-coffeemud.yaml",
+  "metadata": {
+    "repository": "bozimmerman/coffeemud",
+    "commit_hash": "6c61407129cb6dd3b6ee581dc8e15edad9a10611",
+    "file_path": ".github/workflows/build-coffeemud.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

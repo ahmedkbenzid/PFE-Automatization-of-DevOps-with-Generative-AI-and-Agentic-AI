@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-eb2957a8-51",
+  "page_type": "workflow_example",
+  "title": "Build",
+  "source": "zenodo-workflow-histories:jhy/jsoup",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build.yml",
+  "metadata": {
+    "repository": "jhy/jsoup",
+    "commit_hash": "eb2957a8b3e8c12649c5b83872a238dd74e68dec",
+    "file_path": ".github/workflows/build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

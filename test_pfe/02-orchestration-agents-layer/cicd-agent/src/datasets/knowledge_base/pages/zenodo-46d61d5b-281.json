@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-46d61d5b-281",
+  "page_type": "workflow_example",
+  "title": "Maven Deploy Snapshot",
+  "source": "zenodo-workflow-histories:hoijui/javaosc",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven-deploy-snapshot.yml",
+  "metadata": {
+    "repository": "hoijui/javaosc",
+    "commit_hash": "46d61d5b9a6dd042d985ba4494eefb192e55a06d",
+    "file_path": ".github/workflows/maven-deploy-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

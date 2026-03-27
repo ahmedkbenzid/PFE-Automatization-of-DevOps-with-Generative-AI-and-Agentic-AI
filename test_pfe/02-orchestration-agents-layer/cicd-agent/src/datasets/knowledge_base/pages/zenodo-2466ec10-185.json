@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2466ec10-185",
+  "page_type": "workflow_example",
+  "title": "Build Test Lint",
+  "source": "zenodo-workflow-histories:uwetrottmann/seriesguide",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-test-lint.yml",
+  "metadata": {
+    "repository": "uwetrottmann/seriesguide",
+    "commit_hash": "2466ec1041be5e64df4c73b1ecc26bc5b34e5b6d",
+    "file_path": ".github/workflows/build-test-lint.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

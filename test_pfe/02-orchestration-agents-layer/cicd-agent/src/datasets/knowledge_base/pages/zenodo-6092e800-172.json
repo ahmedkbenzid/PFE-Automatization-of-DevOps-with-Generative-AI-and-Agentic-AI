@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6092e800-172",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:nutzam/nutz",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "nutzam/nutz",
+    "commit_hash": "6092e8008deee3b68b774cd1704f73972527a91b",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

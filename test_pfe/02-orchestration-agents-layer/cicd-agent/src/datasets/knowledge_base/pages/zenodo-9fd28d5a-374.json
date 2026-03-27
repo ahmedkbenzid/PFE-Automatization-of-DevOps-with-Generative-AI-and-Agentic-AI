@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-9fd28d5a-374",
+  "page_type": "workflow_example",
+  "title": "Android",
+  "source": "zenodo-workflow-histories:barbeau/gpstest",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/android.yml",
+  "metadata": {
+    "repository": "barbeau/gpstest",
+    "commit_hash": "9fd28d5a612ee8e9998db3b03925bb1e53dc35dc",
+    "file_path": ".github/workflows/android.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

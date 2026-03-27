@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7beb8a1f-83",
+  "page_type": "workflow_example",
+  "title": "Tests",
+  "source": "zenodo-workflow-histories:robolectric/robolectric",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/tests.yml",
+  "metadata": {
+    "repository": "robolectric/robolectric",
+    "commit_hash": "7beb8a1f2e74f9b0dfc99a93c5b80e0277d7cebe",
+    "file_path": ".github/workflows/tests.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

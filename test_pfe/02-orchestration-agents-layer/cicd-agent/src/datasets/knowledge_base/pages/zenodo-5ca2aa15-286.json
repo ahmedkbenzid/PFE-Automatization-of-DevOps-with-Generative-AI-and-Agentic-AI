@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5ca2aa15-286",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:spring-projects/spring-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yaml",
+  "metadata": {
+    "repository": "spring-projects/spring-plugin",
+    "commit_hash": "5ca2aa156b71dcb7cb9bef3d17ebefa73a76d937",
+    "file_path": ".github/workflows/release.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

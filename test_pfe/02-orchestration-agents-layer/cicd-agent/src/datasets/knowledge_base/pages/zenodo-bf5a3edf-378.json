@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-bf5a3edf-378",
+  "page_type": "workflow_example",
+  "title": "Android",
+  "source": "zenodo-workflow-histories:yukuku/androidbible",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/android.yml",
+  "metadata": {
+    "repository": "yukuku/androidbible",
+    "commit_hash": "bf5a3edf47f907d0266c1855dca938a1efb4a9a8",
+    "file_path": ".github/workflows/android.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

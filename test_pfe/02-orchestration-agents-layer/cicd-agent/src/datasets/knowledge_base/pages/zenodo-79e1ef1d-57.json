@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-79e1ef1d-57",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:jenkinsci/trilead-ssh2",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "jenkinsci/trilead-ssh2",
+    "commit_hash": "79e1ef1d354a037eee947148deb0aa38ca035e0e",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

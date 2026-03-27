@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fb22fd77-69",
+  "page_type": "workflow_example",
+  "title": "Doc Build",
+  "source": "zenodo-workflow-histories:clojure/clojure",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/doc-build.yml",
+  "metadata": {
+    "repository": "clojure/clojure",
+    "commit_hash": "fb22fd778a272b034684a4ee94509552b46ee8a9",
+    "file_path": ".github/workflows/doc-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

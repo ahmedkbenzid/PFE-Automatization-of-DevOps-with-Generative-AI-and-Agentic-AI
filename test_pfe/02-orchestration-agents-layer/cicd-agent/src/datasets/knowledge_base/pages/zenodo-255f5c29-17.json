@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-255f5c29-17",
+  "page_type": "workflow_example",
+  "title": "Main Jdk17 Build",
+  "source": "zenodo-workflow-histories:apache/tika",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/main-jdk17-build.yml",
+  "metadata": {
+    "repository": "apache/tika",
+    "commit_hash": "255f5c29433e41b69300e90671cadb90385f3e8f",
+    "file_path": ".github/workflows/main-jdk17-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

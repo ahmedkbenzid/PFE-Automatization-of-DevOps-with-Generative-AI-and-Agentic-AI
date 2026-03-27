@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0da04e14-341",
+  "page_type": "workflow_example",
+  "title": "Build And Test Scheduled 3.1",
+  "source": "zenodo-workflow-histories:apache/dubbo",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-and-test-scheduled-3.1.yml",
+  "metadata": {
+    "repository": "apache/dubbo",
+    "commit_hash": "0da04e145ad0df7f558521a82c8659377a2e50e8",
+    "file_path": ".github/workflows/build-and-test-scheduled-3.1.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-56474300-282",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:onebusaway/onebusaway-application-modules",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "onebusaway/onebusaway-application-modules",
+    "commit_hash": "5647430028c8dbf35b897e17ff10a5d42e90bb62",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

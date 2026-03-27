@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-d22ef12a-496",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:athou/commafeed",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yml",
+  "metadata": {
+    "repository": "athou/commafeed",
+    "commit_hash": "d22ef12adf14c2d253c1ac9652a63f2808a80de2",
+    "file_path": ".github/workflows/ci.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

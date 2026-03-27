@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-be40280f-443",
+  "page_type": "workflow_example",
+  "title": "Ci Build And Push",
+  "source": "zenodo-workflow-histories:ukwa/webarchive-discovery",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-build-and-push.yml",
+  "metadata": {
+    "repository": "ukwa/webarchive-discovery",
+    "commit_hash": "be40280f1d125f1f080b4f0b8b9f060531712d44",
+    "file_path": ".github/workflows/ci-build-and-push.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

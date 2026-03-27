@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-b6c8b396-309",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:waffle/waffle",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "waffle/waffle",
+    "commit_hash": "b6c8b3962765f72338ff77e6e33c899b94f08732",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

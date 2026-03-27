@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-6ac1ccca-146",
+  "page_type": "workflow_example",
+  "title": "Builds",
+  "source": "zenodo-workflow-histories:asynchttpclient/async-http-client",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/builds.yml",
+  "metadata": {
+    "repository": "asynchttpclient/async-http-client",
+    "commit_hash": "6ac1cccad93bf617200f6a87f9790de273529256",
+    "file_path": ".github/workflows/builds.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

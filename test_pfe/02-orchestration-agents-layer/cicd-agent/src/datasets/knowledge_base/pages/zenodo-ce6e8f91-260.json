@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-ce6e8f91-260",
+  "page_type": "workflow_example",
+  "title": "Check Snapshots",
+  "source": "zenodo-workflow-histories:spring-projects/spring-security",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/check-snapshots.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-security",
+    "commit_hash": "ce6e8f9109da4ef2aa5fb14ad7e5e1ef65680dc5",
+    "file_path": ".github/workflows/check-snapshots.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

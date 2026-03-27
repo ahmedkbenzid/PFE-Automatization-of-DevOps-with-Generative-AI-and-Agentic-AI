@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-55478175-30",
+  "page_type": "workflow_example",
+  "title": "Publish Snapshot",
+  "source": "zenodo-workflow-histories:apache/xmlgraphics-batik",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/publish-snapshot.yml",
+  "metadata": {
+    "repository": "apache/xmlgraphics-batik",
+    "commit_hash": "55478175f63517cfb5ce9b16afe2591fd7caab96",
+    "file_path": ".github/workflows/publish-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

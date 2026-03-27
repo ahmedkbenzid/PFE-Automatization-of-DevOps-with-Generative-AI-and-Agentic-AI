@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-18da853a-21",
+  "page_type": "workflow_example",
+  "title": "Sonatype Publish",
+  "source": "zenodo-workflow-histories:caelum/caelum-stella",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/sonatype-publish.yml",
+  "metadata": {
+    "repository": "caelum/caelum-stella",
+    "commit_hash": "18da853a3beca8710a1ea6e37d644d647caf972b",
+    "file_path": ".github/workflows/sonatype-publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e52d35c2-225",
+  "page_type": "workflow_example",
+  "title": "Report",
+  "source": "zenodo-workflow-histories:ome/bioformats",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/report.yml",
+  "metadata": {
+    "repository": "ome/bioformats",
+    "commit_hash": "e52d35c200bce746f98faca8f96a805b20ff23ca",
+    "file_path": ".github/workflows/report.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-275c8293-470",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:mybatis/jpetstore-6",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "mybatis/jpetstore-6",
+    "commit_hash": "275c8293d55b2d595d8448ceb416d86ae368c829",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

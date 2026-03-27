@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-e154f5bb-214",
+  "page_type": "workflow_example",
+  "title": "Release",
+  "source": "zenodo-workflow-histories:restfb/restfb",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/release.yml",
+  "metadata": {
+    "repository": "restfb/restfb",
+    "commit_hash": "e154f5bbafd857800a55894800c70a8d5b14c6f7",
+    "file_path": ".github/workflows/release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

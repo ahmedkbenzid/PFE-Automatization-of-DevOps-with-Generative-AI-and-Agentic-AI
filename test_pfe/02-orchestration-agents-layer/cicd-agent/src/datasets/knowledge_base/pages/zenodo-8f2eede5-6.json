@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-8f2eede5-6",
+  "page_type": "workflow_example",
+  "title": "Build Fitnesse",
+  "source": "zenodo-workflow-histories:unclebob/fitnesse",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-fitnesse.yml",
+  "metadata": {
+    "repository": "unclebob/fitnesse",
+    "commit_hash": "8f2eede573e6a298151b8ca2012ecc1e49d0c203",
+    "file_path": ".github/workflows/build-fitnesse.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

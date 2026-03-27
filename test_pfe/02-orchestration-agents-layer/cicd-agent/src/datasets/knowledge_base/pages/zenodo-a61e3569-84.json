@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a61e3569-84",
+  "page_type": "workflow_example",
+  "title": "Gradle",
+  "source": "zenodo-workflow-histories:michel-kraemer/bson4jackson",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/gradle.yml",
+  "metadata": {
+    "repository": "michel-kraemer/bson4jackson",
+    "commit_hash": "a61e356996267ea9c4e1ba529515dd0282f77b38",
+    "file_path": ".github/workflows/gradle.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

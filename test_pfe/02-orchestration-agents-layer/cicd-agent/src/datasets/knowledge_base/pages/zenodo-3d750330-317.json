@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-3d750330-317",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:tordanik/osm2world",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "tordanik/osm2world",
+    "commit_hash": "3d75033066b4a2933ca2d95dc1dd79fd6b36528b",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

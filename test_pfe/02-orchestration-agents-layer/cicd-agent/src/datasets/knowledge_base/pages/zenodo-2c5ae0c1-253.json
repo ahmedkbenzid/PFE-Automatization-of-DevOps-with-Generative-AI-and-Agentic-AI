@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-2c5ae0c1-253",
+  "page_type": "workflow_example",
+  "title": "Core Test",
+  "source": "zenodo-workflow-histories:jbosstm/narayana",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/core-test.yml",
+  "metadata": {
+    "repository": "jbosstm/narayana",
+    "commit_hash": "2c5ae0c199bf29141e88a282e20ac0af85651652",
+    "file_path": ".github/workflows/core-test.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

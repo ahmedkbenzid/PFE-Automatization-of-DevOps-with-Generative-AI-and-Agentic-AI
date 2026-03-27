@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-a52539ad-275",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:pgjdbc/pgjdbc",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "pgjdbc/pgjdbc",
+    "commit_hash": "a52539ad49eff57402384e8b6a9a0e0e9b246939",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-4c177c68-145",
+  "page_type": "workflow_example",
+  "title": "Autoclose",
+  "source": "zenodo-workflow-histories:movingblocks/terasology",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/autoclose.yml",
+  "metadata": {
+    "repository": "movingblocks/terasology",
+    "commit_hash": "4c177c68b141a990381eabeddbba5fb7c884fecb",
+    "file_path": ".github/workflows/autoclose.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-434f298d-199",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:mebigfatguy/fb-contrib",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "mebigfatguy/fb-contrib",
+    "commit_hash": "434f298da023f152890e04f8caf0607bf9b5c22b",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

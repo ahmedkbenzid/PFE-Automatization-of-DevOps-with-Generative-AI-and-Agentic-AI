@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-174c3a03-375",
+  "page_type": "workflow_example",
+  "title": "Markdown Lint",
+  "source": "zenodo-workflow-histories:yegor256/s3auth",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/markdown-lint.yml",
+  "metadata": {
+    "repository": "yegor256/s3auth",
+    "commit_hash": "174c3a03eecfe1099a216abcdfa50918a6db1d48",
+    "file_path": ".github/workflows/markdown-lint.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

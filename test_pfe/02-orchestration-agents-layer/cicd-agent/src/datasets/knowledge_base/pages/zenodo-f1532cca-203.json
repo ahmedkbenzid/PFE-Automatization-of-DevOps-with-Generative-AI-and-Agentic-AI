@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f1532cca-203",
+  "page_type": "workflow_example",
+  "title": "Ci Snapshot",
+  "source": "zenodo-workflow-histories:spring-projects/spring-integration-samples",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci-snapshot.yml",
+  "metadata": {
+    "repository": "spring-projects/spring-integration-samples",
+    "commit_hash": "f1532cca611ed6a54d131d594469b24ac1817928",
+    "file_path": ".github/workflows/ci-snapshot.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

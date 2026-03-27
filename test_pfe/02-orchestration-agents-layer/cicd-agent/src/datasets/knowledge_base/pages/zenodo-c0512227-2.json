@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c0512227-2",
+  "page_type": "workflow_example",
+  "title": "Ci",
+  "source": "zenodo-workflow-histories:davidb/scala-maven-plugin",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/ci.yaml",
+  "metadata": {
+    "repository": "davidb/scala-maven-plugin",
+    "commit_hash": "c051222713a6a3913395592652b29e5d06e8aed2",
+    "file_path": ".github/workflows/ci.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

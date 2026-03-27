@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-c54deef3-216",
+  "page_type": "workflow_example",
+  "title": "Github Build",
+  "source": "zenodo-workflow-histories:t-oster/visicut",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/github-build.yml",
+  "metadata": {
+    "repository": "t-oster/visicut",
+    "commit_hash": "c54deef37948623965198a3e1db9f68c9808df95",
+    "file_path": ".github/workflows/github-build.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

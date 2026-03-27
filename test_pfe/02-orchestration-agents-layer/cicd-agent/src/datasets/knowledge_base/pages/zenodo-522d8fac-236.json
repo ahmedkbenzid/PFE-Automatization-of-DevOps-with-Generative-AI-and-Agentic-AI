@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-522d8fac-236",
+  "page_type": "workflow_example",
+  "title": "Formatting Check",
+  "source": "zenodo-workflow-histories:javaparser/javaparser",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/formatting_check.yml",
+  "metadata": {
+    "repository": "javaparser/javaparser",
+    "commit_hash": "522d8fac412209b481e8e2a07b1b72cd56042fc5",
+    "file_path": ".github/workflows/formatting_check.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

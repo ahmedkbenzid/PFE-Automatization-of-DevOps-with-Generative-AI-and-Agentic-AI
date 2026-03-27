@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7399093f-211",
+  "page_type": "workflow_example",
+  "title": "Dependencies",
+  "source": "zenodo-workflow-histories:apereo/cas",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/dependencies.yml",
+  "metadata": {
+    "repository": "apereo/cas",
+    "commit_hash": "7399093f005f93726724fa1e457aeb39f383bdee",
+    "file_path": ".github/workflows/dependencies.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

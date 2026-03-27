@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-0bcc886c-427",
+  "page_type": "workflow_example",
+  "title": "Dependency Review",
+  "source": "zenodo-workflow-histories:dropwizard-jobs/dropwizard-jobs",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/dependency-review.yml",
+  "metadata": {
+    "repository": "dropwizard-jobs/dropwizard-jobs",
+    "commit_hash": "0bcc886c6d2ac15f714fddb6e701147f7b8f3b0d",
+    "file_path": ".github/workflows/dependency-review.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

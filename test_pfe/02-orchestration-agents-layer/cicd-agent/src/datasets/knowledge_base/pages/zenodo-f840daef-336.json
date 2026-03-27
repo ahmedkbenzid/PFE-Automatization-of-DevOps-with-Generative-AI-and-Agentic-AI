@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-f840daef-336",
+  "page_type": "workflow_example",
+  "title": "Build Releases",
+  "source": "zenodo-workflow-histories:universalmediaserver/universalmediaserver",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/build-releases.yaml",
+  "metadata": {
+    "repository": "universalmediaserver/universalmediaserver",
+    "commit_hash": "f840daeffd5de9889a2e9ea687d2a64651e95f4e",
+    "file_path": ".github/workflows/build-releases.yaml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

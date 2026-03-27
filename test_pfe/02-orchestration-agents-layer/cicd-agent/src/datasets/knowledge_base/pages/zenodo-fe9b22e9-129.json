@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-fe9b22e9-129",
+  "page_type": "workflow_example",
+  "title": "Dep Build V2",
+  "source": "zenodo-workflow-histories:fasterxml/jackson-dataformat-xml",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/dep_build_v2.yml",
+  "metadata": {
+    "repository": "fasterxml/jackson-dataformat-xml",
+    "commit_hash": "fe9b22e909997d739ac9f04bd7f765429c16424c",
+    "file_path": ".github/workflows/dep_build_v2.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

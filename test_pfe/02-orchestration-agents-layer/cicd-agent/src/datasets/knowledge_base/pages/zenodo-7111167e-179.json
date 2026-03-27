@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-7111167e-179",
+  "page_type": "workflow_example",
+  "title": "Generate Release Apk",
+  "source": "zenodo-workflow-histories:mendhak/gpslogger",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/generate-release-apk.yml",
+  "metadata": {
+    "repository": "mendhak/gpslogger",
+    "commit_hash": "7111167e3e13b71dee31a77322041b053b27fa44",
+    "file_path": ".github/workflows/generate-release-apk.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

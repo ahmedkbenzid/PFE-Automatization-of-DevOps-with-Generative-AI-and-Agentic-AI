@@ -1,0 +1,25 @@
+{
+  "page_id": "zenodo-python-003",
+  "page_type": "workflow_example",
+  "title": "PyTorch GPU Build",
+  "source": "zenodo-workflow-histories:pytorch/pytorch",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "python",
+    "test",
+    "build",
+    "gpu"
+  ],
+  "content": "name: PyTorch GPU Build\non: [push, pull_request]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4",
+  "metadata": {
+    "repository": "pytorch/pytorch",
+    "language": "Python",
+    "patterns": [
+      "test",
+      "build",
+      "gpu"
+    ],
+    "success_rate": 0.91
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-1f87c1e6-290",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:petitparser/java-petitparser",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "petitparser/java-petitparser",
+    "commit_hash": "1f87c1e66478c4c5e88adfa929cd6190edb09dc8",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

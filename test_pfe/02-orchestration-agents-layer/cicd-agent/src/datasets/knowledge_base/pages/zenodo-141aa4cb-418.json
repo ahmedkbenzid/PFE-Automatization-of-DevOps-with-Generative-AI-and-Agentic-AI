@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-141aa4cb-418",
+  "page_type": "workflow_example",
+  "title": "Aislib Publish",
+  "source": "zenodo-workflow-histories:dma-ais/aislib",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/aislib-publish.yml",
+  "metadata": {
+    "repository": "dma-ais/aislib",
+    "commit_hash": "141aa4cbcb4a3931d99764b9b26170129d84a5b3",
+    "file_path": ".github/workflows/aislib-publish.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-637abf68-132",
+  "page_type": "workflow_example",
+  "title": "Announce Release",
+  "source": "zenodo-workflow-histories:dropwizard/dropwizard",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/announce-release.yml",
+  "metadata": {
+    "repository": "dropwizard/dropwizard",
+    "commit_hash": "637abf6898639404a7ff456e52bbc1a53d284eb8",
+    "file_path": ".github/workflows/announce-release.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

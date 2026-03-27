@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-553438e2-454",
+  "page_type": "workflow_example",
+  "title": "Maven",
+  "source": "zenodo-workflow-histories:alibaba/canal",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/maven.yml",
+  "metadata": {
+    "repository": "alibaba/canal",
+    "commit_hash": "553438e2274e6b6b7c96833394ada3e4513d4e12",
+    "file_path": ".github/workflows/maven.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}

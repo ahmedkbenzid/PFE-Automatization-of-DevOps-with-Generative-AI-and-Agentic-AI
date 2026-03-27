@@ -1,0 +1,20 @@
+{
+  "page_id": "zenodo-5e45f0aa-342",
+  "page_type": "workflow_example",
+  "title": "Codeql",
+  "source": "zenodo-workflow-histories:naver/ngrinder",
+  "tags": [
+    "workflow-example",
+    "zenodo",
+    "unknown"
+  ],
+  "content": "File: .github/workflows/codeql.yml",
+  "metadata": {
+    "repository": "naver/ngrinder",
+    "commit_hash": "5e45f0aae3538c841df867eb1539f640a4e43098",
+    "file_path": ".github/workflows/codeql.yml",
+    "language": "unknown",
+    "framework": null,
+    "patterns": []
+  }
+}
