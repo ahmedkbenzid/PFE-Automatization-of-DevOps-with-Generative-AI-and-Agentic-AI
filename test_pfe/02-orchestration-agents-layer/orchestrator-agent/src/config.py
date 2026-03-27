@@ -1,6 +1,5 @@
 # Orchestrator Configuration
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,20 +12,21 @@ class OrchestratorConfig:
     DEFAULT_REPOSITORY_PATH = os.getenv("TARGET_REPOSITORY_PATH", os.getcwd())
 
     # GitHub Integration (MCP)
-    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+    GITHUB_TOKEN = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN", os.getenv("GITHUB_TOKEN", ""))
+    GITHUB_HOST = os.getenv("GITHUB_HOST", "https://github.com")
     GITHUB_MCP_ENABLED = os.getenv("MCP_GITHUB_ENABLED", "true").lower() == "true"
+    MCP_GITHUB_SERVER_COMMAND = os.getenv("MCP_GITHUB_SERVER_COMMAND", "docker")
+    MCP_GITHUB_SERVER_ARGS = os.getenv(
+        "MCP_GITHUB_SERVER_ARGS",
+        "run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_HOST ghcr.io/github/github-mcp-server",
+    )
+    MCP_GITHUB_CALL_TIMEOUT = int(os.getenv("MCP_GITHUB_CALL_TIMEOUT", "30"))
+    MCP_GITHUB_STRICT = os.getenv("MCP_GITHUB_STRICT", "false").lower() == "true"
 
     # Repository Analysis
     # Set to True for deep recursive analysis (slower, more thorough)
     # Default False uses fast GitHub tree API (single API call)
     DEEP_REPO_ANALYSIS = os.getenv("DEEP_REPO_ANALYSIS", "false").lower() == "true"
-
-    # Artifact Storage
-    PROJECT_ROOT = Path(__file__).parent.parent.parent
-    ARTIFACT_DB_PATH = os.getenv(
-        "ARTIFACT_DB_PATH",
-        str(PROJECT_ROOT / "data" / "orchestrator_artifacts.db")
-    )
 
     # Webhook Configuration
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")

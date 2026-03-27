@@ -1,17 +1,15 @@
 """
-Repository Analyzer - Centralized repo reading for the orchestrator.
+Repository Analyzer - centralized repo reading for the orchestrator.
 
 Three analysis modes:
-  1. GitHub API mode (github_url provided) → uses PyGithub to read repo via GitHub API,
-                                              no cloning, no Docker, no temp dirs.
-  2. Local mode (repo_path provided) → walks local filesystem (unchanged behaviour).
-  3. Prompt-only mode (nothing) → returns empty RepoContext (unchanged behaviour).
+    1. GitHub mode (github_url provided) → uses GitHub MCP server by default,
+                                                                                 with optional PyGithub fallback.
+    2. Local mode (repo_path provided) → walks local filesystem.
+    3. Prompt-only mode (nothing) → returns empty RepoContext.
 
-GitHub API Integration:
-  - Uses PyGithub library with GITHUB_TOKEN
-  - Direct API calls - no Docker container overhead
-  - Analyzes file tree to detect languages, frameworks, build systems
-  - Extracts commit info and detects existing configurations
+GitHub integration strategy:
+    - Primary: MCP server tools (`MCP_GITHUB_ENABLED=true`)
+    - Fallback: PyGithub direct API when MCP is disabled or unavailable
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .github_manager import GitHubURLParser, ChangeDetector
+from .github_manager import GitHubURLParser, GitHubMCPClient, ChangeDetector
 from .models.github_types import GitHubRepoInfo, ChangeAnalysis, CommitComparison, ChangedFile
 
 
@@ -36,14 +34,25 @@ from .models.github_types import GitHubRepoInfo, ChangeAnalysis, CommitCompariso
 @dataclass
 class MCPClientConfig:
     """
-    Connection config for GitHub API access.
+    Connection config for GitHub MCP access.
 
-    Uses PyGithub for direct API calls instead of Docker MCP.
-    Required env vars (read from environment at runtime):
-        GITHUB_TOKEN  - GitHub Personal Access Token with repo scope
+    Environment variables:
+      - MCP_GITHUB_ENABLED: enable MCP-based repository analysis
+      - MCP_GITHUB_SERVER_COMMAND: command used to launch MCP server
+      - MCP_GITHUB_SERVER_ARGS: arguments used to launch MCP server
+      - MCP_GITHUB_CALL_TIMEOUT: timeout per MCP request
+      - MCP_GITHUB_STRICT: if true, do not fallback to PyGithub
+            - GITHUB_PERSONAL_ACCESS_TOKEN: official GitHub MCP token variable
+            - GITHUB_HOST: GitHub or GHES host URL
     """
-    # Timeout in seconds for each API call
-    call_timeout: int = 30
+    enabled: bool = os.getenv("MCP_GITHUB_ENABLED", "true").lower() == "true"
+    server_command: str = os.getenv("MCP_GITHUB_SERVER_COMMAND", "docker")
+    server_args: str = os.getenv(
+        "MCP_GITHUB_SERVER_ARGS",
+        "run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_HOST ghcr.io/github/github-mcp-server",
+    )
+    call_timeout: int = int(os.getenv("MCP_GITHUB_CALL_TIMEOUT", "30"))
+    strict_mode: bool = os.getenv("MCP_GITHUB_STRICT", "false").lower() == "true"
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +354,125 @@ class _GitHubAPIAnalyzer:
         ctx.package_managers = sorted(pm_seen)
 
 
+class _GitHubMCPAnalyzer:
+    """Uses GitHub MCP server tools to analyze a remote repository."""
+
+    _EXT_LANGUAGES = _GitHubAPIAnalyzer._EXT_LANGUAGES
+    _FRAMEWORK_FILES = _GitHubAPIAnalyzer._FRAMEWORK_FILES
+    _PACKAGE_MANAGERS = _GitHubAPIAnalyzer._PACKAGE_MANAGERS
+
+    def __init__(self, token: str, config: MCPClientConfig):
+        self.token = token
+        self.config = config
+
+    def analyse(self, owner: str, repo: str, deep: bool = False) -> RepoContext:
+        """Analyze repository via MCP server tools."""
+        ctx = RepoContext(owner=owner, repo_name=repo, analysis_mode="mcp")
+        ctx.github_url = f"https://github.com/{owner}/{repo}"
+
+        try:
+            with GitHubMCPClient(
+                token=self.token,
+                server_command=self.config.server_command,
+                server_args=self.config.server_args,
+                call_timeout=self.config.call_timeout,
+            ) as client:
+                metadata = client.get_repo_metadata(owner, repo)
+                if isinstance(metadata, dict):
+                    default_branch = metadata.get("default_branch")
+                    if isinstance(default_branch, str):
+                        ctx.default_branch = default_branch
+
+                commit_sha = client.get_latest_commit(owner, repo, branch=ctx.default_branch or "main")
+                if commit_sha:
+                    ctx.latest_commit_sha = commit_sha[:12]
+
+                # MCP path traversal already returns recursive files; deep flag kept for API compatibility.
+                paths = client.list_repository_files(owner, repo)
+                ctx.tree_snapshot = paths[:200]
+
+                self._classify_paths(paths, ctx)
+
+            return ctx
+
+        except Exception as e:
+            ctx.error = f"MCP analysis failed: {str(e)}"
+            return ctx
+
+    def _classify_paths(self, paths: List[str], ctx: RepoContext) -> None:
+        """Classify files by extension and filename."""
+        languages_seen: set = set()
+        frameworks_seen: set = set()
+        pm_seen: set = set()
+
+        for path in paths:
+            fname = Path(path).name
+            ext = Path(path).suffix.lower()
+            lower_path = path.lower()
+
+            # Language detection
+            if ext in self._EXT_LANGUAGES:
+                languages_seen.add(self._EXT_LANGUAGES[ext])
+
+            # Framework + package manager
+            if fname in self._FRAMEWORK_FILES:
+                frameworks_seen.add(self._FRAMEWORK_FILES[fname])
+            if fname in self._PACKAGE_MANAGERS:
+                pm_seen.add(self._PACKAGE_MANAGERS[fname])
+
+            # Dockerfile
+            if fname == "Dockerfile" or fname.startswith("Dockerfile."):
+                ctx.has_dockerfile = True
+                ctx.dockerfile_paths.append(path)
+
+            # Docker Compose
+            if fname in ("docker-compose.yml", "docker-compose.yaml"):
+                ctx.has_docker_compose = True
+
+            # Terraform
+            if ext == ".tf":
+                ctx.has_terraform = True
+                ctx.terraform_files.append(path)
+
+            # GitHub Actions
+            if ".github/workflows" in lower_path and ext in (".yml", ".yaml"):
+                ctx.has_github_actions = True
+                ctx.ci_workflows.append(path)
+
+            # Kubernetes
+            is_k8s_dir = any(p in lower_path for p in ("k8s/", "kubernetes/", "manifests/"))
+            is_k8s_filename = fname.lower() in (
+                "deployment.yaml", "deployment.yml",
+                "service.yaml", "service.yml",
+            )
+            if (is_k8s_dir or is_k8s_filename) and ext in (".yml", ".yaml"):
+                ctx.has_kubernetes = True
+                ctx.k8s_manifests.append(path)
+
+            # Helm
+            if fname == "Chart.yaml" or "helm/" in lower_path:
+                ctx.has_helm = True
+
+            # Prometheus
+            if "prometheus" in lower_path:
+                ctx.has_prometheus = True
+
+            # Build system
+            if not ctx.build_system:
+                if fname == "Makefile":
+                    ctx.build_system = "make"
+                elif fname in ("build.gradle", "build.gradle.kts"):
+                    ctx.build_system = "gradle"
+                elif fname == "pom.xml":
+                    ctx.build_system = "maven"
+                elif fname == "CMakeLists.txt":
+                    ctx.build_system = "cmake"
+
+        ctx.languages = sorted(languages_seen)
+        ctx.frameworks = sorted(frameworks_seen)
+        ctx.package_managers = sorted(pm_seen)
+
+
 # ---------------------------------------------------------------------------
 # Local filesystem analysis (unchanged)
 # ---------------------------------------------------------------------------
@@ -436,14 +564,14 @@ class RepoAnalyzer:
     Centralized repository analyzer for the orchestrator.
 
     Supports three modes:
-        - GitHub API (GitHub URL) : calls GitHub API via PyGithub, no cloning or Docker.
-        - Local (file path)      : walks local filesystem.
+        - GitHub (GitHub URL)   : MCP-first analysis with optional PyGithub fallback.
+        - Local (file path)     : walks local filesystem.
         - Prompt-only           : returns empty RepoContext.
 
     Usage:
         analyzer = RepoAnalyzer()
 
-        # GitHub API mode
+        # GitHub mode
         ctx = analyzer.analyze(github_url="https://github.com/user/repo")
 
         # Local mode
@@ -473,7 +601,7 @@ class RepoAnalyzer:
                   If True, use deep recursive analysis (slower but more thorough).
         """
         if github_url:
-            return self._analyze_via_github_api(github_url, deep=deep)
+            return self._analyze_remote_github(github_url, deep=deep)
         if repo_path:
             return self._analyze_local(repo_path)
         return RepoContext(analysis_mode="prompt-only")
@@ -486,14 +614,18 @@ class RepoAnalyzer:
 
     # -- Private --------------------------------------------------------------
 
-    def _analyze_via_github_api(self, github_url: str, deep: bool = False) -> RepoContext:
+    def _analyze_remote_github(self, github_url: str, deep: bool = False) -> RepoContext:
         """
-        Parse URL → use PyGithub to analyze remotely → return.
-        No cloning, no Docker, no temp dirs, no filesystem writes.
+        Parse URL and analyze remote repository through configured GitHub integration.
+
+        Flow:
+          1) Try MCP server when enabled.
+          2) Fallback to PyGithub unless strict MCP mode is enabled.
 
         Args:
             github_url: GitHub repository URL
-            deep: If False, use fast tree API. If True, use deep recursive analysis.
+            deep: If False, use fast tree API in PyGithub fallback.
+                  If True, use deep recursive analysis in PyGithub fallback.
         """
         try:
             owner, repo = _parse_github_url(github_url)
@@ -501,35 +633,36 @@ class RepoAnalyzer:
             return RepoContext(analysis_mode="github", error=str(exc))
 
         # Get GitHub token
-        token = os.getenv("GITHUB_TOKEN", "")
+        token = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN", "") or os.getenv("GITHUB_TOKEN", "")
         if not token:
             return RepoContext(
                 owner=owner, repo_name=repo,
                 analysis_mode="github",
-                error="GITHUB_TOKEN environment variable not set. "
+            error="GITHUB_PERSONAL_ACCESS_TOKEN (or GITHUB_TOKEN) environment variable not set. "
                       "Add it to .env file.",
             )
 
-        # Try to retrieve previous commit SHA from artifact storage (Phase 2)
-        previous_sha = None
-        try:
-            from .artifact_storage import ArtifactDatabase
-            from .config import OrchestratorConfig
-            db = ArtifactDatabase(OrchestratorConfig.ARTIFACT_DB_PATH)
-            repo_state = db.get_repository_state(github_url)
-            if repo_state:
-                previous_sha = repo_state.last_commit_sha
-        except Exception:
-            pass
+        mcp_enabled = self.mcp_config.enabled
+        if mcp_enabled:
+            mcp_ctx = _GitHubMCPAnalyzer(token, self.mcp_config).analyse(owner, repo, deep=deep)
+            if not mcp_ctx.error:
+                return mcp_ctx
+
+            if self.mcp_config.strict_mode:
+                return mcp_ctx
 
         try:
-            analyzer = _GitHubAPIAnalyzer(token)
-            return analyzer.analyse(owner, repo, previous_sha, deep=deep)
+            api_ctx = _GitHubAPIAnalyzer(token).analyse(owner, repo, None, deep=deep)
+            if mcp_enabled and api_ctx.error is None:
+                # Preserve MCP failure hint for visibility when fallback was required.
+                api_ctx.analysis_mode = "github"
+            return api_ctx
         except Exception as exc:
             return RepoContext(
-                owner=owner, repo_name=repo,
+                owner=owner,
+                repo_name=repo,
                 analysis_mode="github",
-                error=f"GitHub API analysis failed: {str(exc)}",
+                error=f"GitHub analysis failed: {str(exc)}",
             )
 
     def _analyze_local(self, repo_path: str) -> RepoContext:
@@ -568,10 +701,10 @@ def analyze_repo(
               If True, use deep recursive analysis (slower).
 
     Examples:
-        # GitHub API mode — fast shallow analysis (default)
+        # GitHub mode (MCP-first) — fast shallow analysis fallback (default)
         ctx = analyze_repo(github_url="https://github.com/user/repo")
 
-        # GitHub API mode — deep analysis
+        # GitHub mode — deep analysis
         ctx = analyze_repo(github_url="https://github.com/user/repo", deep=True)
 
         # Local mode
