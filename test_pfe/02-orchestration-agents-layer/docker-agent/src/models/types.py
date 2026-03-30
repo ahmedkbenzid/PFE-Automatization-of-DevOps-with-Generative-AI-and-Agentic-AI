@@ -37,10 +37,11 @@ class RepositoryContext:
     project_languages: List[str]
     package_managers: List[str]
     frameworks: List[str]
-    existing_dockerfiles: List[str]
-    existing_compose_files: List[str]
-    detected_ports: List[int]
-    environment_variables: List[str]
+    build_tools: List[str] = field(default_factory=list)
+    existing_dockerfiles: List[str] = field(default_factory=list)
+    existing_compose_files: List[str] = field(default_factory=list)
+    detected_ports: List[int] = field(default_factory=list)
+    environment_variables: List[str] = field(default_factory=list)
 
 @dataclass
 class DatasetExample:

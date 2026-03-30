@@ -21,7 +21,7 @@ from src.components.rag_kb import RAGKnowledgeBase
 from src.components.scout_scan import ScoutScan
 from src.components.validate import Validate
 from src.components.write_files import WriteFiles
-from src.config import DATA_DIR
+from src.config import DATA_DIR, LLM_CONFIG
 from src.models.types import DockerLockFile, PipelineResult, UserRequest
 from src.validation.hadolint_validator import HadolintValidator
 from src.validation.policy_gates import PolicyGates
@@ -35,7 +35,7 @@ class DockerPipeline:
         # Tools Layer
         self.analyze_project = AnalyzeProject()
         self.prompt_intent_resolver = PromptIntentResolver()
-        self.generate_file = GenerateFile()
+        self.generate_file = GenerateFile(use_llm=LLM_CONFIG.get("enabled", False))
         self.validate = Validate()
         self.rag_kb = RAGKnowledgeBase(str(DATA_DIR / "knowledge_base"))
         self.scout_scan = ScoutScan()
@@ -68,43 +68,80 @@ class DockerPipeline:
         # Input from orchestrator: user intent + project context
         context, analysis = self.analyze_project.analyze(repository_path)
 
-        # If orchestrator provided repo context, merge/supplement local analysis
+        # If orchestrator provided repo context, use it to override/supplement local analysis
         if repo_context:
             try:
-                # Supplement local analysis with orchestrator context
-                if repo_context.get('languages') and not analysis.stack_type:
-                    # Try to infer stack from languages
-                    langs = repo_context.get('languages', [])
-                    if 'Python' in langs:
-                        analysis.stack_type = 'python'
-                    elif 'Java' in langs:
-                        analysis.stack_type = 'java'
-                    elif 'JavaScript' in langs or 'TypeScript' in langs:
-                        analysis.stack_type = 'node'
-                    elif 'Go' in langs:
-                        analysis.stack_type = 'go'
-                    elif 'Rust' in langs:
-                        analysis.stack_type = 'rust'
-                    elif 'Ruby' in langs:
-                        analysis.stack_type = 'ruby'
-
-                # Supplement with frameworks info
+                # Orchestrator context takes priority for language and framework detection
+                orchestrator_stack = None
+                
+                # Extract stack from orchestrator's framework info (most reliable)
                 if repo_context.get('frameworks'):
-                    for framework in repo_context.get('frameworks', []):
-                        if framework.lower() == 'spring boot':
-                            analysis.stack_type = analysis.stack_type or 'java'
-                        elif framework.lower() in ('django', 'flask', 'fastapi'):
-                            analysis.stack_type = analysis.stack_type or 'python'
-                        elif framework.lower() in ('next.js', 'nuxt.js', 'angular', 'vue.js', 'react'):
-                            analysis.stack_type = analysis.stack_type or 'node'
-            except (KeyError, AttributeError, TypeError):
+                    frameworks = repo_context.get('frameworks', [])
+                    for fw in frameworks:
+                        fw_lower = fw.lower()
+                        if 'spring' in fw_lower or 'java' in fw_lower or 'maven' in fw_lower:
+                            orchestrator_stack = 'spring'
+                            break
+                        elif 'node' in fw_lower or 'express' in fw_lower or 'next' in fw_lower:
+                            orchestrator_stack = 'node'
+                            break
+                        elif 'python' in fw_lower or 'django' in fw_lower or 'flask' in fw_lower or 'fastapi' in fw_lower:
+                            orchestrator_stack = 'python'
+                            break
+                        elif 'go' in fw_lower:
+                            orchestrator_stack = 'go'
+                            break
+                        elif 'rust' in fw_lower:
+                            orchestrator_stack = 'rust'
+                            break
+                
+                # If no framework match, use build system
+                if not orchestrator_stack and repo_context.get('build_system'):
+                    build_sys = repo_context.get('build_system', '').lower()
+                    if build_sys == 'maven' or build_sys == 'gradle':
+                        orchestrator_stack = 'spring'
+                    elif build_sys == 'npm' or build_sys == 'yarn':
+                        orchestrator_stack = 'node'
+                    elif build_sys == 'pip' or build_sys == 'poetry':
+                        orchestrator_stack = 'python'
+                
+                # If still no match, use primary language
+                if not orchestrator_stack and repo_context.get('languages'):
+                    langs = repo_context.get('languages', [])
+                    if langs:
+                        primary_lang = langs[0]
+                        lang_map = {
+                            'Python': 'python',
+                            'Java': 'spring',
+                            'JavaScript': 'node',
+                            'TypeScript': 'node',
+                            'Go': 'go',
+                            'Rust': 'rust',
+                            'Ruby': 'ruby',
+                        }
+                        orchestrator_stack = lang_map.get(primary_lang)
+                
+                # Override local analysis with orchestrator's detection
+                if orchestrator_stack:
+                    analysis.stack_type = orchestrator_stack
+                    analysis.confidence = 0.95  # High confidence from orchestrator
+                    
+            except (KeyError, AttributeError, TypeError) as e:
                 # If repo_context is malformed, continue with local analysis
+                print(f"[Docker Agent] Warning: Error processing repo_context: {e}")
                 pass
 
         prompt_stack, prompt_stack_confidence, prompt_stack_scores = self.prompt_intent_resolver.resolve_stack(
             request.text
         )
         effective_stack = prompt_stack or analysis.stack_type
+        
+        # Debug logging
+        print(f"[Docker Agent] Stack Detection Summary:")
+        print(f"  - Local analysis: {analysis.stack_type} (confidence: {analysis.confidence})")
+        print(f"  - Prompt analysis: {prompt_stack} (confidence: {prompt_stack_confidence})")
+        print(f"  - Orchestrator context: {repo_context.get('frameworks') if repo_context else 'None'}")
+        print(f"  - Effective stack: {effective_stack}")
 
         # Tools Layer
         rag_context = self.rag_kb.query(

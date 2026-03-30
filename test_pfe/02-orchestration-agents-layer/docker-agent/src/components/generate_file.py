@@ -9,27 +9,33 @@ from src.components.llm_client import LLMClient
 class GenerateFile:
     """Generate Dockerfile content aligned with detected project stack."""
 
-    def __init__(self, use_llm: bool = True):
+    def __init__(self, use_llm: bool = False):
         """
         Initialize generator.
         
         Args:
-            use_llm: If True, use LLM for generation. If False, use templates only.
+            use_llm: If True, use LLM for generation. If False, use templates (default).
         """
         self.use_llm = use_llm
         self.llm_client = None
         if use_llm:
             try:
                 self.llm_client = LLMClient()
+                print(f"[Docker Agent] LLM client initialized: {self.llm_client.model}")
             except Exception as e:
                 print(f"[Docker Agent] LLM client initialization failed: {e}")
                 print("[Docker Agent] Falling back to template-only generation")
                 self.use_llm = False
+        else:
+            print("[Docker Agent] Using template-based generation (LLM disabled)")
 
     def generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
+        print(f"[Docker Agent] Generation mode: {'LLM' if self.use_llm and self.llm_client else 'Template'}")
+        
         # Try LLM generation first if enabled
         if self.use_llm and self.llm_client:
             try:
+                print(f"[Docker Agent] Attempting LLM generation for stack: {stack_type}")
                 return self._llm_generate(request, context, stack_type)
             except Exception as e:
                 print(f"[Docker Agent] LLM generation failed: {e}")
@@ -64,19 +70,33 @@ class GenerateFile:
 
     def _template_generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
         """Generate Dockerfile using templates"""
-        if stack_type == "node":
+        print(f"[Docker Agent] Generating Dockerfile for stack: {stack_type}")
+        
+        # Normalize stack type
+        stack_type_lower = (stack_type or "").lower()
+        
+        if stack_type_lower == "node" or "node" in stack_type_lower or "javascript" in stack_type_lower:
             dockerfile = self._node_template(context)
-        elif stack_type == "python":
+            normalized_stack = "node"
+        elif stack_type_lower == "python" or "python" in stack_type_lower:
             dockerfile = self._python_template(context)
-        elif stack_type == "spring":
+            normalized_stack = "python"
+        elif stack_type_lower in ("spring", "java", "maven", "gradle") or "java" in stack_type_lower or "spring" in stack_type_lower:
             dockerfile = self._java_template(context)
+            normalized_stack = "spring"
+        elif stack_type_lower == "go" or "golang" in stack_type_lower:
+            dockerfile = self._go_template(context)
+            normalized_stack = "go"
         else:
+            print(f"[Docker Agent] Unknown stack '{stack_type}', using generic template")
             dockerfile = self._generic_template(context)
+            normalized_stack = "generic"
 
         return GeneratedConfiguration(
             dockerfile_content=dockerfile,
             metadata={
-                "stack_type": stack_type,
+                "stack_type": normalized_stack,
+                "original_stack_input": stack_type,
                 "generator": "template",
                 "requested": request.text,
             },
@@ -146,5 +166,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN useradd -m appuser
 USER appuser
 EXPOSE {port}
-CMD [\"/bin/sh\"]
+CMD ["/bin/sh"]
 """
+
+    def _go_template(self, context: RepositoryContext) -> str:
+        """Template for Go applications"""
+        port = context.detected_ports[0] if context.detected_ports else 8080
+        return f"""FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/main .
+RUN adduser -D appuser
+USER appuser
+EXPOSE {port}
+CMD ["./main"]
+"""
+

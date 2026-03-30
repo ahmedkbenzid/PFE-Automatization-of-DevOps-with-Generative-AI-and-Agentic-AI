@@ -23,21 +23,45 @@ class AnalyzeProject:
         languages: List[str] = []
         package_managers: List[str] = []
         frameworks: List[str] = []
+        build_tools: List[str] = []
 
+        # Detect Node.js/JavaScript
         if (repo / "package.json").exists():
             languages.append("JavaScript")
             package_managers.append("npm")
             frameworks.append("node")
 
+        # Detect Python
         if (repo / "requirements.txt").exists() or (repo / "pyproject.toml").exists():
             languages.append("Python")
             package_managers.append("pip")
             frameworks.append("python")
 
-        if (repo / "pom.xml").exists() or (repo / "build.gradle").exists():
+        # Detect Java/Maven
+        if (repo / "pom.xml").exists():
             languages.append("Java")
             package_managers.append("maven")
+            build_tools.append("maven")
             frameworks.append("spring")
+
+        # Detect Java/Gradle
+        if (repo / "build.gradle").exists() or (repo / "build.gradle.kts").exists():
+            if "Java" not in languages:
+                languages.append("Java")
+            package_managers.append("gradle")
+            build_tools.append("gradle")
+            if "spring" not in frameworks:
+                frameworks.append("spring")
+
+        # Detect Go
+        if (repo / "go.mod").exists():
+            languages.append("Go")
+            frameworks.append("go")
+
+        # Detect Rust
+        if (repo / "Cargo.toml").exists():
+            languages.append("Rust")
+            frameworks.append("rust")
 
         existing_dockerfiles = [str(path) for path in repo.rglob("Dockerfile*")]
         existing_compose_files = [str(path) for path in repo.rglob("docker-compose*.yml")]
@@ -46,14 +70,31 @@ class AnalyzeProject:
         detected_ports = self._detect_ports(repo)
         env_vars = self._detect_env_vars(repo)
 
-        stack_type = frameworks[0] if frameworks else "generic"
-        confidence = 0.9 if frameworks else 0.5
+        # Determine stack type - use None if not clearly detected
+        stack_type = None
+        confidence = 0.0
+        if frameworks:
+            stack_type = frameworks[0]
+            confidence = 0.9
+        elif languages:
+            # Fallback: use language name as stack
+            lang_map = {
+                "JavaScript": "node",
+                "Python": "python",
+                "Java": "java",
+                "Go": "go",
+                "Rust": "rust",
+                "Ruby": "ruby",
+            }
+            stack_type = lang_map.get(languages[0])
+            confidence = 0.6
 
         context = RepositoryContext(
             repository_path=str(repo),
             project_languages=languages,
             package_managers=package_managers,
             frameworks=frameworks,
+            build_tools=build_tools,
             existing_dockerfiles=existing_dockerfiles,
             existing_compose_files=existing_compose_files,
             detected_ports=detected_ports,

@@ -14,6 +14,7 @@ LLM_CONFIG = {
     "fallback_model": os.getenv("GROQ_FALLBACK_MODEL", "mixtral-8x7b-32768"),
     "temperature": 0.2,  # Low temperature for more deterministic code generation
     "max_tokens": 4096,
+    "enabled": os.getenv("USE_LLM", "false").lower() == "true",  # Enable/disable LLM generation
 }
 
 # Pipeline Configuration

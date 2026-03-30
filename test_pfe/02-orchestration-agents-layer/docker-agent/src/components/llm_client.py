@@ -100,23 +100,47 @@ class LLMClient:
 
     def generate_dockerfile(self, prompt: str, context: dict) -> str:
         """Generate Dockerfile content based on prompt and project context"""
-        context_str = "\n".join([f"{k}: {v}" for k, v in context.items() if v])
+        stack_type = context.get("stack_type", "generic")
+        
+        # Build context string
+        context_items = []
+        for k, v in context.items():
+            if v and k != "stack_type":
+                context_items.append(f"{k}: {v}")
+        context_str = "\n".join(context_items) if context_items else "No additional context"
+        
+        # Map stack type to explicit language instructions
+        stack_instructions = {
+            "spring": "This is a Java/Spring Boot application using Maven. Use maven:3.9-eclipse-temurin base image for building and eclipse-temurin:17-jre for runtime.",
+            "java": "This is a Java application. Use maven or gradle for building and a JRE base image for runtime.",
+            "node": "This is a Node.js/JavaScript application. Use node:20-alpine base image with multi-stage build.",
+            "python": "This is a Python application. Use python:3.11-slim base image.",
+            "go": "This is a Go application. Use golang:1.21-alpine for building and alpine:latest for runtime.",
+            "rust": "This is a Rust application. Use rust:1.75-alpine for building and alpine:latest for runtime.",
+            "ruby": "This is a Ruby application. Use ruby:3.2-alpine base image.",
+        }
+        
+        stack_instruction = stack_instructions.get(stack_type, f"This is a {stack_type} application.")
         
         full_prompt = f"""You are an expert Docker engineer. Generate a production-ready, secure, and optimized Dockerfile.
 
+**CRITICAL: {stack_instruction}**
+
 Project Context:
+- Stack Type: {stack_type}
 {context_str}
 
 User Request: {prompt}
 
 Requirements:
-1. Use multi-stage builds when appropriate
-2. Minimize image size
-3. Follow security best practices (non-root user, minimal packages)
-4. Use specific version tags, not 'latest'
-5. Optimize layer caching
-6. Include health checks if applicable
-7. Set appropriate environment variables
+1. Use multi-stage builds when appropriate for the {stack_type} stack
+2. Use the correct base image for {stack_type} (NOT Python unless stack is Python)
+3. Minimize image size
+4. Follow security best practices (non-root user, minimal packages)
+5. Use specific version tags, not 'latest'
+6. Optimize layer caching
+7. Include health checks if applicable
+8. Set appropriate environment variables for {stack_type}
 
 Generate ONLY the Dockerfile content, no explanations or markdown formatting."""
 
