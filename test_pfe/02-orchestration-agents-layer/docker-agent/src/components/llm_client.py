@@ -1,11 +1,13 @@
 """LLM integration with Ollama Cloud (primary) and Groq (fallback) for Docker Agent"""
-from typing import Optional
+from typing import Optional, Any, Callable
 from src.config import LLM_CONFIG
 
 try:
     from ollama import chat
+    ChatFunction = Callable[..., Any]
 except ModuleNotFoundError:
-    chat = None
+    chat = None  # type: ignore
+    ChatFunction = None  # type: ignore
 
 try:
     from groq import Groq
@@ -50,7 +52,10 @@ class LLMClient:
 
     def _ollama_completion(self, prompt: str) -> str:
         """Generate completion using Ollama"""
-        response = chat(
+        if chat is None:
+            raise RuntimeError("Ollama chat function is not available")
+        
+        response = chat(  # type: ignore
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             options={
@@ -58,7 +63,7 @@ class LLMClient:
                 "num_predict": self.max_tokens,
             }
         )
-        return response.message.content
+        return response.message.content  # type: ignore
 
     def _groq_completion(self, model: str, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate completion using Groq"""
