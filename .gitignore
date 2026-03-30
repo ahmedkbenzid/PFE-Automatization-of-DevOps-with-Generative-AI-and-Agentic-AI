@@ -6,6 +6,13 @@ __pycache__/
 .venv/
 replacements.txt
 
+# VS Code - Keep personal settings private
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
 # Large dataset files
 test_pfe/02-orchestration-agents-layer/cicd-agent/src/datasets/cache/
 *.csv.gz
