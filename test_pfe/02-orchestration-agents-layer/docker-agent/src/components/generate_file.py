@@ -3,12 +3,67 @@
 from __future__ import annotations
 
 from src.models.types import GeneratedConfiguration, RepositoryContext, UserRequest
+from src.components.llm_client import LLMClient
 
 
 class GenerateFile:
     """Generate Dockerfile content aligned with detected project stack."""
 
+    def __init__(self, use_llm: bool = True):
+        """
+        Initialize generator.
+        
+        Args:
+            use_llm: If True, use LLM for generation. If False, use templates only.
+        """
+        self.use_llm = use_llm
+        self.llm_client = None
+        if use_llm:
+            try:
+                self.llm_client = LLMClient()
+            except Exception as e:
+                print(f"[Docker Agent] LLM client initialization failed: {e}")
+                print("[Docker Agent] Falling back to template-only generation")
+                self.use_llm = False
+
     def generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
+        # Try LLM generation first if enabled
+        if self.use_llm and self.llm_client:
+            try:
+                return self._llm_generate(request, context, stack_type)
+            except Exception as e:
+                print(f"[Docker Agent] LLM generation failed: {e}")
+                print("[Docker Agent] Falling back to template generation")
+        
+        # Fallback to template generation
+        return self._template_generate(request, context, stack_type)
+
+    def _llm_generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
+        """Generate Dockerfile using LLM"""
+        context_dict = {
+            "stack_type": stack_type,
+            "detected_ports": context.detected_ports,
+            "package_managers": context.package_managers,
+            "build_tools": context.build_tools,
+            "frameworks": context.frameworks,
+        }
+        
+        dockerfile = self.llm_client.generate_dockerfile(request.text, context_dict)
+        
+        return GeneratedConfiguration(
+            dockerfile_content=dockerfile,
+            metadata={
+                "stack_type": stack_type,
+                "generator": "llm",
+                "requested": request.text,
+            },
+            generation_attempts=1,
+            llm_model_used=self.llm_client.model,
+            is_valid=False,
+        )
+
+    def _template_generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
+        """Generate Dockerfile using templates"""
         if stack_type == "node":
             dockerfile = self._node_template(context)
         elif stack_type == "python":

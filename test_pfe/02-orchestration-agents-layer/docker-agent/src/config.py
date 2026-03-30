@@ -8,10 +8,11 @@ DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
 
 # LLM Configuration
 LLM_CONFIG = {
-    "provider": "groq",
-    "model": os.getenv("GROQ_MODEL", "llama3-70b-8192"), # Default to large model for code gen
+    "provider": os.getenv("LLM_PROVIDER", "ollama"),  # ollama or groq
+    "model": os.getenv("OLLAMA_MODEL", "glm-5:cloud"),  # Ollama GLM-5 cloud model
+    "groq_model": os.getenv("GROQ_MODEL", "llama3-70b-8192"),  # Groq fallback
     "fallback_model": os.getenv("GROQ_FALLBACK_MODEL", "mixtral-8x7b-32768"),
-    "temperature": 0.2, # Low temperature for more deterministic code generation
+    "temperature": 0.2,  # Low temperature for more deterministic code generation
     "max_tokens": 4096,
 }
 
@@ -25,11 +26,14 @@ PIPELINE_CONFIG = {
 
 def validate() -> None:
     """Validate required configuration and environment variables."""
-    required_envs = ["GROQ_API_KEY"]
-    missing = [env for env in required_envs if not os.getenv(env)]
+    provider = LLM_CONFIG.get("provider", "ollama")
     
-    if missing:
-        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    if provider == "groq":
+        required_envs = ["GROQ_API_KEY"]
+        missing = [env for env in required_envs if not os.getenv(env)]
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    # Ollama cloud models use ollama CLI login, no API key needed here
     
     if not DATA_DIR.exists():
         os.makedirs(DATA_DIR / "pages", exist_ok=True)
