@@ -47,10 +47,7 @@ class LLMClient:
 
     def _ollama_completion(self, prompt: str) -> str:
         """Generate completion using Ollama"""
-        if chat is None:
-            raise RuntimeError("Ollama chat function is not available")
-            
-        response = chat(  # type: ignore
+        response = chat(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             options={
@@ -58,7 +55,7 @@ class LLMClient:
                 "num_predict": self.max_tokens,
             }
         )
-        return response.message.content  # type: ignore
+        return response.message.content
 
     def _groq_completion(self, model: str, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate completion using Groq"""
