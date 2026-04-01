@@ -124,6 +124,10 @@ if 'execution_history' not in st.session_state:
     st.session_state.execution_history = []
 if 'temp_repo_path' not in st.session_state:
     st.session_state.temp_repo_path = None
+if 'pending_plan' not in st.session_state:
+    st.session_state.pending_plan = None
+if 'plan_approved' not in st.session_state:
+    st.session_state.plan_approved = False
 
 
 def check_environment() -> Dict[str, bool]:
@@ -616,6 +620,181 @@ def main():
             st.session_state.execution_history = []
             st.rerun()
     
+    # Check if there's a pending plan awaiting approval
+    if st.session_state.pending_plan and not st.session_state.plan_approved:
+        st.markdown("---")
+        st.markdown("## 🧠 Execution Plan Approval")
+        
+        plan_data = st.session_state.pending_plan
+        plan = plan_data.get("execution_plan", {})
+        
+        st.info("**The orchestrator has created an execution plan. Please review and approve to proceed.**")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            complexity = plan_data.get("complexity_score", 0)
+            st.metric("Complexity Score", f"{complexity}/10")
+        with col2:
+            st.metric("Planned Tasks", len(plan.get("tasks", [])))
+        with col3:
+            est_time = plan.get("estimated_time_sec", 0)
+            st.metric("Est. Time", f"{est_time}s")
+        
+        # Show execution plan
+        st.markdown("### 📋 Execution Plan")
+        execution_order = plan.get("execution_order", [])
+        for i, step in enumerate(execution_order, 1):
+            if isinstance(step, list):
+                st.markdown(f"**Step {i}:** Parallel execution")
+                for agent in step:
+                    st.markdown(f"  - `{agent}`")
+            else:
+                st.markdown(f"**Step {i}:** `{step}`")
+        
+        if plan_data.get("planner_reasoning"):
+            with st.expander("💡 Planner Reasoning", expanded=False):
+                st.text(plan_data["planner_reasoning"])
+        
+        st.markdown("---")
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button("✅ Approve & Execute", type="primary", use_container_width=True):
+                st.session_state.plan_approved = True
+                st.rerun()
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.pending_plan = None
+                st.session_state.plan_approved = False
+                st.rerun()
+        
+        return  # Stop here, don't show the normal form
+    
+    # If plan was approved, execute it
+    if st.session_state.plan_approved and st.session_state.pending_plan:
+        plan_data = st.session_state.pending_plan
+        
+        with st.spinner("🔄 Executing approved plan..."):
+            try:
+                # Progress tracking
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                status_text.text("Executing agents...")
+                progress_bar.progress(30)
+                
+                # Build command with skip-planner flag
+                orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
+                
+                cmd = [sys.executable, str(orchestrator_script)]
+                cmd.extend(["--prompt", plan_data.get("prompt", "")])
+                cmd.append("--skip-planner")  # Skip planner, use direct execution
+                
+                if plan_data.get("repo_path"):
+                    cmd.extend(["--repo-path", plan_data["repo_path"]])
+                if plan_data.get("github_url"):
+                    cmd.extend(["--github-url", plan_data["github_url"]])
+                
+                # Execute orchestrator
+                start_time = time.time()
+                run_env = os.environ.copy()
+                run_env["PYTHONIOENCODING"] = "utf-8"
+                
+                process = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(orchestrator_script.parent),
+                    env=run_env,
+                    encoding="utf-8",
+                    errors="replace"
+                )
+                
+                stdout_text = process.stdout or ""
+                stderr_text = process.stderr or ""
+                elapsed_time = time.time() - start_time
+                
+                progress_bar.progress(70)
+                
+                if process.returncode == 0:
+                    # Parse output
+                    output_lines = stdout_text.strip().split('\n') if stdout_text else []
+                    result_data = {
+                        "status": "completed",
+                        "stdout": stdout_text,
+                        "stderr": stderr_text,
+                        "artifacts": [],
+                        "raw_output": stdout_text
+                    }
+                    
+                    # Parse JSON
+                    json_found = False
+                    for line in output_lines:
+                        line = line.strip()
+                        if line.startswith('{'):
+                            try:
+                                json_data = json.loads(line)
+                                if "status" in json_data or "state" in json_data:
+                                    result_data.update(json_data)
+                                    json_found = True
+                                    break
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
+                        try:
+                            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
+                            json_end = stdout_text.index("=== END JSON OUTPUT ===")
+                            json_str = stdout_text[json_start:json_end].strip()
+                            json_data = json.loads(json_str)
+                            result_data.update(json_data)
+                        except (ValueError, json.JSONDecodeError):
+                            pass
+                    
+                    # Add plan info to result
+                    result_data["execution_plan"] = plan_data.get("execution_plan")
+                    result_data["planner_reasoning"] = plan_data.get("planner_reasoning")
+                    result_data["used_planner"] = True
+                    result_data["complexity_score"] = plan_data.get("complexity_score", 0)
+                    
+                    st.session_state.orchestration_result = result_data
+                    st.session_state.execution_history.append({
+                        "prompt": plan_data.get("prompt", ""),
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "elapsed_time": elapsed_time,
+                        "status": "success"
+                    })
+                    
+                    # Clear pending plan
+                    st.session_state.pending_plan = None
+                    st.session_state.plan_approved = False
+                    
+                    progress_bar.progress(100)
+                    status_text.text("✅ Complete!")
+                    time.sleep(0.5)
+                    progress_bar.empty()
+                    status_text.empty()
+                    
+                    st.success(f"✅ Execution completed in {elapsed_time:.2f}s")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Execution failed with exit code {process.returncode}")
+                    if stderr_text:
+                        st.code(stderr_text, language="text")
+                    if stdout_text:
+                        st.code(stdout_text, language="text")
+                    
+                    # Clear pending plan
+                    st.session_state.pending_plan = None
+                    st.session_state.plan_approved = False
+                    
+            except Exception as e:
+                st.error(f"❌ Error during execution: {str(e)}")
+                st.exception(e)
+                st.session_state.pending_plan = None
+                st.session_state.plan_approved = False
+        
+        return  # Stop here after execution
+    
     # Process request
     if generate_button:
         if not user_prompt.strip():
@@ -641,19 +820,12 @@ def main():
                 # Build command arguments
                 cmd = [sys.executable, str(orchestrator_script)]
                 cmd.extend(["--prompt", user_prompt])
+                cmd.append("--plan-only")  # First, get the plan
                 
                 if repo_path:
                     cmd.extend(["--repo-path", str(repo_path)])
                 if github_url:
                     cmd.extend(["--github-url", github_url])
-                if 'create_pr' in locals() and create_pr:
-                    cmd.append("--create-pr")
-                    if 'branch_name' in locals() and branch_name:
-                        cmd.extend(["--branch-name", branch_name])
-                    if 'pr_title' in locals() and pr_title:
-                        cmd.extend(["--pr-title", pr_title])
-                    if 'pr_body' in locals() and pr_body:
-                        cmd.extend(["--pr-body", pr_body])
                 if 'output_scope' in locals():
                     cmd.extend(["--output-scope", output_scope])
                 
@@ -662,13 +834,23 @@ def main():
                 
                 # Execute orchestrator
                 start_time = time.time()
+                
+                # Set up environment with UTF-8 encoding
+                run_env = os.environ.copy()
+                run_env["PYTHONIOENCODING"] = "utf-8"
+                
                 process = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
                     cwd=str(orchestrator_script.parent),
-                    env={**os.environ}
+                    env=run_env,
+                    encoding="utf-8",
+                    errors="replace"
                 )
+                
+                stdout_text = process.stdout or ""
+                stderr_text = process.stderr or ""
                 
                 status_text.text("Processing results...")
                 progress_bar.progress(70)
@@ -678,50 +860,90 @@ def main():
                 # Parse output
                 if process.returncode == 0:
                     # Try to extract JSON from output
-                    output_lines = process.stdout.strip().split('\n')
+                    output_lines = stdout_text.strip().split('\n') if stdout_text else []
                     result_data = {
                         "status": "completed",
-                        "stdout": process.stdout,
-                        "stderr": process.stderr,
+                        "stdout": stdout_text,
+                        "stderr": stderr_text,
                         "artifacts": [],
-                        "raw_output": process.stdout
+                        "raw_output": stdout_text
                     }
                     
                     # Try to parse any JSON in the output
+                    json_found = False
                     for line in output_lines:
-                        if line.strip().startswith('{'):
+                        line = line.strip()
+                        if line.startswith('{'):
                             try:
                                 json_data = json.loads(line)
                                 if "status" in json_data or "state" in json_data:
                                     result_data.update(json_data)
+                                    json_found = True
                                     break
                             except json.JSONDecodeError:
                                 continue
+                    
+                    # Also try to find JSON between markers
+                    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
+                        try:
+                            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
+                            json_end = stdout_text.index("=== END JSON OUTPUT ===")
+                            json_str = stdout_text[json_start:json_end].strip()
+                            json_data = json.loads(json_str)
+                            result_data.update(json_data)
+                        except (ValueError, json.JSONDecodeError):
+                            pass
                     
                     result = result_data
                     
                     status_text.text("Collecting results...")
                     progress_bar.progress(90)
                     
-                    # Store result
-                    st.session_state.orchestration_result = result
-                    st.session_state.execution_history.append({
-                        "prompt": user_prompt,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "elapsed_time": elapsed_time,
-                        "status": "success"
-                    })
-                    
-                    progress_bar.progress(100)
-                    status_text.text("✅ Complete!")
-                    time.sleep(0.5)
-                    progress_bar.empty()
-                    status_text.empty()
-                    
-                    st.success(f"✅ Orchestration completed in {elapsed_time:.2f}s")
+                    # Check if this is plan_ready status (needs approval)
+                    if result.get("status") == "plan_ready" and result.get("used_planner"):
+                        # Store plan for approval
+                        st.session_state.pending_plan = {
+                            "prompt": user_prompt,
+                            "repo_path": repo_path,
+                            "github_url": github_url,
+                            "execution_plan": result.get("execution_plan"),
+                            "planner_reasoning": result.get("planner_reasoning"),
+                            "complexity_score": result.get("complexity_score", 0)
+                        }
+                        st.session_state.plan_approved = False
+                        
+                        progress_bar.progress(100)
+                        status_text.text("✅ Plan ready!")
+                        time.sleep(0.5)
+                        progress_bar.empty()
+                        status_text.empty()
+                        
+                        st.success(f"✅ Plan generated in {elapsed_time:.2f}s")
+                        st.rerun()  # Refresh to show approval UI
+                    else:
+                        # Normal execution (no planner or low complexity)
+                        st.session_state.orchestration_result = result
+                        st.session_state.execution_history.append({
+                            "prompt": user_prompt,
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "elapsed_time": elapsed_time,
+                            "status": "success"
+                        })
+                        
+                        progress_bar.progress(100)
+                        status_text.text("✅ Complete!")
+                        time.sleep(0.5)
+                        progress_bar.empty()
+                        status_text.empty()
+                        
+                        st.success(f"✅ Orchestration completed in {elapsed_time:.2f}s")
                 else:
                     st.error(f"❌ Orchestrator failed with exit code {process.returncode}")
-                    st.code(process.stderr, language="text")
+                    if stderr_text:
+                        st.code(stderr_text, language="text")
+                    if stdout_text:
+                        st.markdown("**Orchestrator stdout:**")
+                        st.code(stdout_text, language="text")
                     return
                 
             except Exception as e:
@@ -735,6 +957,57 @@ def main():
         
         st.markdown("---")
         st.markdown("## 📊 Orchestration Results")
+        
+        # Display planner usage indicator
+        if result.get("used_planner"):
+            st.info("🧠 **Strategic Planner Used** - This complex request required intelligent planning")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                complexity = result.get("complexity_score", 0)
+                st.metric("Complexity Score", f"{complexity}/10")
+            with col2:
+                if "execution_plan" in result:
+                    plan = result["execution_plan"]
+                    st.metric("Planned Tasks", len(plan.get("tasks", [])))
+                else:
+                    st.metric("Planned Tasks", "N/A")
+            with col3:
+                if "execution_plan" in result:
+                    plan = result["execution_plan"]
+                    est_time = plan.get("estimated_time_sec", 0)
+                    st.metric("Est. Time", f"{est_time}s")
+                else:
+                    st.metric("Est. Time", "N/A")
+            
+            # Show execution plan details
+            if "execution_plan" in result:
+                with st.expander("📋 View Execution Plan", expanded=False):
+                    plan = result["execution_plan"]
+                    
+                    st.markdown("**Planned Execution Order:**")
+                    execution_order = plan.get("execution_order", [])
+                    for i, step in enumerate(execution_order, 1):
+                        if isinstance(step, list):
+                            st.markdown(f"**Step {i}:** Parallel execution")
+                            for agent in step:
+                                st.markdown(f"  - `{agent}`")
+                        else:
+                            st.markdown(f"**Step {i}:** `{step}`")
+                    
+                    if result.get("planner_reasoning"):
+                        st.markdown("---")
+                        st.markdown("**Planner Reasoning:**")
+                        st.text(result["planner_reasoning"])
+                    
+                    st.markdown("---")
+                    st.markdown("**Full Plan:**")
+                    st.json(plan)
+        else:
+            complexity = result.get("complexity_score", 0)
+            st.success(f"⚡ **Direct Execution** - Simple request routed directly to agents (complexity: {complexity})")
+        
+        st.markdown("---")
         
         # Status overview
         status = result.get("status", "unknown")

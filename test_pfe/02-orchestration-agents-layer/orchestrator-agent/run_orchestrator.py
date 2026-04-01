@@ -6,6 +6,21 @@ import sys
 from typing import Any, Dict, Optional, Set
 
 
+def _ensure_utf8_output() -> None:
+    """
+    On Windows the default console encoding may reject emoji/special chars.
+    Reconfigure stdout/stderr to UTF-8 with replacement to avoid crashes.
+    """
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        # Best effort; ignore if reconfigure is unavailable
+        pass
+
+
 def _get_agent_output(state: Dict[str, Any], agent_name: str) -> Optional[Dict[str, Any]]:
     agent_outputs = state.get("agent_outputs", {}) if isinstance(state, dict) else {}
     output = agent_outputs.get(agent_name)
@@ -250,6 +265,18 @@ def main() -> int:
         default="asked",
         help="Show only artifacts asked in prompt (default) or all available artifacts",
     )
+    parser.add_argument(
+        "--plan-only",
+        action="store_true",
+        default=False,
+        help="Only generate plan, do not execute agents (for human-in-the-loop approval)",
+    )
+    parser.add_argument(
+        "--skip-planner",
+        action="store_true",
+        default=False,
+        help="Skip planner and execute agents directly",
+    )
     # PR creation arguments (optional)
     parser.add_argument(
         "--create-pr",
@@ -276,6 +303,8 @@ def main() -> int:
         help="Pull request description/body",
     )
     args = parser.parse_args()
+
+    _ensure_utf8_output()
 
     project_root = Path(__file__).resolve().parent
     if str(project_root) not in sys.path:
@@ -319,17 +348,32 @@ def main() -> int:
             branch_name=args.branch_name,
             pr_title=args.pr_title,
             pr_body=args.pr_body,
+            plan_only=args.plan_only,
+            skip_planner=args.skip_planner,
         )
         status = result.get("status", "unknown") if isinstance(result, dict) else "unknown"
         errors = result.get("state", {}).get("errors", []) if isinstance(result, dict) else []
+        
+        # Output full result as JSON for Streamlit parsing
+        print("\n=== JSON OUTPUT ===")
+        print(json.dumps(result, default=str))
+        print("=== END JSON OUTPUT ===")
+        
         print("\n=== Orchestration Summary ===")
         print(f"Status: {status}")
+        if result.get("plan_only"):
+            print("Mode: Plan Only (awaiting approval)")
+        if result.get("used_planner"):
+            print(f"Planner: Used (complexity: {result.get('complexity_score', 0)})")
+        else:
+            print(f"Planner: Not used (complexity: {result.get('complexity_score', 0)})")
         if errors:
             print(f"Errors: {len(errors)}")
             for err in errors[:5]:
                 print(f"- {err}")
 
-        _print_agent_artifacts(result, user_prompt=user_prompt, output_scope=args.output_scope)
+        if not args.plan_only:
+            _print_agent_artifacts(result, user_prompt=user_prompt, output_scope=args.output_scope)
         return 0
     except ValueError as error:
         print(f"Configuration Error: {error}")

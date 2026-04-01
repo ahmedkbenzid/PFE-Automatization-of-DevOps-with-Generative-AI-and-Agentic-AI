@@ -582,18 +582,19 @@ def _execute_iac_agent(
 ) -> Dict[str, Any]:
     """Execute the IAC (Terraform) agent."""
     agent = "iac-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally")
+    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
 
         run_code = (
-            "import json,sys; "
             "from dataclasses import asdict; "
             "from src.pipeline import run_pipeline; "
-            "repo_ctx=json.loads(sys.argv[3]) if sys.argv[3] != '{}' else None; "
-            "result=run_pipeline(sys.argv[1], sys.argv[2], repo_ctx, False); "
-            "print('IAC_RESULT_JSON=' + json.dumps(asdict(result), default=str))"
+            "user_prompt = args[0]; "
+            "repo_path = args[1]; "
+            "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+            "result = run_pipeline(user_prompt, repo_path, repo_ctx, False); "
+            "print('IAC_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
         )
 
         iac_result = _invoke_python_agent(
@@ -602,6 +603,7 @@ def _execute_iac_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="IAC_RESULT_JSON=",
+            timeout=120,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")

@@ -17,46 +17,39 @@ class IntentRouter:
         Fast-path: Common patterns → instant routing. Fallback: LLM for ambiguous requests.
         """
         # Fast-path: keyword-based routing (instant, no LLM call)
+        # Collect ALL matching agents first, then decide primary/secondary
         prompt_lower = user_prompt.lower()
+        matched_agents = []
 
         # GitHub Actions / CI/CD keywords
-        if any(kw in prompt_lower for kw in ["github actions", "workflow", "ci/cd", "pipeline", "jenkins", "gitlab", "circleci"]):
-            return {
-                "primary_agent": "cicd-agent",
-                "secondary_agents": [],
-                "reasoning": "GitHub Actions/CI workflow requested (fast-path)"
-            }
+        if any(kw in prompt_lower for kw in ["github actions", "workflow", "ci/cd", "cicd", "pipeline", "jenkins", "gitlab", "circleci"]):
+            matched_agents.append(("cicd-agent", "CI/CD pipeline"))
 
         # Dockerfile keywords
         if any(kw in prompt_lower for kw in ["dockerfile", "docker image", "container", "docker compose"]):
-            return {
-                "primary_agent": "docker-agent",
-                "secondary_agents": [],
-                "reasoning": "Docker/container configuration requested (fast-path)"
-            }
+            matched_agents.append(("docker-agent", "Docker configuration"))
 
         # Kubernetes keywords
-        if any(kw in prompt_lower for kw in ["kubernetes", "k8s", "helm", "deployment", "pod", "service"]):
-            return {
-                "primary_agent": "k8s-agent",
-                "secondary_agents": [],
-                "reasoning": "Kubernetes/Helm configuration requested (fast-path)"
-            }
+        if any(kw in prompt_lower for kw in ["kubernetes", "k8s", "helm"]):
+            matched_agents.append(("k8s-agent", "Kubernetes configuration"))
 
-        # Infrastructure as Code
-        if any(kw in prompt_lower for kw in ["terraform", "hcl", "iac", "ansible", "aws", "azure", "gcp", "infrastructure", "ec2", "s3", "vpc"]):
-            return {
-                "primary_agent": "iac-agent",
-                "secondary_agents": [],
-                "reasoning": "Infrastructure as Code (Terraform/Ansible) requested (fast-path)"
-            }
+        # Infrastructure as Code - AWS/Azure/GCP imply IaC
+        if any(kw in prompt_lower for kw in ["terraform", "hcl", "iac", "ansible", "aws", "azure", "gcp", "infrastructure", "ec2", "s3", "vpc", "deploy to"]):
+            matched_agents.append(("iac-agent", "Infrastructure as Code"))
 
         # Monitoring / Observability
         if any(kw in prompt_lower for kw in ["prometheus", "grafana", "monitoring", "observability", "alerting", "metrics"]):
+            matched_agents.append(("monitoring-agent", "Monitoring/observability"))
+
+        # If we matched agents via fast-path, return them
+        if matched_agents:
+            primary = matched_agents[0][0]
+            secondary = [a[0] for a in matched_agents[1:]]
+            reasons = [a[1] for a in matched_agents]
             return {
-                "primary_agent": "monitoring-agent",
-                "secondary_agents": [],
-                "reasoning": "Monitoring/observability stack requested (fast-path)"
+                "primary_agent": primary,
+                "secondary_agents": secondary,
+                "reasoning": f"Fast-path routing: {', '.join(reasons)} requested"
             }
 
         # Slow-path: Use LLM for ambiguous requests
