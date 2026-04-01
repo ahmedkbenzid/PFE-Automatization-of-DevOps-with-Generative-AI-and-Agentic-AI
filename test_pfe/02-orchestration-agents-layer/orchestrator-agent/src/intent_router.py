@@ -22,7 +22,15 @@ class IntentRouter:
         matched_agents = []
 
         # GitHub Actions / CI/CD keywords
-        if any(kw in prompt_lower for kw in ["github actions", "workflow", "ci/cd", "cicd", "pipeline", "jenkins", "gitlab", "circleci"]):
+        cicd_keywords = [
+            "github actions", "workflow", "ci/cd", "cicd", "ci cd", "pipeline", 
+            "jenkins", "gitlab", "circleci", "github action", "actions", 
+            "continuous integration", "continuous deployment", "continuous delivery",
+            "automated deployment", "automatic deployment", "auto deploy", "deploy automatically",
+            "triggered", "trigger", "push changes", "on push", "when push", "on commit",
+            "build and deploy", "test and deploy"
+        ]
+        if any(kw in prompt_lower for kw in cicd_keywords):
             matched_agents.append(("cicd-agent", "CI/CD pipeline"))
 
         # Dockerfile keywords

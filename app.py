@@ -682,12 +682,17 @@ def main():
                 status_text.text("Executing agents...")
                 progress_bar.progress(30)
                 
-                # Build command with skip-planner flag
+                # Build command with execution plan
                 orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
                 
                 cmd = [sys.executable, str(orchestrator_script)]
                 cmd.extend(["--prompt", plan_data.get("prompt", "")])
-                cmd.append("--skip-planner")  # Skip planner, use direct execution
+                
+                # Pass the approved execution plan
+                if plan_data.get("execution_plan"):
+                    cmd.extend(["--execute-plan", json.dumps(plan_data["execution_plan"])])
+                else:
+                    cmd.append("--skip-planner")  # Fallback if no plan
                 
                 if plan_data.get("repo_path"):
                     cmd.extend(["--repo-path", plan_data["repo_path"]])

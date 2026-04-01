@@ -277,6 +277,12 @@ def main() -> int:
         default=False,
         help="Skip planner and execute agents directly",
     )
+    parser.add_argument(
+        "--execute-plan",
+        type=str,
+        default="",
+        help="Execute agents according to provided plan (JSON string from approved plan)",
+    )
     # PR creation arguments (optional)
     parser.add_argument(
         "--create-pr",
@@ -340,6 +346,16 @@ def main() -> int:
 
     try:
         orchestrator = Orchestrator()
+        
+        # Parse execution plan if provided
+        execution_plan = None
+        if args.execute_plan:
+            try:
+                execution_plan = json.loads(args.execute_plan)
+            except json.JSONDecodeError:
+                print("Error: Invalid execution plan JSON")
+                return 1
+        
         result = orchestrator.process_request(
             user_prompt,
             repository_path=repo_path,
@@ -350,6 +366,7 @@ def main() -> int:
             pr_body=args.pr_body,
             plan_only=args.plan_only,
             skip_planner=args.skip_planner,
+            execution_plan=execution_plan,
         )
         status = result.get("status", "unknown") if isinstance(result, dict) else "unknown"
         errors = result.get("state", {}).get("errors", []) if isinstance(result, dict) else []

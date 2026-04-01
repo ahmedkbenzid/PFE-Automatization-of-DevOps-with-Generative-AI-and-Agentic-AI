@@ -17,7 +17,7 @@ class PlannerConfig:
     """Configuration for Planner Agent"""
     
     # LLM Configuration - Default to Groq since it's faster and already configured
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
     OLLAMA_MODEL: str = os.getenv("PLANNER_OLLAMA_MODEL", "glm-5:cloud")
     GROQ_MODEL: str = os.getenv("PLANNER_GROQ_MODEL", "llama-3.1-8b-instant")
     GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")

@@ -164,69 +164,97 @@ class Orchestrator:
         complexity = self._calculate_complexity(user_prompt, repo_context)
         return complexity >= self.planner_complexity_threshold
     
-    def _invoke_planner(self, user_prompt: str, repo_context: Dict[str, Any]) -> Dict[str, Any]:
+    def _invoke_planner(self, user_prompt: str, repo_context: Dict[str, Any], max_retries: int = 2) -> Dict[str, Any]:
         """
-        Invoke planner agent to create execution plan.
+        Invoke planner agent to create execution plan with retry logic.
         
         Args:
             user_prompt: User request
             repo_context: Repository analysis context
+            max_retries: Number of retry attempts on timeout/failure
             
         Returns:
             Planner response with execution plan
         """
         print("[Orchestrator] 🧠 Complex request detected - Invoking Planner Agent...")
         
-        try:
-            # Path to planner pipeline
-            planner_root = Path(__file__).parent.parent.parent / "planner-agent"
-            planner_path = planner_root / "src" / "pipeline.py"
-            
-            if not planner_path.exists():
-                print(f"[Orchestrator] ⚠️  Planner not found at {planner_path}, using direct execution")
-                return {"status": "error", "message": "Planner not available"}
-            
-            # Set up environment with PYTHONPATH and ensure GROQ_API_KEY is passed
-            import os
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(planner_root) + os.pathsep + env.get("PYTHONPATH", "")
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["LLM_PROVIDER"] = "groq"  # Force Groq for planner
-            
-            # Execute planner as subprocess with longer timeout
-            result = subprocess.run(
-                [sys.executable, str(planner_path), user_prompt, json.dumps(repo_context or {})],
-                capture_output=True,
-                text=True,
-                timeout=60,  # Increased timeout for LLM calls
-                cwd=str(planner_root),
-                env=env
-            )
-            
-            if result.returncode != 0:
-                print(f"[Orchestrator] Planner failed: {result.stderr}")
-                return {"status": "error", "message": "Planner execution failed"}
-            
-            # Parse planner output
-            output = result.stdout
-            
-            # Look for JSON output marker
-            if "=== PLANNER OUTPUT ===" in output:
-                json_part = output.split("=== PLANNER OUTPUT ===")[1].strip()
-                return json.loads(json_part)
-            else:
-                # Try to parse entire output as JSON
-                return json.loads(output)
+        # Path to planner pipeline
+        planner_root = Path(__file__).parent.parent.parent / "planner-agent"
+        planner_path = planner_root / "src" / "pipeline.py"
+        
+        if not planner_path.exists():
+            print(f"[Orchestrator] ⚠️  Planner not found at {planner_path}, using direct execution")
+            return {"status": "error", "message": "Planner not available"}
+        
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                current_timeout = 60 * (attempt + 1)  # 60s, 120s, 180s
                 
-        except subprocess.TimeoutExpired:
-            print("[Orchestrator] Planner timeout")
-            return {"status": "error", "message": "Planner timeout"}
-        except json.JSONDecodeError as e:
-            print(f"[Orchestrator] Failed to parse planner output: {e}")
-            return {"status": "error", "message": "Invalid planner response"}
-        except Exception as e:
-            print(f"[Orchestrator] Planner invocation error: {e}")
-            return {"status": "error", "message": str(e)}
+                if attempt > 0:
+                    print(f"[Orchestrator] Retrying planner (attempt {attempt + 1}/{max_retries + 1}, timeout: {current_timeout}s)...")
+                
+                # Set up environment with PYTHONPATH and ensure GROQ_API_KEY is passed
+                import os
+                env = os.environ.copy()
+                env["PYTHONPATH"] = str(planner_root) + os.pathsep + env.get("PYTHONPATH", "")
+                env["PYTHONIOENCODING"] = "utf-8"
+                env["LLM_PROVIDER"] = "groq"  # Force Groq for planner
+                
+                # Execute planner as subprocess with increasing timeout
+                result = subprocess.run(
+                    [sys.executable, str(planner_path), user_prompt, json.dumps(repo_context or {})],
+                    capture_output=True,
+                    text=True,
+                    timeout=current_timeout,
+                    cwd=str(planner_root),
+                    env=env
+                )
+                
+                if result.returncode != 0:
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                    if attempt == max_retries:
+                        print(f"[Orchestrator] Planner failed: {error_msg}")
+                        return {"status": "error", "message": "Planner execution failed"}
+                    print(f"[Orchestrator] Planner failed: {error_msg[:100]}... (will retry)")
+                    last_error = error_msg
+                    continue
+                
+                # Parse planner output
+                output = result.stdout
+                
+                # Look for JSON output marker
+                if "=== PLANNER OUTPUT ===" in output:
+                    json_part = output.split("=== PLANNER OUTPUT ===")[1].strip()
+                    return json.loads(json_part)
+                else:
+                    # Try to parse entire output as JSON
+                    return json.loads(output)
+                    
+            except subprocess.TimeoutExpired:
+                if attempt == max_retries:
+                    print(f"[Orchestrator] Planner timeout after {current_timeout}s (all retries exhausted)")
+                    return {"status": "error", "message": "Planner timeout"}
+                print(f"[Orchestrator] Planner timeout at {current_timeout}s (will retry)")
+                last_error = f"Timeout at {current_timeout}s"
+                continue
+            except json.JSONDecodeError as e:
+                if attempt == max_retries:
+                    print(f"[Orchestrator] Failed to parse planner output: {e}")
+                    return {"status": "error", "message": "Invalid planner response"}
+                print(f"[Orchestrator] JSON parse error (will retry)")
+                last_error = str(e)
+                continue
+            except Exception as e:
+                if attempt == max_retries:
+                    print(f"[Orchestrator] Planner invocation error: {e}")
+                    return {"status": "error", "message": str(e)}
+                print(f"[Orchestrator] Planner error: {str(e)[:100]}... (will retry)")
+                last_error = str(e)
+                continue
+        
+        # Should never reach here
+        return {"status": "error", "message": f"Planner failed after {max_retries + 1} attempts. Last error: {last_error}"}
 
     def process_request(
         self,
@@ -239,6 +267,7 @@ class Orchestrator:
         pr_body: str = "Generated by Orchestrator Agent with AI-powered DevOps automation",
         plan_only: bool = False,
         skip_planner: bool = False,
+        execution_plan: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Process a user request through the orchestration pipeline.
@@ -262,6 +291,7 @@ class Orchestrator:
             branch_name: Branch name for the pull request (required if create_pr=True)
             plan_only: If True, only generate plan without executing agents (for human approval)
             skip_planner: If True, skip planner and execute agents directly
+            execution_plan: Pre-approved execution plan to follow (from plan approval)
             pr_title: Title for the pull request
             pr_body: Description/body for the pull request
 
@@ -298,7 +328,7 @@ class Orchestrator:
         if skip_planner:
             self.enable_planner = False
         
-        # First, run the standard orchestration to get repo context
+        # Run orchestration
         result = run_orchestrator(
             user_prompt=user_prompt,
             repository_path=repository_path,
@@ -307,10 +337,19 @@ class Orchestrator:
             branch_name=branch_name,
             pr_title=pr_title,
             pr_body=pr_body,
+            execution_plan=execution_plan,  # Pass approved plan if provided
         )
         
         # Get repo context from result
         repo_context = result.get("state", {}).get("repo_context", {})
+        
+        # If execution_plan was provided, we're executing an approved plan
+        if execution_plan:
+            print("[Orchestrator] Executing approved plan...")
+            result["used_planner"] = True
+            result["execution_plan"] = execution_plan
+            result["complexity_score"] = self._calculate_complexity(user_prompt, repo_context)
+            return result
         
         # Check if planner should be used
         complexity_score = self._calculate_complexity(user_prompt, repo_context)
@@ -343,11 +382,8 @@ class Orchestrator:
                 result["planner_error"] = planner_result.get("message")
         else:
             print(f"[Orchestrator] ⚡ Direct execution (complexity: {complexity_score})")
-        
-        # If plan_only and no planner, still return for approval
-        if plan_only:
-            result["status"] = "plan_ready"
-            print("[Orchestrator] 🛑 Plan-only mode: Awaiting user approval")
+            # For simple requests (no planner), ignore plan_only and execute directly
+            # Only complex requests requiring planning need approval
         
         return result
 

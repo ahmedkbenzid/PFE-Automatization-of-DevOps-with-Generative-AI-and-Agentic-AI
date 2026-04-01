@@ -271,6 +271,7 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
     Execute all target agents and collect their outputs.
 
     This node dispatches work to specialized agents (cicd, docker, iac).
+    If an approved execution plan is provided, follows the plan's order and parallelization.
     """
     global _config
 
@@ -281,40 +282,71 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
     user_prompt = state.get("user_prompt", "")
     repo_context = state.get("repo_context", {})
     repository_path = state.get("repository_path") or _config.DEFAULT_REPOSITORY_PATH
+    approved_plan = state.get("approved_execution_plan")
 
     agent_outputs = dict(state.get("agent_outputs", {}))
     errors = list(state.get("errors", []))
 
     print("[Orchestrator] Dispatching to Target Agents...")
-
-    for agent in target_agents:
-        if agent == "cicd-agent":
-            result = _execute_cicd_agent(user_prompt, repository_path, repo_context)
-            agent_outputs["cicd-agent"] = result
+    
+    # If approved plan exists, execute according to plan order
+    if approved_plan and "execution_order" in approved_plan:
+        print("[Orchestrator] Following approved execution plan order...")
+        execution_order = approved_plan["execution_order"]
+        
+        for step_idx, step in enumerate(execution_order, 1):
+            if isinstance(step, list):
+                # Parallel execution group
+                print(f"[Orchestrator] Step {step_idx}: Parallel execution of {len(step)} agents")
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(step)) as executor:
+                    futures = {}
+                    for agent in step:
+                        future = executor.submit(_execute_single_agent, agent, user_prompt, repository_path, repo_context)
+                        futures[future] = agent
+                    
+                    for future in concurrent.futures.as_completed(futures):
+                        agent = futures[future]
+                        try:
+                            result = future.result()
+                            agent_outputs[agent] = result
+                            if result.get("status") == "error":
+                                errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
+                        except Exception as e:
+                            errors.append(f"{agent} execution error: {str(e)}")
+            else:
+                # Sequential execution
+                print(f"[Orchestrator] Step {step_idx}: Executing {step}")
+                result = _execute_single_agent(step, user_prompt, repository_path, repo_context)
+                agent_outputs[step] = result
+                if result.get("status") == "error":
+                    errors.append(f"{step} failed: {result.get('message', 'Unknown error')}")
+    else:
+        # Default execution (no plan) - execute all agents in parallel
+        for agent in target_agents:
+            result = _execute_single_agent(agent, user_prompt, repository_path, repo_context)
+            agent_outputs[agent] = result
             if result.get("status") == "error":
-                errors.append(f"cicd-agent failed: {result.get('message', 'Unknown error')}")
-
-        elif agent == "docker-agent":
-            result = _execute_docker_agent(user_prompt, repository_path, repo_context)
-            agent_outputs["docker-agent"] = result
-            if result.get("status") == "error":
-                errors.append(f"docker-agent failed: {result.get('message', 'Unknown error')}")
-
-        elif agent == "iac-agent":
-            result = _execute_iac_agent(user_prompt, repository_path, repo_context)
-            agent_outputs["iac-agent"] = result
-            if result.get("status") == "error":
-                errors.append(f"iac-agent failed: {result.get('message', 'Unknown error')}")
-
-        else:
-            print(f"[Orchestrator] Agent '{agent}' is not yet integrated. Skipping execution.")
-            agent_outputs[agent] = {"status": "skipped", "message": "Not integrated"}
+                errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
 
     return {
         "agent_outputs": agent_outputs,
         "errors": errors,
         "status": "completed",
     }
+
+
+def _execute_single_agent(agent: str, user_prompt: str, repository_path: str, repo_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper to execute a single agent"""
+    if agent == "cicd-agent":
+        return _execute_cicd_agent(user_prompt, repository_path, repo_context)
+    elif agent == "docker-agent":
+        return _execute_docker_agent(user_prompt, repository_path, repo_context)
+    elif agent == "iac-agent":
+        return _execute_iac_agent(user_prompt, repository_path, repo_context)
+    else:
+        print(f"[Orchestrator] Agent '{agent}' is not yet integrated. Skipping execution.")
+        return {"status": "skipped", "message": "Not integrated"}
 
 
 def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
@@ -433,62 +465,95 @@ def _invoke_python_agent(
     args: list,
     result_prefix: str,
     timeout: int = 120,
+    max_retries: int = 2,
 ) -> Dict[str, Any]:
     """
-    Invoke a Python agent as a subprocess and collect results.
+    Invoke a Python agent as a subprocess and collect results with retry logic.
 
     Args:
         timeout: Maximum seconds to wait for agent completion (default: 120s)
+        max_retries: Number of retry attempts on timeout/failure (default: 2)
     """
     agent_path = _resolve_agent_path(agent_folder_name)
     if not os.path.exists(agent_path):
         raise FileNotFoundError(f"Could not find {agent_name} at: {agent_path}")
 
-    try:
-        # Prepare environment with PYTHONPATH
-        env = os.environ.copy()
-        env["PYTHONPATH"] = agent_path + os.pathsep + os.environ.get("PYTHONPATH", "")
-        env["PYTHONIOENCODING"] = "utf-8"
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            current_timeout = timeout * (attempt + 1)  # Exponential timeout: 120s, 240s, 360s
+            
+            if attempt > 0:
+                print(f"[Orchestrator] Retrying {agent_name} (attempt {attempt + 1}/{max_retries + 1}, timeout: {current_timeout}s)...")
+            
+            # Prepare environment with PYTHONPATH
+            env = os.environ.copy()
+            env["PYTHONPATH"] = agent_path + os.pathsep + os.environ.get("PYTHONPATH", "")
+            env["PYTHONIOENCODING"] = "utf-8"
 
-        # Pass arguments as JSON to avoid shell escaping issues
-        args_json = json.dumps(args)
+            # Pass arguments as JSON to avoid shell escaping issues
+            args_json = json.dumps(args)
 
-        # Modified run_code: deserialize args from JSON
-        safe_run_code = (
-            f"import json, sys; "
-            f"args = json.loads({repr(args_json)}); "
-            f"sys.argv = [''] + args; "
-            f"{run_code}"
-        )
+            # Modified run_code: deserialize args from JSON
+            safe_run_code = (
+                f"import json, sys; "
+                f"args = json.loads({repr(args_json)}); "
+                f"sys.argv = [''] + args; "
+                f"{run_code}"
+            )
 
-        completed = subprocess.run(
-            [sys.executable, "-c", safe_run_code],
-            cwd=agent_path,
-            capture_output=True,
-            text=True,
-            env=env,
-            check=False,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"{agent_name} timed out after {timeout}s. Agent may be overloaded or stuck.")
-
-    # Debug: print stderr if there's an error
-    if completed.returncode != 0:
-        error_msg = completed.stderr.strip() if completed.stderr else completed.stdout.strip()
-        if not error_msg:
-            error_msg = f"Unknown {agent_name} error (exit code {completed.returncode})"
-        raise RuntimeError(error_msg)
-
-    # Parse result from stdout
-    for line in (completed.stdout or "").splitlines():
-        if line.startswith(result_prefix):
-            try:
-                return json.loads(line[len(result_prefix):])
-            except json.JSONDecodeError as e:
-                raise RuntimeError(f"{agent_name} returned invalid JSON: {str(e)}")
-
-    raise RuntimeError(f"{agent_name} returned no structured result. Output: {completed.stdout}")
+            completed = subprocess.run(
+                [sys.executable, "-c", safe_run_code],
+                cwd=agent_path,
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+                timeout=current_timeout,
+            )
+            
+            # Check if subprocess succeeded
+            if completed.returncode != 0:
+                error_msg = completed.stderr.strip() if completed.stderr else completed.stdout.strip()
+                if not error_msg:
+                    error_msg = f"Unknown {agent_name} error (exit code {completed.returncode})"
+                
+                # If it's the last attempt, raise the error
+                if attempt == max_retries:
+                    raise RuntimeError(error_msg)
+                
+                # Otherwise, log and retry
+                print(f"[Orchestrator] {agent_name} failed: {error_msg[:100]}... (will retry)")
+                last_error = error_msg
+                continue
+            
+            # Parse result from stdout
+            for line in (completed.stdout or "").splitlines():
+                if line.startswith(result_prefix):
+                    try:
+                        return json.loads(line[len(result_prefix):])
+                    except json.JSONDecodeError as e:
+                        if attempt == max_retries:
+                            raise RuntimeError(f"{agent_name} returned invalid JSON: {str(e)}")
+                        print(f"[Orchestrator] {agent_name} JSON parse error (will retry)")
+                        last_error = str(e)
+                        continue
+            
+            # No structured result found
+            if attempt == max_retries:
+                raise RuntimeError(f"{agent_name} returned no structured result. Output: {completed.stdout}")
+            print(f"[Orchestrator] {agent_name} returned no result (will retry)")
+            last_error = "No structured result"
+            
+        except subprocess.TimeoutExpired:
+            if attempt == max_retries:
+                raise RuntimeError(f"{agent_name} timed out after {current_timeout}s (all retries exhausted)")
+            print(f"[Orchestrator] {agent_name} timeout at {current_timeout}s (will retry with longer timeout)")
+            last_error = f"Timeout at {current_timeout}s"
+            continue
+    
+    # Should never reach here, but just in case
+    raise RuntimeError(f"{agent_name} failed after {max_retries + 1} attempts. Last error: {last_error}")
 
 
 def _execute_cicd_agent(
@@ -522,7 +587,8 @@ def _execute_cicd_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="CICD_RESULT_JSON=",
-            timeout=120,
+            timeout=180,  # 3 minutes base, up to 9 minutes with retries
+            max_retries=2,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")
@@ -543,7 +609,7 @@ def _execute_docker_agent(
 ) -> Dict[str, Any]:
     """Execute the Docker agent."""
     agent = "docker-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
+    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 150s base)")
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
@@ -564,7 +630,8 @@ def _execute_docker_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="DOCKER_RESULT_JSON=",
-            timeout=120,
+            timeout=150,  # 2.5 minutes base, up to 7.5 minutes with retries
+            max_retries=2,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")
@@ -582,7 +649,7 @@ def _execute_iac_agent(
 ) -> Dict[str, Any]:
     """Execute the IAC (Terraform) agent."""
     agent = "iac-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
+    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 200s base)")
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
@@ -603,7 +670,8 @@ def _execute_iac_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="IAC_RESULT_JSON=",
-            timeout=120,
+            timeout=200,  # 3.3 minutes base, up to 10 minutes with retries
+            max_retries=2,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")
