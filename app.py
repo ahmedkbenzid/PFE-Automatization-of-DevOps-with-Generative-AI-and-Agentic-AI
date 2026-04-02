@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import json
 import time
+import re
 from typing import Dict, Any, Optional
 import tempfile
 import shutil
@@ -132,8 +133,17 @@ if 'plan_approved' not in st.session_state:
 
 def check_environment() -> Dict[str, bool]:
     """Check if required environment variables and dependencies are configured"""
+    # Check if Ollama is running
+    ollama_running = False
+    try:
+        import requests
+        response = requests.get("http://localhost:11434", timeout=2)
+        ollama_running = response.status_code == 200 and "ollama is running" in response.text.lower()
+    except:
+        ollama_running = False
+    
     checks = {
-        "GROQ_API_KEY": bool(os.getenv("GROQ_API_KEY")),
+        "Ollama": ollama_running,
         "Orchestrator": True,
         "CI/CD Agent": True,
         "Docker Agent": False,
@@ -181,15 +191,50 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
     state = result.get("state", {})
     agent_outputs = state.get("agent_outputs", {})
     
+    def _first_base_image_from_dockerfile(dockerfile_content: Optional[str]) -> Optional[str]:
+        if not dockerfile_content:
+            return None
+        for line in dockerfile_content.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            match = re.match(r"^FROM\s+([^\s]+)", stripped, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        return None
+
+    def _infer_stack_type(raw_stack: Optional[str], base_image: Optional[str]) -> str:
+        stack = (raw_stack or "").strip()
+        if stack:
+            return stack
+
+        image = (base_image or "").lower()
+        if "node" in image:
+            return "node"
+        if "python" in image:
+            return "python"
+        if any(x in image for x in ["openjdk", "eclipse-temurin", "adoptopenjdk", "maven", "gradle", "java"]):
+            return "java"
+        if any(x in image for x in ["golang", "go:"]):
+            return "go"
+        if "dotnet" in image:
+            return "dotnet"
+
+        return "Unknown"
+
     if agent_outputs:
         # Extract CI/CD workflow
         cicd_output = agent_outputs.get("cicd-agent", {})
         if cicd_output.get("status") == "success":
             cicd_data = cicd_output.get("data", {})
+            # Convert generation_latency_ms to seconds
+            generation_latency_ms = cicd_data.get("generation_latency_ms", 0)
+            latency_s = generation_latency_ms / 1000 if generation_latency_ms else 0
+            
             artifacts["yaml"] = cicd_data.get("workflow_yaml")
             artifacts["metadata"]["cicd"] = {
                 "attempts": cicd_data.get("attempts", 1),
-                "latency_ms": cicd_data.get("generation_latency_ms", 0),
+                "latency_s": latency_s,
                 "validation": cicd_data.get("validation_result", {})
             }
         
@@ -198,10 +243,39 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
         if docker_output.get("status") == "success":
             docker_data = docker_output.get("data", {})
             configuration = docker_data.get("configuration", {})
-            artifacts["dockerfile"] = configuration.get("dockerfile_content")
+            config_metadata = configuration.get("metadata", {})
+            dockerfile_content = configuration.get("dockerfile_content")
+            lock_file = docker_data.get("lock_file", {})
+             
+            # Convert processing_time_ms to seconds
+            processing_time_ms = docker_data.get("processing_time_ms", 0)
+            build_time_s = processing_time_ms / 1000 if processing_time_ms else 0
+
+            # Resolve base image with fallbacks: explicit field -> metadata -> lock file -> parsed FROM
+            lock_base_images = lock_file.get("base_images", {}) if isinstance(lock_file, dict) else {}
+            lock_first_image = next(iter(lock_base_images.keys()), None) if isinstance(lock_base_images, dict) else None
+            base_image = (
+                configuration.get("base_image")
+                or config_metadata.get("base_image")
+                or lock_first_image
+                or _first_base_image_from_dockerfile(dockerfile_content)
+                or "Unknown"
+            )
+
+            # Resolve stack type with fallbacks and inference from base image
+            raw_stack = (
+                config_metadata.get("effective_stack")
+                or config_metadata.get("detected_stack")
+                or config_metadata.get("stack_type")
+                or config_metadata.get("original_stack_input")
+            )
+            stack = _infer_stack_type(raw_stack, base_image)
+
+            artifacts["dockerfile"] = dockerfile_content
             artifacts["metadata"]["docker"] = {
-                "stack": docker_data.get("stack_type"),
-                "base_image": configuration.get("base_image"),
+                "build_time_s": build_time_s,
+                "stack": stack,
+                "base_image": base_image,
                 "validation": docker_data.get("validation", {})
             }
         
@@ -375,7 +449,7 @@ def display_artifacts(artifacts: Dict[str, Any]):
                 meta = artifacts["metadata"]["cicd"]
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Generation Time", f"{meta.get('latency_ms', 0):.0f}ms")
+                    st.metric("Generation Time", f"{meta.get('latency_s', 0):.0f}s")
                 with col2:
                     st.metric("Attempts", meta.get('attempts', 1))
                 with col3:
@@ -401,10 +475,12 @@ def display_artifacts(artifacts: Dict[str, Any]):
             
             if "docker" in artifacts.get("metadata", {}):
                 meta = artifacts["metadata"]["docker"]
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Stack Type", meta.get('stack', 'Unknown'))
+                    st.metric("Generation Time", f"{meta.get('build_time_s', 0):.0f}s")
                 with col2:
+                    st.metric("Stack Type", meta.get('stack', 'Unknown'))
+                with col3:
                     st.metric("Base Image", meta.get('base_image', 'Unknown'))
         else:
             st.info("No Dockerfile generated. Try requesting a Docker configuration.")
@@ -562,9 +638,9 @@ def main():
             """)
     
     # Main content area
-    if not env_checks["GROQ_API_KEY"]:
-        st.error("⚠️ GROQ_API_KEY not found in environment. Please set it before using the orchestrator.")
-        st.info("Create a `.env` file in the project root with: `GROQ_API_KEY=your_key_here`")
+    if not env_checks["Ollama"]:
+        st.error("⚠️ Ollama is not running. Please start Ollama before using the orchestrator.")
+        st.info("Start Ollama with: `ollama serve` or run the Ollama desktop app")
         return
     
     # Input section

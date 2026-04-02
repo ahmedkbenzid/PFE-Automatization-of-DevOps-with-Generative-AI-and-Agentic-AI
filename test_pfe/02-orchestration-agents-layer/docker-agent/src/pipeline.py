@@ -143,7 +143,9 @@ class DockerPipeline:
         print(f"  - Orchestrator context: {repo_context.get('frameworks') if repo_context else 'None'}")
         print(f"  - Effective stack: {effective_stack}")
 
-        # Tools Layer
+        # Tools Layer - Retrieve relevant Docker examples using enhanced semantic chunking
+        # This uses the new enhanced chunking system that breaks Dockerfiles into
+        # metadata, stage, and instruction-group chunks for better matching
         rag_context = self.rag_kb.query(
             f"{request.text} {effective_stack} Dockerfile best practices",
             top_k=3,

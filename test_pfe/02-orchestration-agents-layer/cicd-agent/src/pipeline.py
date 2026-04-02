@@ -147,7 +147,9 @@ class CICDPipeline:
                 retrieval_query_parts.append(" ".join(local_repo_context.get("languages", [])))
             if preferred_languages:
                 retrieval_query_parts.append(" ".join(preferred_languages))
-            knowledge_query = " ".join(part for part in retrieval_query_parts if part).strip()
+            # Retrieve relevant knowledge using enhanced semantic chunking
+            # This uses the new enhanced chunking system that breaks workflows into
+            # metadata, job, and step chunks for better matching
             retrieved_knowledge = self.dataset_manager.retrieve_knowledge(knowledge_query, top_k=3)
 
             print(f"✓ Found {len(relevant_examples)} relevant examples")

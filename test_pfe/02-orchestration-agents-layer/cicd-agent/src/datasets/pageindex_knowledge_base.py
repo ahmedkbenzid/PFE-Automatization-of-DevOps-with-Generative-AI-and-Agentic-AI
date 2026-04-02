@@ -3,7 +3,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, asdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 @dataclass
@@ -21,12 +21,16 @@ class KnowledgePage:
 class PageIndexKnowledgeBase:
     """Stores scraped dataset pages and enables simple relevance retrieval."""
 
-    def __init__(self, base_dir: str):
+    def __init__(self, base_dir: str, use_enhanced_chunking: bool = True):
         self.base_dir = base_dir
         self.pages_dir = os.path.join(base_dir, "pages")
         self.index_path = os.path.join(base_dir, "page_index.json")
         self.catalog_path = os.path.join(base_dir, "page_catalog.json")
+        self.use_enhanced_chunking = use_enhanced_chunking
         os.makedirs(self.pages_dir, exist_ok=True)
+        
+        # Lazy import to avoid circular dependencies
+        self._enhanced_retriever = None
 
     def save_pages(self, pages: List[KnowledgePage]) -> None:
         """Persist pages and build proper hierarchical PageIndex with correct start/end indices."""
@@ -65,12 +69,32 @@ class PageIndexKnowledgeBase:
         with open(self.index_path, "w", encoding="utf-8") as file:
             json.dump(index_doc, file, indent=2, ensure_ascii=False)
 
-    def query(self, query_text: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        """Retrieve top-k relevant pages using token-overlap scoring."""
+    def query(self, query_text: str, top_k: int = 3, use_enhanced: Optional[bool] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve top-k relevant pages using token-overlap scoring.
+        
+        Args:
+            query_text: The search query
+            top_k: Number of results to return
+            use_enhanced: Override to force enhanced/basic chunking (None uses self.use_enhanced_chunking)
+        
+        Returns:
+            List of relevant results with content chunks
+        """
         pages = self._load_all_pages()
         if not pages:
             return []
-
+        
+        # Determine which retrieval method to use
+        should_use_enhanced = use_enhanced if use_enhanced is not None else self.use_enhanced_chunking
+        
+        if should_use_enhanced:
+            return self._query_with_enhanced_chunking(query_text, pages, top_k)
+        else:
+            return self._query_basic(query_text, pages, top_k)
+    
+    def _query_basic(self, query_text: str, pages: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
+        """Original basic token-overlap query method."""
         query_tokens = self._tokenize(query_text)
         scored = []
         for page in pages:
@@ -99,6 +123,14 @@ class PageIndexKnowledgeBase:
             }
             for score, page in scored[:top_k]
         ]
+    
+    def _query_with_enhanced_chunking(self, query_text: str, pages: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
+        """Enhanced query using semantic chunking."""
+        if self._enhanced_retriever is None:
+            from src.datasets.enhanced_chunker import EnhancedChunkRetriever
+            self._enhanced_retriever = EnhancedChunkRetriever()
+        
+        return self._enhanced_retriever.query_with_chunks(query_text, pages, top_k)
 
     def _load_all_pages(self) -> List[Dict[str, Any]]:
         if not os.path.exists(self.index_path):
