@@ -283,6 +283,13 @@ def main() -> int:
         default="",
         help="Execute agents according to provided plan (JSON string from approved plan)",
     )
+    parser.add_argument(
+        "--user-feedback",
+        type=str,
+        choices=["accept", "not"],
+        default="accept",
+        help="Human feedback stage outcome after execution (default: accept)",
+    )
     # PR creation arguments (optional)
     parser.add_argument(
         "--create-pr",
@@ -367,6 +374,7 @@ def main() -> int:
             plan_only=args.plan_only,
             skip_planner=args.skip_planner,
             execution_plan=execution_plan,
+            user_feedback=args.user_feedback,
         )
         status = result.get("status", "unknown") if isinstance(result, dict) else "unknown"
         errors = result.get("state", {}).get("errors", []) if isinstance(result, dict) else []

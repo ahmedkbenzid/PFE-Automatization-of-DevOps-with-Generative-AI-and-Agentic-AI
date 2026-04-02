@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from typing import Any, Dict
+from pathlib import Path
 
 from .graph_state import OrchestratorState, RepoContextDict
 from .config import OrchestratorConfig
@@ -54,6 +55,101 @@ def cleanup_repo_analyzer():
     global _repo_analyzer
     if _repo_analyzer:
         _repo_analyzer.cleanup()
+
+
+def _calculate_complexity(user_prompt: str, repo_context: Dict[str, Any] = None) -> int:
+    """Calculate complexity score for planner gating."""
+    score = 0
+    prompt_lower = (user_prompt or "").lower()
+
+    artifact_keywords = {
+        "docker": ["docker", "dockerfile", "container"],
+        "cicd": ["ci/cd", "cicd", "pipeline", "github actions", "workflow"],
+        "iac": ["infrastructure", "terraform", "cloudformation"],
+        "k8s": ["kubernetes", "k8s", "kubectl", "helm"],
+    }
+
+    artifacts_count = 0
+    for keywords in artifact_keywords.values():
+        if any(kw in prompt_lower for kw in keywords):
+            artifacts_count += 1
+    if artifacts_count > 1:
+        score += artifacts_count * 2
+
+    if any(kw in prompt_lower for kw in ["deploy", "production", "infrastructure", "setup", "complete", "full stack", "end-to-end"]):
+        score += 3
+    if "microservice" in prompt_lower or "multi-service" in prompt_lower:
+        score += 2
+    if any(kw in prompt_lower for kw in ["aws", "azure", "gcp", "ecs", "eks", "aks", "gke"]):
+        score += 2
+    if any(kw in prompt_lower for kw in ["if", "when", "based on", "depending on"]):
+        score += 2
+    if repo_context and repo_context.get("multiple_repos", False):
+        score += 3
+
+    return score
+
+
+def _should_use_planner(user_prompt: str, repo_context: Dict[str, Any], enabled: bool, threshold: int, skip_planner: bool) -> bool:
+    """Determine planner usage."""
+    if skip_planner or not enabled:
+        return False
+
+    prompt_lower = (user_prompt or "").lower()
+    force_keywords = ["production setup", "complete deployment", "end-to-end", "full stack setup", "microservices", "complete ci/cd"]
+    if any(kw in prompt_lower for kw in force_keywords):
+        return True
+
+    skip_keywords = ["just", "only", "simple", "single"]
+    if any(kw in prompt_lower for kw in skip_keywords):
+        return False
+
+    return _calculate_complexity(user_prompt, repo_context) >= threshold
+
+
+def _invoke_planner(user_prompt: str, repo_context: Dict[str, Any], max_retries: int = 2) -> Dict[str, Any]:
+    """Invoke planner-agent subprocess."""
+    print("[Orchestrator] 🧠 Complex request detected - Invoking Planner Agent...")
+    planner_root = Path(__file__).parent.parent.parent / "planner-agent"
+    planner_path = planner_root / "src" / "pipeline.py"
+
+    if not planner_path.exists():
+        return {"status": "error", "message": f"Planner not available at {planner_path}"}
+
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            current_timeout = 60 * (attempt + 1)
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(planner_root) + os.pathsep + env.get("PYTHONPATH", "")
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["LLM_PROVIDER"] = "groq"
+
+            result = subprocess.run(
+                [sys.executable, str(planner_path), user_prompt, json.dumps(repo_context or {})],
+                capture_output=True,
+                text=True,
+                timeout=current_timeout,
+                cwd=str(planner_root),
+                env=env,
+            )
+            if result.returncode != 0:
+                last_error = result.stderr.strip() or "Planner failed"
+                if attempt == max_retries:
+                    return {"status": "error", "message": last_error}
+                continue
+
+            output = result.stdout or ""
+            if "=== PLANNER OUTPUT ===" in output:
+                json_part = output.split("=== PLANNER OUTPUT ===", 1)[1].strip()
+                return json.loads(json_part)
+            return json.loads(output)
+        except Exception as e:
+            last_error = str(e)
+            if attempt == max_retries:
+                return {"status": "error", "message": last_error}
+
+    return {"status": "error", "message": last_error or "Planner failed"}
 
 
 # =============================================================================
@@ -215,6 +311,104 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
         }
 
 
+def complexity_assessment_node(state: OrchestratorState) -> Dict[str, Any]:
+    """Assess complexity and decide if planner path should be used."""
+    user_prompt = state.get("user_prompt", "")
+    repo_context = state.get("repo_context", {})
+    threshold = state.get("planner_complexity_threshold", 4)
+    enabled = state.get("planner_enabled", True)
+    skip_planner = state.get("skip_planner", False)
+    approved_execution_plan = state.get("approved_execution_plan")
+
+    complexity = _calculate_complexity(user_prompt, repo_context)
+    use_planner = bool(approved_execution_plan) or _should_use_planner(
+        user_prompt=user_prompt,
+        repo_context=repo_context,
+        enabled=enabled,
+        threshold=threshold,
+        skip_planner=skip_planner,
+    )
+    return {
+        "complexity_score": complexity,
+        "used_planner": use_planner,
+    }
+
+
+def planner_node(state: OrchestratorState) -> Dict[str, Any]:
+    """Generate execution plan for complex requests."""
+    approved_execution_plan = state.get("approved_execution_plan")
+    if approved_execution_plan:
+        return {
+            "execution_plan": approved_execution_plan,
+            "planner_reasoning": "Using pre-approved execution plan",
+            "planner_error": "",
+        }
+
+    planner_result = _invoke_planner(
+        user_prompt=state.get("user_prompt", ""),
+        repo_context=state.get("repo_context", {}),
+    )
+    if planner_result.get("status") == "success":
+        return {
+            "execution_plan": planner_result.get("plan", {}),
+            "planner_reasoning": planner_result.get("reasoning", ""),
+            "planner_error": "",
+        }
+    return {
+        "execution_plan": {},
+        "planner_reasoning": "",
+        "planner_error": planner_result.get("message", "Planner failed"),
+        "status": "error",
+        "errors": state.get("errors", []) + [planner_result.get("message", "Planner failed")],
+    }
+
+
+def man_in_the_loop_node(state: OrchestratorState) -> Dict[str, Any]:
+    """Human approval stage."""
+    has_plan = bool(state.get("execution_plan"))
+    if not has_plan:
+        return {"plan_approved": False}
+
+    # Plan-only mode: stop and wait for explicit approval in a follow-up call.
+    if state.get("plan_only", False) and not state.get("approved_execution_plan"):
+        return {
+            "plan_approved": False,
+            "plan_only_waiting_approval": True,
+            "status": "plan_ready",
+        }
+
+    return {"plan_approved": True, "plan_only_waiting_approval": False}
+
+
+def plan_confirmed_node(state: OrchestratorState) -> Dict[str, Any]:
+    """Materialize approved execution DAG/plan."""
+    plan = state.get("execution_plan") or state.get("approved_execution_plan") or {}
+    execution_order = plan.get("execution_order", [])
+    return {
+        "approved_execution_plan": plan,
+        "dag_execution_order": execution_order,
+        "status": "pending",
+    }
+
+
+def dag_execution_node(state: OrchestratorState) -> Dict[str, Any]:
+    """DAG orchestration stage before agent execution."""
+    return {"status": "pending"}
+
+
+def routing_direct_node(state: OrchestratorState) -> Dict[str, Any]:
+    """
+    Non-complex direct path:
+    route request and execute target agents directly (mapped to single node in requested diagram).
+    """
+    route_updates = routing_node(state)
+    merged_state = dict(state)
+    merged_state.update(route_updates)
+    exec_updates = agent_execution_node(merged_state)
+    route_updates.update(exec_updates)
+    return route_updates
+
+
 def routing_node(state: OrchestratorState) -> Dict[str, Any]:
     """
     Route the request to appropriate agents based on intent analysis.
@@ -334,6 +528,14 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
         "errors": errors,
         "status": "completed",
     }
+
+
+def user_feedback_node(state: OrchestratorState) -> Dict[str, Any]:
+    """Collect/record user feedback state (accept by default in non-interactive graph run)."""
+    feedback = (state.get("user_feedback") or "accept").lower()
+    if feedback not in {"accept", "reject", "not"}:
+        feedback = "accept"
+    return {"user_feedback": feedback}
 
 
 def _execute_single_agent(agent: str, user_prompt: str, repository_path: str, repo_context: Dict[str, Any]) -> Dict[str, Any]:

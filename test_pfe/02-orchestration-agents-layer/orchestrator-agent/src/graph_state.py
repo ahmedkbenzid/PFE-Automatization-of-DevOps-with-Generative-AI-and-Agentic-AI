@@ -35,6 +35,10 @@ class OrchestratorState(TypedDict, total=False):
     user_prompt: str
     repository_path: Optional[str]
     github_url: Optional[str]
+    plan_only: bool
+    skip_planner: bool
+    planner_enabled: bool
+    planner_complexity_threshold: int
 
     # PR creation parameters (optional)
     create_pr: bool
@@ -54,6 +58,16 @@ class OrchestratorState(TypedDict, total=False):
     secondary_agents: List[str]
     routing_reasoning: str
     target_agents: List[str]  # Combined list of agents to execute
+    complexity_score: int
+    used_planner: bool
+    planner_reasoning: str
+    planner_error: str
+    execution_plan: Dict[str, Any]
+    approved_execution_plan: Dict[str, Any]
+    plan_approved: bool
+    plan_only_waiting_approval: bool
+    user_feedback: str
+    dag_execution_order: List[Any]
 
     # Agent execution results
     agent_outputs: Dict[str, Any]
@@ -90,6 +104,10 @@ def create_initial_state(
         user_prompt=user_prompt,
         repository_path=repository_path,
         github_url=github_url,
+        plan_only=False,
+        skip_planner=False,
+        planner_enabled=True,
+        planner_complexity_threshold=4,
         guardrails_passed=False,
         guardrails_reason="",
         repo_context={
@@ -110,6 +128,16 @@ def create_initial_state(
         secondary_agents=[],
         routing_reasoning="",
         target_agents=[],
+        complexity_score=0,
+        used_planner=False,
+        planner_reasoning="",
+        planner_error="",
+        execution_plan={},
+        approved_execution_plan={},
+        plan_approved=False,
+        plan_only_waiting_approval=False,
+        user_feedback="accept",
+        dag_execution_order=[],
         agent_outputs={},
         current_agent_index=0,
         status="pending",
@@ -137,7 +165,20 @@ def state_to_legacy_format(state: OrchestratorState) -> Dict[str, Any]:
     if state.get("pr_details"):
         legacy_state["pr_details"] = state.get("pr_details")
 
-    return {
+    result = {
         "status": state.get("status", "pending"),
         "state": legacy_state,
     }
+
+    result["used_planner"] = state.get("used_planner", False)
+    result["complexity_score"] = state.get("complexity_score", 0)
+    result["plan_only"] = state.get("plan_only", False)
+
+    if state.get("execution_plan"):
+        result["execution_plan"] = state.get("execution_plan")
+    if state.get("planner_reasoning"):
+        result["planner_reasoning"] = state.get("planner_reasoning")
+    if state.get("planner_error"):
+        result["planner_error"] = state.get("planner_error")
+
+    return result

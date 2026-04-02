@@ -129,6 +129,14 @@ if 'pending_plan' not in st.session_state:
     st.session_state.pending_plan = None
 if 'plan_approved' not in st.session_state:
     st.session_state.plan_approved = False
+if 'feedback_stage' not in st.session_state:
+    st.session_state.feedback_stage = False
+if 'pending_feedback_result' not in st.session_state:
+    st.session_state.pending_feedback_result = None
+if 'user_feedback_choice' not in st.session_state:
+    st.session_state.user_feedback_choice = "not"
+if 'feedback_edits' not in st.session_state:
+    st.session_state.feedback_edits = {}
 
 
 def check_environment() -> Dict[str, bool]:
@@ -563,6 +571,18 @@ def display_artifacts(artifacts: Dict[str, Any]):
             st.info("No metadata available.")
 
 
+def _apply_feedback_edits_to_result(result: Dict[str, Any], edited_artifacts: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Persist user-edited artifacts into the orchestration result for downstream display.
+    """
+    if not isinstance(result, dict):
+        return result
+
+    updated = dict(result)
+    updated["edited_artifacts"] = edited_artifacts
+    return updated
+
+
 def main():
     # Header
     st.markdown('<div class="main-header">🤖 Multi-Agent DevOps Orchestrator</div>', unsafe_allow_html=True)
@@ -635,6 +655,7 @@ def main():
             **Combined:**
             - "Generate everything I need to deploy my Python project"
             - "Create complete DevOps setup for my microservice"
+            - "I need to set up automated deployment for my Streamlit application. I want the deployment process to be containerized and automatically triggered whenever I push changes to the main branch."            
             """)
     
     # Main content area
@@ -774,6 +795,7 @@ def main():
                     cmd.extend(["--repo-path", plan_data["repo_path"]])
                 if plan_data.get("github_url"):
                     cmd.extend(["--github-url", plan_data["github_url"]])
+                cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
                 
                 # Execute orchestrator
                 start_time = time.time()
@@ -837,25 +859,22 @@ def main():
                     result_data["used_planner"] = True
                     result_data["complexity_score"] = plan_data.get("complexity_score", 0)
                     
-                    st.session_state.orchestration_result = result_data
-                    st.session_state.execution_history.append({
-                        "prompt": plan_data.get("prompt", ""),
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "elapsed_time": elapsed_time,
-                        "status": "success"
-                    })
+                    # Route through explicit human feedback stage before finalizing UI
+                    st.session_state.pending_feedback_result = result_data
+                    st.session_state.feedback_stage = True
                     
                     # Clear pending plan
                     st.session_state.pending_plan = None
                     st.session_state.plan_approved = False
                     
                     progress_bar.progress(100)
-                    status_text.text("✅ Complete!")
+                    status_text.text("✅ Execution done")
                     time.sleep(0.5)
                     progress_bar.empty()
                     status_text.empty()
                     
                     st.success(f"✅ Execution completed in {elapsed_time:.2f}s")
+                    st.info("Please provide human feedback to continue the flow.")
                     st.rerun()
                 else:
                     st.error(f"❌ Execution failed with exit code {process.returncode}")
@@ -875,6 +894,99 @@ def main():
                 st.session_state.plan_approved = False
         
         return  # Stop here after execution
+
+    # Human feedback stage after execution (new graph: user_feedback -> create_pr/cleanup)
+    if st.session_state.feedback_stage and st.session_state.pending_feedback_result:
+        st.markdown("---")
+        st.markdown("## 💬 Human Feedback")
+        st.info("Execution is done. Review and edit artifacts below, then confirm feedback.")
+
+        feedback_result = st.session_state.pending_feedback_result
+        feedback_artifacts = extract_artifacts(feedback_result)
+
+        st.markdown("### ✍️ Edit Generated Artifacts")
+        edited_yaml = st.text_area(
+            "GitHub Actions Workflow (YAML)",
+            value=feedback_artifacts.get("yaml") or "",
+            height=220,
+            key="feedback_edit_yaml",
+        )
+        edited_dockerfile = st.text_area(
+            "Dockerfile",
+            value=feedback_artifacts.get("dockerfile") or "",
+            height=220,
+            key="feedback_edit_dockerfile",
+        )
+
+        terraform_data = feedback_artifacts.get("terraform") if isinstance(feedback_artifacts.get("terraform"), dict) else {}
+        edited_main_tf = st.text_area(
+            "Terraform main.tf",
+            value=(terraform_data.get("main_tf") or ""),
+            height=180,
+            key="feedback_edit_main_tf",
+        )
+        edited_variables_tf = st.text_area(
+            "Terraform variables.tf",
+            value=(terraform_data.get("variables_tf") or ""),
+            height=140,
+            key="feedback_edit_variables_tf",
+        )
+        edited_outputs_tf = st.text_area(
+            "Terraform outputs.tf",
+            value=(terraform_data.get("outputs_tf") or ""),
+            height=120,
+            key="feedback_edit_outputs_tf",
+        )
+        edited_providers_tf = st.text_area(
+            "Terraform providers.tf",
+            value=(terraform_data.get("providers_tf") or ""),
+            height=120,
+            key="feedback_edit_providers_tf",
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Accept Results", type="primary", use_container_width=True):
+                st.session_state.user_feedback_choice = "accept"
+                edited_artifacts = {
+                    "yaml": edited_yaml.strip() or None,
+                    "dockerfile": edited_dockerfile.strip() or None,
+                    "terraform": {
+                        "main_tf": edited_main_tf.strip(),
+                        "variables_tf": edited_variables_tf.strip(),
+                        "outputs_tf": edited_outputs_tf.strip(),
+                        "providers_tf": edited_providers_tf.strip(),
+                    },
+                    "metadata": feedback_artifacts.get("metadata", {}),
+                }
+                st.session_state.feedback_edits = edited_artifacts
+                st.session_state.orchestration_result = _apply_feedback_edits_to_result(feedback_result, edited_artifacts)
+                st.session_state.feedback_stage = False
+                st.session_state.pending_feedback_result = None
+                st.rerun()
+        with col2:
+            if st.button("❌ Not Acceptable", use_container_width=True):
+                st.session_state.user_feedback_choice = "not"
+                edited_artifacts = {
+                    "yaml": edited_yaml.strip() or None,
+                    "dockerfile": edited_dockerfile.strip() or None,
+                    "terraform": {
+                        "main_tf": edited_main_tf.strip(),
+                        "variables_tf": edited_variables_tf.strip(),
+                        "outputs_tf": edited_outputs_tf.strip(),
+                        "providers_tf": edited_providers_tf.strip(),
+                    },
+                    "metadata": feedback_artifacts.get("metadata", {}),
+                }
+                st.session_state.feedback_edits = edited_artifacts
+                feedback_result["user_feedback"] = "not"
+                st.session_state.orchestration_result = _apply_feedback_edits_to_result(feedback_result, edited_artifacts)
+                st.session_state.feedback_stage = False
+                st.session_state.pending_feedback_result = None
+                st.warning("Feedback marked as 'not'. PR creation path is skipped.")
+                st.rerun()
+
+        return
     
     # Process request
     if generate_button:
@@ -909,6 +1021,7 @@ def main():
                     cmd.extend(["--github-url", github_url])
                 if 'output_scope' in locals():
                     cmd.extend(["--output-scope", output_scope])
+                cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
                 
                 status_text.text("Running orchestrator...")
                 progress_bar.progress(30)
@@ -1003,21 +1116,19 @@ def main():
                         st.rerun()  # Refresh to show approval UI
                     else:
                         # Normal execution (no planner or low complexity)
-                        st.session_state.orchestration_result = result
-                        st.session_state.execution_history.append({
-                            "prompt": user_prompt,
-                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                            "elapsed_time": elapsed_time,
-                            "status": "success"
-                        })
-                        
+                        # Route through explicit human feedback stage before finalizing UI
+                        st.session_state.pending_feedback_result = result
+                        st.session_state.feedback_stage = True
+
                         progress_bar.progress(100)
-                        status_text.text("✅ Complete!")
+                        status_text.text("✅ Execution done")
                         time.sleep(0.5)
                         progress_bar.empty()
                         status_text.empty()
-                        
-                        st.success(f"✅ Orchestration completed in {elapsed_time:.2f}s")
+
+                        st.success(f"✅ Execution completed in {elapsed_time:.2f}s")
+                        st.info("Please provide human feedback to continue the flow.")
+                        st.rerun()
                 else:
                     st.error(f"❌ Orchestrator failed with exit code {process.returncode}")
                     if stderr_text:
@@ -1108,7 +1219,7 @@ def main():
         
         # Artifacts
         if status == "completed":
-            artifacts = extract_artifacts(result)
+            artifacts = result.get("edited_artifacts") if isinstance(result.get("edited_artifacts"), dict) else extract_artifacts(result)
             display_artifacts(artifacts)
         
         # Errors

@@ -268,6 +268,7 @@ class Orchestrator:
         plan_only: bool = False,
         skip_planner: bool = False,
         execution_plan: Optional[Dict[str, Any]] = None,
+        user_feedback: str = "accept",
     ) -> Dict[str, Any]:
         """
         Process a user request through the orchestration pipeline.
@@ -292,6 +293,7 @@ class Orchestrator:
             plan_only: If True, only generate plan without executing agents (for human approval)
             skip_planner: If True, skip planner and execute agents directly
             execution_plan: Pre-approved execution plan to follow (from plan approval)
+            user_feedback: Post-execution feedback ("accept" or "not") used by graph PR decision
             pr_title: Title for the pull request
             pr_body: Description/body for the pull request
 
@@ -324,11 +326,7 @@ class Orchestrator:
             >>> if result["used_planner"]:
             ...     print("Complex request - planner was used")
         """
-        # Override planner if user requested to skip it
-        if skip_planner:
-            self.enable_planner = False
-        
-        # Run orchestration
+        # Run orchestration fully through LangGraph (including planner/man-in-the-loop path)
         result = run_orchestrator(
             user_prompt=user_prompt,
             repository_path=repository_path,
@@ -337,54 +335,14 @@ class Orchestrator:
             branch_name=branch_name,
             pr_title=pr_title,
             pr_body=pr_body,
-            execution_plan=execution_plan,  # Pass approved plan if provided
+            execution_plan=execution_plan,
+            plan_only=plan_only,
+            skip_planner=skip_planner,
+            planner_enabled=self.enable_planner,
+            planner_complexity_threshold=self.planner_complexity_threshold,
+            user_feedback=user_feedback,
         )
-        
-        # Get repo context from result
-        repo_context = result.get("state", {}).get("repo_context", {})
-        
-        # If execution_plan was provided, we're executing an approved plan
-        if execution_plan:
-            print("[Orchestrator] Executing approved plan...")
-            result["used_planner"] = True
-            result["execution_plan"] = execution_plan
-            result["complexity_score"] = self._calculate_complexity(user_prompt, repo_context)
-            return result
-        
-        # Check if planner should be used
-        complexity_score = self._calculate_complexity(user_prompt, repo_context)
-        should_use_planner = self._should_use_planner(user_prompt, repo_context) and not skip_planner
-        
-        # Add planner metadata to result
-        result["used_planner"] = should_use_planner
-        result["complexity_score"] = complexity_score
-        result["plan_only"] = plan_only
-        
-        if should_use_planner:
-            print(f"[Orchestrator] Complexity score: {complexity_score} (threshold: {self.planner_complexity_threshold})")
-            
-            # Invoke planner
-            planner_result = self._invoke_planner(user_prompt, repo_context)
-            
-            if planner_result.get("status") == "success":
-                result["execution_plan"] = planner_result.get("plan", {})
-                result["planner_reasoning"] = planner_result.get("reasoning", "")
-                print("[Orchestrator] ✅ Execution plan received from Planner")
-                
-                # If plan_only mode, stop here and return the plan for approval
-                if plan_only:
-                    result["status"] = "plan_ready"
-                    print("[Orchestrator] 🛑 Plan-only mode: Awaiting user approval")
-                    return result
-                
-            else:
-                print(f"[Orchestrator] ⚠️  Planner failed: {planner_result.get('message')}")
-                result["planner_error"] = planner_result.get("message")
-        else:
-            print(f"[Orchestrator] ⚡ Direct execution (complexity: {complexity_score})")
-            # For simple requests (no planner), ignore plan_only and execute directly
-            # Only complex requests requiring planning need approval
-        
+
         return result
 
     def get_graph_visualization(self) -> str:

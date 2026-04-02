@@ -1,8 +1,8 @@
 """
 LangGraph Orchestrator - Graph Construction and Compilation.
 
-This module builds the orchestration graph that coordinates
-the flow between guardrails, routing, and agent execution.
+This module builds the orchestration graph matching the requested architecture:
+user prompt -> guardrails -> repo-analysis -> (complex ? planner path : direct routing path)
 """
 
 from typing import Literal
@@ -12,8 +12,14 @@ from .graph_state import OrchestratorState, create_initial_state, state_to_legac
 from .graph_nodes import (
     guardrails_node,
     repo_analysis_node,
-    routing_node,
+    complexity_assessment_node,
+    planner_node,
+    man_in_the_loop_node,
+    plan_confirmed_node,
+    dag_execution_node,
+    routing_direct_node,
     agent_execution_node,
+    user_feedback_node,
     create_pr_node,
     cleanup_node,
     initialize_components,
@@ -21,159 +27,101 @@ from .graph_nodes import (
 
 
 def should_continue_after_guardrails(state: OrchestratorState) -> Literal["repo_analysis", "cleanup"]:
-    """
-    Conditional edge: decide whether to continue or stop after guardrails.
-
-    If guardrails pass, continue to repo analysis.
-    If guardrails fail, skip to cleanup.
-    """
     if state.get("guardrails_passed", False):
         return "repo_analysis"
-    else:
+    return "cleanup"
+
+
+def should_use_planner_path(state: OrchestratorState) -> Literal["planner", "routing_direct"]:
+    return "planner" if state.get("used_planner", False) else "routing_direct"
+
+
+def should_continue_after_man_in_the_loop(state: OrchestratorState) -> Literal["plan_confirmed", "cleanup"]:
+    if state.get("status") == "error":
         return "cleanup"
+    return "plan_confirmed" if state.get("plan_approved", False) else "cleanup"
 
 
-def should_create_pr(state: OrchestratorState) -> Literal["create_pr", "cleanup"]:
-    """
-    Conditional edge: decide whether to create a PR or skip to cleanup.
-
-    If user requested PR creation (--create-pr flag), route to create_pr node.
-    Otherwise, skip directly to cleanup.
-    """
-    if state.get("create_pr", False):
+def should_create_pr_after_feedback(state: OrchestratorState) -> Literal["create_pr", "cleanup"]:
+    feedback = (state.get("user_feedback") or "accept").lower()
+    if state.get("create_pr", False) and feedback == "accept":
         return "create_pr"
-    else:
-        return "cleanup"
-
+    return "cleanup"
 
 
 def build_orchestrator_graph() -> StateGraph:
     """
     Build the LangGraph orchestrator graph.
 
-    Graph Structure:
-    ================
-
-                    ┌─────────────┐
-                    │   START     │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │ guardrails  │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-           ┌────────┤  condition  ├────────┐
-           │        └─────────────┘        │
-           │ (passed)             (blocked)│
-           │                               │
-    ┌──────▼──────┐                        │
-    │repo_analysis│                        │
-    └──────┬──────┘                        │
-           │                               │
-    ┌──────▼──────┐                        │
-    │   routing   │                        │
-    └──────┬──────┘                        │
-           │                               │
-    ┌──────▼──────┐                        │
-    │  execution  │                        │
-    └──────┬──────┘                        │
-           │                               │
-    ┌──────▼──────────┐                    │
-    │ PR condition    ├──────┐             │
-    └─────────────────┘      │             │
-          │ (no PR)    (create_pr)         │
-          │               │                │
-          │         ┌─────▼────┐           │
-          │         │create_pr │           │
-          │         └─────┬────┘           │
-          │               │                │
-          └───────┬───────┘                │
-                  │                        │
-           ┌──────▼──────┐                 │
-           │   cleanup   │◄────────────────┘
-           └──────┬──────┘
-                  │
-           ┌──────▼──────┐
-           │     END     │
-           └─────────────┘
-
-    Returns:
-        Compiled LangGraph StateGraph
+    Requested shape:
+    START -> guardrails -> repo_analysis -> complexity_assessment
+      complex -> planner -> man_in_the_loop -> (approved ? plan_confirmed -> dag_execution -> execution : cleanup)
+      not-complex -> routing_direct
+      execution/routing_direct -> user_feedback -> (accept+create_pr ? create_pr : cleanup) -> END
     """
-    # Initialize components
     initialize_components()
 
-    # Create the graph with our state type
     graph = StateGraph(OrchestratorState)
 
-    # Add nodes
     graph.add_node("guardrails", guardrails_node)
     graph.add_node("repo_analysis", repo_analysis_node)
-    graph.add_node("routing", routing_node)
+    graph.add_node("complexity_assessment", complexity_assessment_node)
+    graph.add_node("planner", planner_node)
+    graph.add_node("man_in_the_loop", man_in_the_loop_node)
+    graph.add_node("plan_confirmed", plan_confirmed_node)
+    graph.add_node("dag_execution", dag_execution_node)
+    graph.add_node("routing_direct", routing_direct_node)
     graph.add_node("execution", agent_execution_node)
+    graph.add_node("user_feedback", user_feedback_node)
     graph.add_node("create_pr", create_pr_node)
     graph.add_node("cleanup", cleanup_node)
 
-    # Add edges
-    # START -> guardrails
     graph.add_edge(START, "guardrails")
-
-    # guardrails -> conditional branch
     graph.add_conditional_edges(
         "guardrails",
         should_continue_after_guardrails,
-        {
-            "repo_analysis": "repo_analysis",
-            "cleanup": "cleanup",
-        }
+        {"repo_analysis": "repo_analysis", "cleanup": "cleanup"},
     )
 
-    # repo_analysis -> routing -> execution -> PR condition
-    graph.add_edge("repo_analysis", "routing")
-    graph.add_edge("routing", "execution")
-
-    # execution -> PR conditional branch
+    graph.add_edge("repo_analysis", "complexity_assessment")
     graph.add_conditional_edges(
-        "execution",
-        should_create_pr,
-        {
-            "create_pr": "create_pr",
-            "cleanup": "cleanup",
-        }
+        "complexity_assessment",
+        should_use_planner_path,
+        {"planner": "planner", "routing_direct": "routing_direct"},
     )
 
-    # create_pr -> cleanup
-    graph.add_edge("create_pr", "cleanup")
+    graph.add_edge("planner", "man_in_the_loop")
+    graph.add_conditional_edges(
+        "man_in_the_loop",
+        should_continue_after_man_in_the_loop,
+        {"plan_confirmed": "plan_confirmed", "cleanup": "cleanup"},
+    )
+    graph.add_edge("plan_confirmed", "dag_execution")
+    graph.add_edge("dag_execution", "execution")
 
-    # cleanup -> END
+    graph.add_edge("routing_direct", "user_feedback")
+    graph.add_edge("execution", "user_feedback")
+
+    graph.add_conditional_edges(
+        "user_feedback",
+        should_create_pr_after_feedback,
+        {"create_pr": "create_pr", "cleanup": "cleanup"},
+    )
+
+    graph.add_edge("create_pr", "cleanup")
     graph.add_edge("cleanup", END)
 
     return graph
 
 
 def compile_orchestrator():
-    """
-    Build and compile the orchestrator graph.
-
-    Returns:
-        Compiled graph ready for invocation
-    """
-    graph = build_orchestrator_graph()
-    return graph.compile()
+    return build_orchestrator_graph().compile()
 
 
-# Create a singleton compiled graph for efficiency
 _compiled_graph = None
 
 
 def get_compiled_graph():
-    """
-    Get the compiled graph, building it if necessary.
-
-    This uses a singleton pattern to avoid rebuilding the graph
-    on every request.
-    """
     global _compiled_graph
     if _compiled_graph is None:
         _compiled_graph = compile_orchestrator()
@@ -189,76 +137,39 @@ def run_orchestrator(
     pr_title: str = "Auto-generated changes from Orchestrator",
     pr_body: str = "Generated by Orchestrator Agent with AI-powered DevOps automation",
     execution_plan: dict = None,
+    plan_only: bool = False,
+    skip_planner: bool = False,
+    planner_enabled: bool = True,
+    planner_complexity_threshold: int = 4,
+    user_feedback: str = "accept",
 ) -> dict:
-    """
-    Main entry point for running the orchestrator.
-
-    This function creates the initial state, runs the graph,
-    and returns results in the legacy format for backward compatibility.
-
-    Args:
-        user_prompt: The user's request text
-        repository_path: Optional local path to repository
-        github_url: Optional GitHub URL to clone
-        create_pr: Whether to create a pull request
-        branch_name: Branch name for pull request
-        pr_title: Title for pull request
-        pr_body: Description for pull request
-        execution_plan: Pre-approved execution plan (from planner)
-
-    Returns:
-        Dictionary with status and state in legacy format
-    """
-    # Create initial state
     initial_state = create_initial_state(
         user_prompt=user_prompt,
         repository_path=repository_path,
         github_url=github_url,
     )
 
-    # Add PR parameters to state
     initial_state["create_pr"] = create_pr
     initial_state["branch_name"] = branch_name
     initial_state["pr_title"] = pr_title
     initial_state["pr_body"] = pr_body
-    
-    # Add execution plan if provided
+    initial_state["plan_only"] = plan_only
+    initial_state["skip_planner"] = skip_planner
+    initial_state["planner_enabled"] = planner_enabled
+    initial_state["planner_complexity_threshold"] = planner_complexity_threshold
+    initial_state["user_feedback"] = user_feedback
+
     if execution_plan:
         initial_state["approved_execution_plan"] = execution_plan
 
-    # Get the compiled graph
-    graph = get_compiled_graph()
-
-    # Run the graph
-    final_state = graph.invoke(initial_state)
-
-    # Convert to legacy format for backward compatibility
+    final_state = get_compiled_graph().invoke(initial_state)
     return state_to_legacy_format(final_state)
 
 
 def visualize_graph():
-    """
-    Generate a visualization of the orchestrator graph.
-
-    Returns:
-        Mermaid diagram string (can be rendered on mermaid.live)
-    """
     graph = build_orchestrator_graph()
     try:
         return graph.get_graph().draw_mermaid()
     except Exception:
         return "Graph visualization not available"
 
-
-if __name__ == "__main__":
-    # Test the graph visualization
-    print("=== Orchestrator Graph Structure ===")
-    print(visualize_graph())
-
-    # Test basic execution
-    print("\n=== Test Execution ===")
-    result = run_orchestrator(
-        user_prompt="Create a simple CI/CD pipeline for a Python project"
-    )
-    print(f"Status: {result.get('status')}")
-    print(f"Errors: {result.get('state', {}).get('errors', [])}")
