@@ -1,23 +1,51 @@
 """YAML workflow generation from LLM output"""
 import yaml
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from src.models.types import GeneratedWorkflow
-from src.components.llm_client import GroqLLMClient
+from src.components.llm_client import LLMClient
+from src.components.rag_kb import RAGKnowledgeBase
+from pathlib import Path
+
 
 class YAMLGenerator:
-    """Generate and manage YAML workflows"""
+    """Generate and manage YAML workflows with RAG support"""
     
-    def __init__(self, llm_client: GroqLLMClient):
+    def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
+        # Initialize RAG for workflow examples
+        kb_path = Path(__file__).parent.parent / "datasets" / "knowledge_base"
+        if kb_path.exists():
+            self.rag_kb = RAGKnowledgeBase(str(kb_path))
+            print(f"[YAML Generator] RAG knowledge base initialized: {kb_path}")
+        else:
+            self.rag_kb = None
+            print(f"[YAML Generator] WARNING: Knowledge base not found at {kb_path}")
     
     def generate_from_prompt(self, prompt: str) -> GeneratedWorkflow:
-        """Generate YAML from a detailed prompt"""
-        yaml_content = self.llm_client.generate_workflow_yaml(prompt)
+        """Generate YAML from a detailed prompt, enhanced with RAG examples"""
+        # Retrieve relevant workflows from knowledge base
+        rag_context = []
+        if self.rag_kb:
+            try:
+                rag_context = self.rag_kb.query(prompt, top_k=3)
+                print(f"[YAML Generator] Retrieved {len(rag_context)} workflow examples from RAG")
+            except Exception as e:
+                print(f"[YAML Generator] RAG retrieval failed (will continue without context): {e}")
+        else:
+            print(f"[YAML Generator] RAG not available, generating without knowledge base context")
+        
+        # Generate YAML with RAG context
+        yaml_content = self.llm_client.generate_workflow_yaml(prompt, rag_context=rag_context)
         yaml_content = self._sanitize_llm_yaml(yaml_content)
         
         workflow = GeneratedWorkflow(
             yaml_content=yaml_content,
-            metadata={"generation_method": "llm"},
+            metadata={
+                "generation_method": "llm",
+                "rag_examples_used": len(rag_context),
+                "rag_sources": [r.get("title") for r in rag_context] if rag_context else [],
+                "rag_pages": [r.get("page_id") or r.get("title") for r in rag_context] if rag_context else []
+            },
             is_valid=False,
             attempts=1,
         )

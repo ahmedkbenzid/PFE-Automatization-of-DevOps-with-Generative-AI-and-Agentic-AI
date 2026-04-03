@@ -916,51 +916,86 @@ def main():
     # Human feedback stage after execution (new graph: user_feedback -> create_pr/cleanup)
     if st.session_state.feedback_stage and st.session_state.pending_feedback_result:
         st.markdown("---")
-        st.markdown("## 💬 Human Feedback")
-        st.info("Execution is done. Review and edit artifacts below, then confirm feedback.")
+        st.markdown("## 💬 Human Feedback & Review")
+        st.info("✅ Execution completed. Review generated artifacts below.")
 
         feedback_result = st.session_state.pending_feedback_result
         feedback_artifacts = extract_artifacts(feedback_result)
 
-        st.markdown("### ✍️ Edit Generated Artifacts")
-        edited_yaml = st.text_area(
-            "GitHub Actions Workflow (YAML)",
-            value=feedback_artifacts.get("yaml") or "",
-            height=220,
-            key="feedback_edit_yaml",
-        )
-        edited_dockerfile = st.text_area(
-            "Dockerfile",
-            value=feedback_artifacts.get("dockerfile") or "",
-            height=220,
-            key="feedback_edit_dockerfile",
-        )
-
+        # Display generated artifacts with proper formatting
+        st.markdown("### 📋 Generated Artifacts")
+        
+        # Track if any artifacts exist
+        has_artifacts = False
+        
+        # Prepare terraform data
         terraform_data = feedback_artifacts.get("terraform") if isinstance(feedback_artifacts.get("terraform"), dict) else {}
-        edited_main_tf = st.text_area(
-            "Terraform main.tf",
-            value=(terraform_data.get("main_tf") or ""),
-            height=180,
-            key="feedback_edit_main_tf",
-        )
-        edited_variables_tf = st.text_area(
-            "Terraform variables.tf",
-            value=(terraform_data.get("variables_tf") or ""),
-            height=140,
-            key="feedback_edit_variables_tf",
-        )
-        edited_outputs_tf = st.text_area(
-            "Terraform outputs.tf",
-            value=(terraform_data.get("outputs_tf") or ""),
-            height=120,
-            key="feedback_edit_outputs_tf",
-        )
-        edited_providers_tf = st.text_area(
-            "Terraform providers.tf",
-            value=(terraform_data.get("providers_tf") or ""),
-            height=120,
-            key="feedback_edit_providers_tf",
-        )
+        
+        # Show YAML if available
+        if feedback_artifacts.get("yaml"):
+            has_artifacts = True
+            st.markdown("#### GitHub Actions Workflow (YAML)")
+            st.code(feedback_artifacts.get("yaml"), language="yaml")
+            with st.expander("✏️ Edit YAML"):
+                edited_yaml = st.text_area(
+                    "Edit GitHub Actions Workflow",
+                    value=feedback_artifacts.get("yaml") or "",
+                    height=220,
+                    key="feedback_edit_yaml",
+                    label_visibility="collapsed"
+                )
+        else:
+            edited_yaml = ""
+        
+        # Show Dockerfile if available
+        if feedback_artifacts.get("dockerfile"):
+            has_artifacts = True
+            st.markdown("#### Dockerfile")
+            st.code(feedback_artifacts.get("dockerfile"), language="dockerfile")
+            with st.expander("✏️ Edit Dockerfile"):
+                edited_dockerfile = st.text_area(
+                    "Edit Dockerfile",
+                    value=feedback_artifacts.get("dockerfile") or "",
+                    height=220,
+                    key="feedback_edit_dockerfile",
+                    label_visibility="collapsed"
+                )
+        else:
+            edited_dockerfile = ""
+        
+        # Show Terraform files if available
+        if terraform_data:
+            has_artifacts = True
+            st.markdown("#### Terraform HCL Scripts")
+            
+            # Create list of available terraform files
+            tf_tabs = []
+            if terraform_data.get("main_tf"):
+                tf_tabs.append(("main.tf", "main_tf"))
+            if terraform_data.get("variables_tf"):
+                tf_tabs.append(("variables.tf", "variables_tf"))
+            if terraform_data.get("outputs_tf"):
+                tf_tabs.append(("outputs.tf", "outputs_tf"))
+            if terraform_data.get("providers_tf"):
+                tf_tabs.append(("providers.tf", "providers_tf"))
+            
+            if tf_tabs:
+                # Display tabs
+                tabs = st.tabs([name for name, _ in tf_tabs])
+                for tab, (name, key) in zip(tabs, tf_tabs):
+                    with tab:
+                        st.code(terraform_data.get(key), language="hcl")
+        
+        # Set terraform edited values
+        edited_main_tf = terraform_data.get("main_tf") or ""
+        edited_variables_tf = terraform_data.get("variables_tf") or ""
+        edited_outputs_tf = terraform_data.get("outputs_tf") or ""
+        edited_providers_tf = terraform_data.get("providers_tf") or ""
+        
+        if not has_artifacts:
+            st.warning("⚠️ No artifacts were generated. Please check the execution logs above.")
+            edited_yaml = ""
+            edited_dockerfile = ""
 
         col1, col2 = st.columns(2)
         with col1:

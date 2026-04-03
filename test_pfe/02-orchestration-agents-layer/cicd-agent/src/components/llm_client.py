@@ -1,5 +1,5 @@
 """LLM integration with Ollama Cloud (primary) and Groq (fallback)"""
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, List, Dict
 from src.config import Config
 from src.models.types import IntentMetadata, RequestType
 
@@ -23,26 +23,45 @@ class LLMClient:
         self.provider = provider or Config.LLM_PROVIDER
         self.max_tokens = Config.LLM_MAX_TOKENS
         self.temperature = Config.LLM_TEMPERATURE
+        self.client = None  # Will be set by init methods
+        self.model = None
 
+        # Try configured provider first, with fallback to Groq
         if self.provider == "ollama":
-            self._init_ollama()
+            try:
+                self._init_ollama()
+            except Exception as e:
+                print(f"[CI/CD Agent] Ollama init failed: {e}, falling back to Groq")
+                self._init_groq()
         else:
-            self._init_groq()
+            try:
+                self._init_groq()
+            except Exception as e:
+                print(f"[CI/CD Agent] Groq init failed: {e}, falling back to Ollama")
+                try:
+                    self._init_ollama()
+                except Exception as e2:
+                    print(f"[CI/CD Agent] Both providers failed: {e2}")
+                    raise
 
     def _init_ollama(self):
         """Initialize Ollama client"""
         if chat is None:
             raise RuntimeError("ollama package is not installed. Run: pip install ollama")
         self.model = Config.OLLAMA_MODEL
+        self.provider = "ollama"
         print(f"[CI/CD Agent] Using Ollama with model: {self.model}")
 
     def _init_groq(self):
         """Initialize Groq client"""
         if Groq is None:
             raise RuntimeError("groq package is not installed. Run: pip install groq")
+        if not Config.GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY not set in environment")
         self.client = Groq(api_key=Config.GROQ_API_KEY)
         self.model = Config.GROQ_MODEL
         self.fallback_models = [m for m in Config.GROQ_FALLBACK_MODELS if m != self.model]
+        self.provider = "groq"
         print(f"[CI/CD Agent] Using Groq with model: {self.model}")
 
     def _ollama_completion(self, prompt: str) -> str:
@@ -72,7 +91,15 @@ class LLMClient:
     def generate_text(self, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate text using the configured LLM provider"""
         if self.provider == "ollama":
-            return self._ollama_completion(prompt)
+            try:
+                return self._ollama_completion(prompt)
+            except Exception as e:
+                print(f"[CI/CD Agent] Ollama generation failed: {e}, trying Groq fallback")
+                try:
+                    self._init_groq()
+                    return self._groq_completion(self.model, prompt, max_tokens)
+                except Exception as e2:
+                    raise RuntimeError(f"Both Ollama and Groq failed: {e2}")
 
         # Groq with fallback support
         try:
@@ -146,9 +173,22 @@ CONFIDENCE: [0.0-1.0]
             confidence=confidence
         )
 
-    def generate_workflow_yaml(self, prompt: str) -> str:
-        """Generate GitHub Actions workflow YAML"""
-        expanded_prompt = f"""{prompt}
+    def generate_workflow_yaml(self, prompt: str, rag_context: Optional[List[Dict[str, Any]]] = None) -> str:
+        """Generate GitHub Actions workflow YAML with optional RAG context.
+        
+        Args:
+            prompt: Base prompt from user
+            rag_context: Optional list of relevant workflow examples from knowledge base
+        """
+        rag_examples = ""
+        if rag_context:
+            rag_examples = "\n\n**Reference Workflows from Knowledge Base:**\n"
+            for i, workflow in enumerate(rag_context, 1):
+                title = workflow.get("title", f"Example {i}")
+                content = workflow.get("content", "")[:500]
+                rag_examples += f"\n{i}. {title}:\n```\n{content}\n```\n"
+        
+        expanded_prompt = f"""{prompt}{rag_examples}
 
 Generate a complete GitHub Actions workflow in YAML format. The output MUST be valid YAML and include:
 1. name
