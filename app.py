@@ -31,6 +31,14 @@ if env_path.exists():
     orchestrator_env = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / ".env"
     if orchestrator_env.exists():
         load_dotenv(orchestrator_env, override=False)
+    # Load docker-agent .env
+    docker_env = project_root / "test_pfe" / "02-orchestration-agents-layer" / "docker-agent" / ".env"
+    if docker_env.exists():
+        load_dotenv(docker_env, override=False)
+    # Load cicd-agent .env
+    cicd_env = project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent" / ".env"
+    if cicd_env.exists():
+        load_dotenv(cicd_env, override=False)
 
 sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent"))
 sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent"))
@@ -154,7 +162,7 @@ def check_environment() -> Dict[str, bool]:
         "Ollama": ollama_running,
         "Orchestrator": True,
         "CI/CD Agent": True,
-        "Docker Agent": False,
+        "Docker Agent": True,
     }
     
     try:
@@ -801,6 +809,16 @@ def main():
                 start_time = time.time()
                 run_env = os.environ.copy()
                 run_env["PYTHONIOENCODING"] = "utf-8"
+                
+                # Ensure LLM configuration is propagated to subprocess
+                llm_env_vars = [
+                    "LLM_PROVIDER", "USE_LLM", 
+                    "OLLAMA_MODEL", 
+                    "GROQ_API_KEY", "GROQ_MODEL", "GROQ_FALLBACK_MODEL"
+                ]
+                for var in llm_env_vars:
+                    if var not in run_env and os.getenv(var):
+                        run_env[var] = os.getenv(var)
                 
                 process = subprocess.run(
                     cmd,

@@ -2,6 +2,16 @@ import os
 import json
 from pathlib import Path
 
+# Load environment variables from .env if exists (for subprocess execution)
+try:
+    from dotenv import load_dotenv
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(env_file, override=True)
+        print(f"[Docker Agent Config] Loaded .env from {env_file}")
+except ImportError:
+    pass  # dotenv not required
+
 # Paths
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
@@ -16,6 +26,13 @@ LLM_CONFIG = {
     "max_tokens": 4096,
     "enabled": os.getenv("USE_LLM", "false").lower() == "true",  # Enable/disable LLM generation
 }
+
+# Debug: Print loaded configuration
+print(f"[Docker Agent Config] LLM Configuration loaded:")
+print(f"  - USE_LLM env var: {os.getenv('USE_LLM', 'NOT SET')}")
+print(f"  - enabled: {LLM_CONFIG['enabled']}")
+print(f"  - provider: {LLM_CONFIG['provider']}")
+print(f"  - GROQ_API_KEY: {'SET' if os.getenv('GROQ_API_KEY') else 'NOT SET'}")
 
 # Pipeline Configuration
 PIPELINE_CONFIG = {

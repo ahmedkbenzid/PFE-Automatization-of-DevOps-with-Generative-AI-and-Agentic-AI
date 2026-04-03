@@ -18,12 +18,16 @@ class GenerateFile:
         """
         self.use_llm = use_llm
         self.llm_client = None
+        print(f"[Docker Agent] GenerateFile initialized with use_llm={use_llm}")
         if use_llm:
             try:
+                print("[Docker Agent] Attempting to initialize LLM client...")
                 self.llm_client = LLMClient()
-                print(f"[Docker Agent] LLM client initialized: {self.llm_client.model}")
+                print(f"[Docker Agent] LLM client initialized successfully: {self.llm_client.model}")
             except Exception as e:
+                import traceback
                 print(f"[Docker Agent] LLM client initialization failed: {e}")
+                print(f"[Docker Agent] Full error traceback:\n{traceback.format_exc()}")
                 print("[Docker Agent] Falling back to template-only generation")
                 self.use_llm = False
         else:

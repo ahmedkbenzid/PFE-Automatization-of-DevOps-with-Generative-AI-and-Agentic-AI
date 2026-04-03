@@ -376,11 +376,11 @@ class EnhancedDockerRetriever:
         results = []
         seen_pages = set()
         
-        for score, chunk, page in scored_chunks[:top_k * 2]:  # Get more candidates
+        for score, chunk, page in scored_chunks[:top_k * 5]:  # Get more candidates for deduped pages
             page_id = page.get('page_id')
-            
-            # Include best chunk per page
-            if page_id not in seen_pages or len(results) < top_k:
+
+            # Include only best chunk per page to avoid duplicate page IDs.
+            if page_id not in seen_pages:
                 results.append({
                     'score': score,
                     'page_id': page_id,

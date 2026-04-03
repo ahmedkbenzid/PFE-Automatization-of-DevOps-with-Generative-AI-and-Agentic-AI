@@ -164,10 +164,30 @@ Return ONLY valid JSON, no markdown.
         """Fallback intent analysis using keywords"""
         request_lower = request.lower()
         
+        # Enhanced keyword detection for Docker
+        docker_keywords = [
+            'docker', 'container', 'containerize', 'dockerfile', 
+            'image', 'registry', 'docker-compose', 'compose'
+        ]
+        
+        # Enhanced keyword detection for CI/CD
+        cicd_keywords = [
+            'ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow',
+            'jenkins', 'gitlab ci', 'circle ci', 'travis',
+            'build', 'test', 'deploy', 'sonarqube', 'junit',
+            'github', 'azure devops'
+        ]
+        
+        requires_docker = any(k in request_lower for k in docker_keywords)
+        requires_cicd = any(k in request_lower for k in cicd_keywords)
+        
+        print(f"[Planner] Keyword analysis: requires_docker={requires_docker}, requires_cicd={requires_cicd}")
+        print(f"[Planner] Request: {request_lower[:100]}...")
+        
         return {
             "primary_goal": "devops automation",
-            "requires_docker": any(k in request_lower for k in ['docker', 'container', 'containerize']),
-            "requires_cicd": any(k in request_lower for k in ['ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow']),
+            "requires_docker": requires_docker,
+            "requires_cicd": requires_cicd,
             "requires_infrastructure": any(k in request_lower for k in ['infrastructure', 'terraform', 'cloud', 'aws', 'azure', 'gcp', 'deploy']),
             "requires_k8s": any(k in request_lower for k in ['kubernetes', 'k8s', 'kubectl', 'helm']),
             "cloud_provider": self._extract_cloud_provider(request_lower),

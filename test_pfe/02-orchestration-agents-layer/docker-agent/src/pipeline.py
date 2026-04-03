@@ -33,11 +33,12 @@ class DockerPipeline:
 
     def __init__(self):
         # Tools Layer
+        print(f"[Docker Agent] Initializing pipeline with LLM_CONFIG: enabled={LLM_CONFIG.get('enabled')}, provider={LLM_CONFIG.get('provider')}")
         self.analyze_project = AnalyzeProject()
         self.prompt_intent_resolver = PromptIntentResolver()
         self.generate_file = GenerateFile(use_llm=LLM_CONFIG.get("enabled", False))
         self.validate = Validate()
-        self.rag_kb = RAGKnowledgeBase(str(DATA_DIR / "knowledge_base"))
+        self.rag_kb = RAGKnowledgeBase(str(DATA_DIR))  # DATA_DIR already points to knowledge_base
         self.scout_scan = ScoutScan()
         self.optimize_image = OptimizeImage()
         self.write_files = WriteFiles()
