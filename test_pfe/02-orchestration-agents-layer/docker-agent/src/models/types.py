@@ -42,6 +42,24 @@ class RepositoryContext:
     existing_compose_files: List[str] = field(default_factory=list)
     detected_ports: List[int] = field(default_factory=list)
     environment_variables: List[str] = field(default_factory=list)
+    
+    # NEW: Dependency version information (from dependency_analyzer.py)
+    python_version: Optional[str] = None
+    java_version: Optional[str] = None
+    node_version: Optional[str] = None
+    go_version: Optional[str] = None
+    
+    # Framework-specific versions
+    django_version: Optional[str] = None
+    fastapi_version: Optional[str] = None
+    flask_version: Optional[str] = None
+    spring_boot_version: Optional[str] = None
+    express_version: Optional[str] = None
+    
+    # Dependency analysis results
+    dependency_warnings: List[str] = field(default_factory=list)
+    dependency_recommendations: List[str] = field(default_factory=list)
+    has_version_conflicts: bool = False
 
 @dataclass
 class DatasetExample:

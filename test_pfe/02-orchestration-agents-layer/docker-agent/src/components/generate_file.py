@@ -56,6 +56,14 @@ class GenerateFile:
             "package_managers": context.package_managers,
             "build_tools": context.build_tools,
             "frameworks": context.frameworks,
+            # NEW: Add version information
+            "python_version": context.python_version,
+            "java_version": context.java_version,
+            "node_version": context.node_version,
+            "django_version": context.django_version,
+            "spring_boot_version": context.spring_boot_version,
+            "dependency_warnings": context.dependency_warnings,
+            "dependency_recommendations": context.dependency_recommendations,
         }
         
         dockerfile = self.llm_client.generate_dockerfile(request.text, context_dict)
@@ -66,6 +74,9 @@ class GenerateFile:
                 "stack_type": stack_type,
                 "generator": "llm",
                 "requested": request.text,
+                "python_version": context.python_version,
+                "java_version": context.java_version,
+                "node_version": context.node_version,
             },
             generation_attempts=1,
             llm_model_used=self.llm_client.model,
@@ -111,14 +122,16 @@ class GenerateFile:
 
     def _node_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 3000
-        return f"""FROM node:20-alpine AS builder
+        # Use detected Node version or default to 20
+        node_version = context.node_version or "20"
+        return f"""FROM node:{node_version}-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM node:{node_version}-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
@@ -131,7 +144,9 @@ CMD [\"node\", \"dist/main.js\"]
 
     def _python_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 8000
-        return f"""FROM python:3.11-slim
+        # Use detected Python version or default to 3.11
+        python_version = context.python_version or "3.11"
+        return f"""FROM python:{python_version}-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -146,19 +161,27 @@ CMD [\"python\", \"main.py\"]
 
     def _java_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 8080
-        return f"""FROM maven:3.9.8-eclipse-temurin-17 AS builder
+        # Use detected Java version or default to 17
+        # But prefer the version if it was actually detected
+        java_version = context.java_version or "17"
+        
+        # Add warning if defaulting
+        if not context.java_version:
+            print(f"⚠️  WARNING: Java version not detected from dependencies, defaulting to {java_version}")
+        
+        return f"""FROM maven:3.9-eclipse-temurin-{java_version}-alpine AS builder
 WORKDIR /app
 COPY pom.xml ./
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:{java_version}-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
-RUN useradd -m appuser
-USER appuser
+RUN groupadd -r spring && useradd -r -g spring spring
+USER spring
 EXPOSE {port}
-CMD [\"java\", \"-jar\", \"app.jar\"]
+CMD ["java", "-jar", "app.jar"]
 """
 
     def _generic_template(self, context: RepositoryContext) -> str:

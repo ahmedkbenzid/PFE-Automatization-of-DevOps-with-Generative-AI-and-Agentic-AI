@@ -100,6 +100,10 @@ class CICDPipeline:
                     'has_dockerfile': repo_context.get('has_dockerfile', False),
                     'has_ci_workflows': repo_context.get('has_ci_workflows', False),
                     'existing_workflows': repo_context.get('existing_workflows', []),
+                    # Docker-specific context (for Docker agent integration)
+                    'dockerfile_being_generated': repo_context.get('dockerfile_being_generated', False),
+                    'dockerfile_path': repo_context.get('dockerfile_path', 'Dockerfile'),
+                    'docker_context_path': repo_context.get('docker_context_path', '.'),
                 }
             elif repo_path:
                 local_repo_context = self.context_collector.collect_from_local_repo(repo_path)
@@ -150,6 +154,7 @@ class CICDPipeline:
             # Retrieve relevant knowledge using enhanced semantic chunking
             # This uses the new enhanced chunking system that breaks workflows into
             # metadata, job, and step chunks for better matching
+            knowledge_query = " ".join(retrieval_query_parts)
             retrieved_knowledge = self.dataset_manager.retrieve_knowledge(knowledge_query, top_k=3)
 
             print(f"✓ Found {len(relevant_examples)} relevant examples")

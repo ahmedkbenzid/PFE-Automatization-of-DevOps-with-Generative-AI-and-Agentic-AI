@@ -5,11 +5,13 @@ import re
 
 class Guardrails:
     def __init__(self, api_key: str, model_name: str="llama-3.1-8b-instant"):
-        self.llm = ChatGroq(
-            api_key=api_key, 
-            model=model_name,
-            temperature=0  # Deterministic check
-        )
+        self.llm = None
+        if api_key:
+            self.llm = ChatGroq(
+                api_key=api_key,
+                model=model_name,
+                temperature=0  # Deterministic check
+            )
 
     def validate_input(self, user_prompt: str) -> dict:
         """
@@ -29,6 +31,12 @@ class Guardrails:
         prompt_lower = user_prompt.lower()
         if any(keyword in prompt_lower for keyword in devops_keywords):
             return {"is_allowed": True, "reason": "DevOps keyword detected (fast-path)"}
+
+        if self.llm is None:
+            return {
+                "is_allowed": True,
+                "reason": "LLM guardrail unavailable; accepted by fallback policy",
+            }
 
         # Slow-path: Use LLM for ambiguous requests
         guardrail_prompt = PromptTemplate.from_template(

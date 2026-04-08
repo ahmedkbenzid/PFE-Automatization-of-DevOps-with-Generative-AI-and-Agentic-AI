@@ -145,6 +145,14 @@ if 'user_feedback_choice' not in st.session_state:
     st.session_state.user_feedback_choice = "not"
 if 'feedback_edits' not in st.session_state:
     st.session_state.feedback_edits = {}
+if 'artifacts_applied' not in st.session_state:
+    st.session_state.artifacts_applied = False
+if 'apply_result' not in st.session_state:
+    st.session_state.apply_result = None
+if 'current_repo_path' not in st.session_state:
+    st.session_state.current_repo_path = None
+if 'execution_result' not in st.session_state:
+    st.session_state.execution_result = None
 
 
 def check_environment() -> Dict[str, bool]:
@@ -400,6 +408,76 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
     return artifacts
 
 
+def run_orchestrator_command_with_live_logs(
+    cmd: list,
+    cwd: str,
+    env: Dict[str, str],
+    panel_title: str,
+) -> Dict[str, Any]:
+    """Run orchestrator command while streaming combined stdout/stderr in the UI."""
+    log_panel = st.expander(f"🖥️ {panel_title}", expanded=True)
+    live_log = log_panel.empty()
+    output_lines = []
+    ui_render_enabled = True
+    last_render_at = 0.0
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+
+    def _render_logs(force: bool = False) -> None:
+        nonlocal ui_render_enabled, last_render_at
+        if not ui_render_enabled:
+            return
+
+        now = time.monotonic()
+        should_render = force or (now - last_render_at) >= 0.2 or (len(output_lines) % 8 == 0)
+        if not should_render:
+            return
+
+        try:
+            live_log.code("\n".join(output_lines[-220:]), language="text")
+            last_render_at = now
+        except Exception:
+            # Client websocket may close during long-running commands; keep collecting logs silently.
+            ui_render_enabled = False
+
+    while True:
+        line = process.stdout.readline()
+        if line == "" and process.poll() is not None:
+            break
+        if line:
+            output_lines.append(line.rstrip("\n"))
+            _render_logs()
+
+    _render_logs(force=True)
+
+    return_code = process.wait()
+    stdout_text = "\n".join(output_lines)
+
+    try:
+        if return_code == 0:
+            log_panel.caption("Command completed successfully.")
+        else:
+            log_panel.caption(f"Command failed with exit code {return_code}.")
+    except Exception:
+        pass
+
+    return {
+        "returncode": return_code,
+        "stdout": stdout_text,
+        "stderr": "",
+    }
+
+
 def display_agent_status(result: Dict[str, Any]):
     """Display status of each agent execution"""
     if not result or not isinstance(result, dict):
@@ -439,6 +517,86 @@ def display_agent_status(result: Dict[str, Any]):
                 st.markdown("⏸️ **Pending**")
             
             st.markdown('</div>', unsafe_allow_html=True)
+
+
+def display_pipeline_execution(result: Dict[str, Any]):
+    """Render docker/act local execution details, retries, and logs."""
+    if not result or not isinstance(result, dict):
+        return
+
+    state = result.get("state", {})
+    agent_outputs = state.get("agent_outputs", {})
+    pipeline_execution = agent_outputs.get("pipeline_execution", {}) if isinstance(agent_outputs, dict) else {}
+
+    if not pipeline_execution:
+        return
+
+    st.markdown("### 🔬 Local Pipeline Execution")
+
+    status = pipeline_execution.get("status", "unknown")
+    if status == "success":
+        st.success("Docker build and act completed successfully.")
+    elif status == "skipped":
+        st.info(pipeline_execution.get("message", "Pipeline execution skipped."))
+    else:
+        st.error(pipeline_execution.get("message", "Local pipeline execution failed."))
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Retries Used", pipeline_execution.get("repair_retry_count", 0))
+    with col2:
+        st.metric("Max Retries", pipeline_execution.get("max_self_repair_retries", 0))
+    with col3:
+        st.metric("Final Status", status)
+
+    workspace = pipeline_execution.get("workspace")
+    if workspace:
+        st.caption(f"Workspace: {workspace}")
+
+    attempts = pipeline_execution.get("attempts", [])
+    if not attempts:
+        attempts = [{"attempt_number": 1, "kind": "single", "result": pipeline_execution}]
+
+    for attempt in attempts:
+        attempt_number = attempt.get("attempt_number", 1)
+        kind = attempt.get("kind", "single")
+        attempt_result = attempt.get("result", {})
+        attempt_status = attempt_result.get("status", "unknown")
+
+        with st.expander(f"Attempt {attempt_number} ({kind}) - {attempt_status}", expanded=(attempt_status != "success")):
+            repo_copy = attempt_result.get("repo_copy", {})
+            if isinstance(repo_copy, dict):
+                if repo_copy.get("copied"):
+                    st.caption(
+                        f"Repo copied from {repo_copy.get('source', 'unknown')} to {repo_copy.get('destination', 'unknown')} "
+                        f"({repo_copy.get('copied_entries', 0)} entries)."
+                    )
+                elif repo_copy.get("reason"):
+                    st.caption(f"Repo copy skipped: {repo_copy.get('reason')}")
+
+            for step_key, label in (("docker_build", "Docker Build"), ("act", "Act Workflow")):
+                step_data = attempt_result.get(step_key, {})
+                if not isinstance(step_data, dict):
+                    continue
+
+                st.markdown(f"**{label}**")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric("Exit Code", step_data.get("exit_code", "n/a"))
+                with c2:
+                    st.metric("Timed Out", "Yes" if step_data.get("timed_out") else "No")
+                with c3:
+                    st.metric("Success", "Yes" if step_data.get("success") else "No")
+
+                logs = step_data.get("logs", [])
+                if isinstance(logs, list) and logs:
+                    rendered_logs = []
+                    for log_item in logs[-220:]:
+                        if isinstance(log_item, dict):
+                            rendered_logs.append(f"[{log_item.get('stream', 'stdout')}] {log_item.get('line', '')}")
+                        else:
+                            rendered_logs.append(str(log_item))
+                    st.code("\n".join(rendered_logs), language="text")
 
 
 def display_artifacts(artifacts: Dict[str, Any]):
@@ -589,6 +747,37 @@ def _apply_feedback_edits_to_result(result: Dict[str, Any], edited_artifacts: Di
     updated = dict(result)
     updated["edited_artifacts"] = edited_artifacts
     return updated
+
+
+def apply_artifacts_to_repository(repo_path: str, artifacts: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Apply generated artifacts to the target repository.
+    
+    Args:
+        repo_path: Path to the target repository
+        artifacts: Dictionary containing the artifacts to write
+    
+    Returns:
+        Dictionary with application results
+    """
+    try:
+        # Import here to avoid module loading issues at startup
+        orchestrator_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent"
+        if str(orchestrator_path) not in sys.path:
+            sys.path.insert(0, str(orchestrator_path))
+        
+        from src.artifact_writer import ArtifactWriter
+        
+        writer = ArtifactWriter(repo_path)
+        result = writer.write_all_artifacts(artifacts, backup=True)
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "artifacts_written": [],
+            "errors": [str(e)]
+        }
 
 
 def main():
@@ -817,26 +1006,24 @@ def main():
                     "GROQ_API_KEY", "GROQ_MODEL", "GROQ_FALLBACK_MODEL"
                 ]
                 for var in llm_env_vars:
-                    if var not in run_env and os.getenv(var):
-                        run_env[var] = os.getenv(var)
+                    env_value = os.getenv(var)
+                    if var not in run_env and env_value is not None:
+                        run_env[var] = env_value
                 
-                process = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
+                run_result = run_orchestrator_command_with_live_logs(
+                    cmd=cmd,
                     cwd=str(orchestrator_script.parent),
                     env=run_env,
-                    encoding="utf-8",
-                    errors="replace"
+                    panel_title="Approved Plan Execution Logs",
                 )
-                
-                stdout_text = process.stdout or ""
-                stderr_text = process.stderr or ""
+
+                stdout_text = run_result.get("stdout", "")
+                stderr_text = run_result.get("stderr", "")
                 elapsed_time = time.time() - start_time
                 
                 progress_bar.progress(70)
                 
-                if process.returncode == 0:
+                if run_result.get("returncode", 1) == 0:
                     # Parse output
                     output_lines = stdout_text.strip().split('\n') if stdout_text else []
                     result_data = {
@@ -895,7 +1082,7 @@ def main():
                     st.info("Please provide human feedback to continue the flow.")
                     st.rerun()
                 else:
-                    st.error(f"❌ Execution failed with exit code {process.returncode}")
+                    st.error(f"❌ Execution failed with exit code {run_result.get('returncode', 'unknown')}")
                     if stderr_text:
                         st.code(stderr_text, language="text")
                     if stdout_text:
@@ -918,6 +1105,13 @@ def main():
         st.markdown("---")
         st.markdown("## 💬 Human Feedback & Review")
         st.info("✅ Execution completed. Review generated artifacts below.")
+        
+        # Show repository path information
+        repo_path_available = st.session_state.current_repo_path and Path(st.session_state.current_repo_path).exists()
+        if repo_path_available:
+            st.success(f"📁 Repository Path: `{st.session_state.current_repo_path}` - Ready to apply artifacts")
+        else:
+            st.warning("⚠️ No local repository path available. You can download artifacts but cannot apply them directly to a repository.")
 
         feedback_result = st.session_state.pending_feedback_result
         feedback_artifacts = extract_artifacts(feedback_result)
@@ -996,10 +1190,246 @@ def main():
             st.warning("⚠️ No artifacts were generated. Please check the execution logs above.")
             edited_yaml = ""
             edited_dockerfile = ""
+        
+        # Validation section (optional execution)
+        st.markdown("---")
+        st.markdown("### 🔬 Validation (Optional)")
+        st.info("💡 You can validate the generated artifacts by building the Docker image and running the CI/CD workflow locally using Docker and Act.")
+        
+        repo_path_to_use = st.session_state.current_repo_path
+        github_url_from_result = None
+        
+        # Check if we have a GitHub URL in the result
+        result_data = st.session_state.pending_feedback_result
+        if result_data and isinstance(result_data, dict):
+            state_data = result_data.get("state", {})
+            if isinstance(state_data, dict):
+                repo_context = state_data.get("repo_context", {})
+                if isinstance(repo_context, dict):
+                    github_url_from_result = repo_context.get("github_url") or repo_context.get("path")
+        
+        # Determine if validation is possible
+        has_local_path = repo_path_to_use and Path(repo_path_to_use).exists()
+        has_github_url = github_url_from_result and (github_url_from_result.startswith("http://") or github_url_from_result.startswith("https://"))
+        
+        if not has_local_path and not has_github_url:
+            st.warning("⚠️ Repository path or GitHub URL required for validation. Validation disabled.")
+            validation_button_disabled = True
+        elif not has_local_path and has_github_url:
+            st.info(f"ℹ️ GitHub URL detected: `{github_url_from_result}` - Will clone temporarily for validation")
+            validation_button_disabled = False
+        else:
+            validation_button_disabled = False
+        
+        if st.button("🔬 Execute & Validate", use_container_width=True, disabled=validation_button_disabled, help="Build Docker image and run CI/CD workflow locally"):
+            with st.spinner("🔄 Executing validation... This may take several minutes."):
+                try:
+                    # If we don't have a local path but have a GitHub URL, clone it first
+                    temp_clone_dir = None
+                    if not has_local_path and has_github_url:
+                        import tempfile
+                        import subprocess
+                        
+                        st.info(f"🔄 Cloning repository from {github_url_from_result}...")
+                        temp_clone_dir = tempfile.mkdtemp(prefix="repo_validation_")
+                        
+                        try:
+                            clone_result = subprocess.run(
+                                ["git", "clone", github_url_from_result, temp_clone_dir],
+                                capture_output=True,
+                                text=True,
+                                timeout=300  # 5 minute timeout for clone
+                            )
+                            
+                            if clone_result.returncode != 0:
+                                st.error(f"❌ Failed to clone repository: {clone_result.stderr}")
+                                if temp_clone_dir and Path(temp_clone_dir).exists():
+                                    import shutil
+                                    shutil.rmtree(temp_clone_dir, ignore_errors=True)
+                                raise Exception(f"Git clone failed: {clone_result.stderr}")
+                            
+                            repo_path_to_use = temp_clone_dir
+                            st.success(f"✅ Repository cloned to temporary directory")
+                            
+                        except subprocess.TimeoutExpired:
+                            st.error("❌ Repository clone timed out after 5 minutes")
+                            if temp_clone_dir and Path(temp_clone_dir).exists():
+                                import shutil
+                                shutil.rmtree(temp_clone_dir, ignore_errors=True)
+                            raise Exception("Git clone timed out")
+                        except FileNotFoundError:
+                            st.error("❌ Git is not installed or not in PATH. Please install Git to clone repositories.")
+                            raise Exception("Git not found")
+                    
+                    # Import execution agent
+                    exec_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "execution-sandbox"
+                    if str(exec_agent_path) not in sys.path:
+                        sys.path.insert(0, str(exec_agent_path))
+                    
+                    from pipeline import run_execution
+                    
+                    # Run execution with user's edited artifacts
+                    exec_result = run_execution(
+                        dockerfile_content=edited_dockerfile.strip() or "",
+                        cicd_workflow_content=edited_yaml.strip() or "",
+                        repository_path=repo_path_to_use,
+                        docker_timeout=600,
+                        act_timeout=600
+                    )
+                    
+                    # Cleanup temp directory if we created one
+                    if temp_clone_dir and Path(temp_clone_dir).exists():
+                        import shutil
+                        st.info("🧹 Cleaning up temporary clone directory...")
+                        shutil.rmtree(temp_clone_dir, ignore_errors=True)
+                    
+                    # Store result
+                    st.session_state.execution_result = exec_result
+                    
+                    # Display results
+                    if exec_result["status"] == "success":
+                        st.success("✅ Validation completed successfully! Both Docker build and CI/CD workflow executed without errors.")
+                        
+                        with st.expander("📊 Validation Details", expanded=True):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                docker_result = exec_result.get("docker_build", {})
+                                st.markdown("**🐳 Docker Build**")
+                                st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
+                                st.metric("Status", "✅ Success" if docker_result.get("success") else "❌ Failed")
+                                if docker_result.get("timed_out"):
+                                    st.warning("⏱️ Timed out")
+                            
+                            with col2:
+                                act_result = exec_result.get("act", {})
+                                st.markdown("**⚡ Act Workflow**")
+                                st.metric("Exit Code", act_result.get("exit_code", "N/A"))
+                                st.metric("Status", "✅ Success" if act_result.get("success") else "❌ Failed")
+                                if act_result.get("timed_out"):
+                                    st.warning("⏱️ Timed out")
+                            
+                            # Show workspace info
+                            st.caption(f"Workspace: `{exec_result.get('workspace', 'N/A')}`")
+                            st.caption(f"Docker Image: `{exec_result.get('image_name', 'N/A')}`")
+                            
+                            # Show logs
+                            with st.expander("🐳 Docker Build Logs (last 50 lines)"):
+                                docker_logs = [log.get("line", "") for log in docker_result.get("logs", []) if isinstance(log, dict)]
+                                if docker_logs:
+                                    st.code("\n".join(docker_logs[-50:]), language="text")
+                                else:
+                                    st.info("No logs available")
+                            
+                            with st.expander("⚡ Act Execution Logs (last 50 lines)"):
+                                act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
+                                if act_logs:
+                                    st.code("\n".join(act_logs[-50:]), language="text")
+                                else:
+                                    st.info("No logs available")
+                    else:
+                        st.error(f"❌ Validation failed: {exec_result.get('message', 'Unknown error')}")
+                        
+                        with st.expander("🔍 Error Details", expanded=True):
+                            docker_result = exec_result.get("docker_build", {})
+                            act_result = exec_result.get("act", {})
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**🐳 Docker Build**")
+                                st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
+                                st.metric("Success", "✅" if docker_result.get("success") else "❌")
+                            
+                            with col2:
+                                st.markdown("**⚡ Act Workflow**")
+                                st.metric("Exit Code", act_result.get("exit_code", "N/A"))
+                                st.metric("Success", "✅" if act_result.get("success") else "❌")
+                            
+                            # Show error logs
+                            with st.expander("🐳 Docker Build Logs"):
+                                docker_logs = [log.get("line", "") for log in docker_result.get("logs", []) if isinstance(log, dict)]
+                                if docker_logs:
+                                    st.code("\n".join(docker_logs[-100:]), language="text")
+                                else:
+                                    st.info("No logs available")
+                            
+                            with st.expander("⚡ Act Execution Logs"):
+                                act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
+                                if act_logs:
+                                    st.code("\n".join(act_logs[-100:]), language="text")
+                                else:
+                                    st.info("No logs available")
+                            
+                            # Show full result for debugging
+                            with st.expander("📋 Full Execution Result (Debug)"):
+                                st.json(exec_result)
+                
+                except ImportError as e:
+                    st.error(f"❌ Failed to import execution agent: {str(e)}")
+                    st.info("Make sure the execution-sandbox directory structure is set up correctly. Run create_structure.bat if needed.")
+                except Exception as e:
+                    st.error(f"❌ Validation failed with exception: {str(e)}")
+                    st.exception(e)
 
-        col1, col2 = st.columns(2)
+        st.markdown("---")
+        st.markdown("### 🎯 Action Options")
+        
+        # Check if repo path is available
+        repo_path_available = st.session_state.current_repo_path and Path(st.session_state.current_repo_path).exists()
+        
+        # Check if we have GitHub URL but no local path
+        has_github_only = (not repo_path_available) and github_url_from_result and (github_url_from_result.startswith("http://") or github_url_from_result.startswith("https://"))
+        
+        if has_github_only:
+            st.info(f"ℹ️ **GitHub URL Mode**: Repository is on GitHub (`{github_url_from_result}`). You can download artifacts or clone the repo locally to apply them.")
+        
+        col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("✅ Accept Results", type="primary", use_container_width=True):
+            apply_button_disabled = not repo_path_available
+            apply_button_help = "Save artifacts to your repository" if repo_path_available else "Clone the repository locally first to apply artifacts"
+            
+            if st.button(
+                "✅ Accept & Apply to Repository", 
+                type="primary", 
+                use_container_width=True, 
+                help=apply_button_help,
+                disabled=apply_button_disabled
+            ):
+                # Check if we have a valid repository path
+                repo_path_to_use = st.session_state.current_repo_path
+                if not repo_path_to_use or not Path(repo_path_to_use).exists():
+                    st.error("⚠️ No valid repository path available. Please clone the repository locally first.")
+                    if has_github_only:
+                        st.code(f"git clone {github_url_from_result}", language="bash")
+                else:
+                    st.session_state.user_feedback_choice = "accept"
+                    edited_artifacts = {
+                        "yaml": edited_yaml.strip() or None,
+                        "dockerfile": edited_dockerfile.strip() or None,
+                        "terraform": {
+                            "main_tf": edited_main_tf.strip(),
+                            "variables_tf": edited_variables_tf.strip(),
+                            "outputs_tf": edited_outputs_tf.strip(),
+                            "providers_tf": edited_providers_tf.strip(),
+                        },
+                        "metadata": feedback_artifacts.get("metadata", {}),
+                    }
+                    st.session_state.feedback_edits = edited_artifacts
+                    
+                    # Apply artifacts to repository
+                    with st.spinner("🔄 Applying artifacts to repository..."):
+                        apply_result = apply_artifacts_to_repository(repo_path_to_use, edited_artifacts)
+                        st.session_state.apply_result = apply_result
+                        st.session_state.artifacts_applied = True
+                    
+                    st.session_state.orchestration_result = _apply_feedback_edits_to_result(feedback_result, edited_artifacts)
+                    st.session_state.feedback_stage = False
+                    st.session_state.pending_feedback_result = None
+                    st.rerun()
+        
+        with col2:
+            if st.button("📥 Accept (Download Only)", use_container_width=True, help="Accept without writing to repository"):
                 st.session_state.user_feedback_choice = "accept"
                 edited_artifacts = {
                     "yaml": edited_yaml.strip() or None,
@@ -1016,9 +1446,11 @@ def main():
                 st.session_state.orchestration_result = _apply_feedback_edits_to_result(feedback_result, edited_artifacts)
                 st.session_state.feedback_stage = False
                 st.session_state.pending_feedback_result = None
+                st.session_state.artifacts_applied = False  # Not applied
                 st.rerun()
-        with col2:
-            if st.button("❌ Not Acceptable", use_container_width=True):
+        
+        with col3:
+            if st.button("❌ Reject", use_container_width=True, help="Reject the generated artifacts"):
                 st.session_state.user_feedback_choice = "not"
                 edited_artifacts = {
                     "yaml": edited_yaml.strip() or None,
@@ -1036,6 +1468,7 @@ def main():
                 st.session_state.orchestration_result = _apply_feedback_edits_to_result(feedback_result, edited_artifacts)
                 st.session_state.feedback_stage = False
                 st.session_state.pending_feedback_result = None
+                st.session_state.artifacts_applied = False  # Not applied
                 st.warning("Feedback marked as 'not'. PR creation path is skipped.")
                 st.rerun()
 
@@ -1068,8 +1501,13 @@ def main():
                 cmd.extend(["--prompt", user_prompt])
                 cmd.append("--plan-only")  # First, get the plan
                 
+                # Store repo_path in session state
                 if repo_path:
                     cmd.extend(["--repo-path", str(repo_path)])
+                    st.session_state.current_repo_path = str(repo_path)
+                else:
+                    st.session_state.current_repo_path = None
+                
                 if github_url:
                     cmd.extend(["--github-url", github_url])
                 if 'output_scope' in locals():
@@ -1086,18 +1524,15 @@ def main():
                 run_env = os.environ.copy()
                 run_env["PYTHONIOENCODING"] = "utf-8"
                 
-                process = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
+                run_result = run_orchestrator_command_with_live_logs(
+                    cmd=cmd,
                     cwd=str(orchestrator_script.parent),
                     env=run_env,
-                    encoding="utf-8",
-                    errors="replace"
+                    panel_title="Orchestrator Runtime Logs",
                 )
-                
-                stdout_text = process.stdout or ""
-                stderr_text = process.stderr or ""
+
+                stdout_text = run_result.get("stdout", "")
+                stderr_text = run_result.get("stderr", "")
                 
                 status_text.text("Processing results...")
                 progress_bar.progress(70)
@@ -1105,7 +1540,7 @@ def main():
                 elapsed_time = time.time() - start_time
                 
                 # Parse output
-                if process.returncode == 0:
+                if run_result.get("returncode", 1) == 0:
                     # Try to extract JSON from output
                     output_lines = stdout_text.strip().split('\n') if stdout_text else []
                     result_data = {
@@ -1183,7 +1618,7 @@ def main():
                         st.info("Please provide human feedback to continue the flow.")
                         st.rerun()
                 else:
-                    st.error(f"❌ Orchestrator failed with exit code {process.returncode}")
+                    st.error(f"❌ Orchestrator failed with exit code {run_result.get('returncode', 'unknown')}")
                     if stderr_text:
                         st.code(stderr_text, language="text")
                     if stdout_text:
@@ -1202,6 +1637,77 @@ def main():
         
         st.markdown("---")
         st.markdown("## 📊 Orchestration Results")
+        
+        # Display artifacts application status if applicable
+        if st.session_state.artifacts_applied and st.session_state.apply_result:
+            apply_result = st.session_state.apply_result
+            if apply_result.get("success"):
+                st.success(f"✅ **Artifacts Applied Successfully** - {len(apply_result.get('artifacts_written', []))} artifact(s) written to repository")
+                
+                # Show details of what was written
+                with st.expander("📝 Application Details", expanded=True):
+                    for artifact_name in apply_result.get("artifacts_written", []):
+                        st.markdown(f"✅ **{artifact_name}** - Applied")
+                    
+                    # Show file paths
+                    if apply_result.get("dockerfile"):
+                        df_info = apply_result["dockerfile"]
+                        st.markdown(f"**Dockerfile:** `{df_info.get('path')}`")
+                        if df_info.get("backup_path"):
+                            st.caption(f"  Backup created: `{df_info.get('backup_path')}`")
+                    
+                    if apply_result.get("cicd_workflow"):
+                        wf_info = apply_result["cicd_workflow"]
+                        st.markdown(f"**CI/CD Workflow:** `{wf_info.get('path')}`")
+                        if wf_info.get("backup_path"):
+                            st.caption(f"  Backup created: `{wf_info.get('backup_path')}`")
+                    
+                    if apply_result.get("terraform"):
+                        tf_info = apply_result["terraform"]
+                        st.markdown(f"**Terraform:** `{tf_info.get('terraform_dir')}`")
+                        for file_key, file_info in tf_info.get("files", {}).items():
+                            if file_info.get("success"):
+                                st.caption(f"  ✅ {Path(file_info.get('path')).name}")
+            else:
+                st.error("❌ **Failed to Apply Artifacts**")
+                for error in apply_result.get("errors", []):
+                    st.error(f"  • {error}")
+        
+        # Display execution/validation status if applicable
+        if st.session_state.execution_result:
+            exec_result = st.session_state.execution_result
+            if exec_result.get("status") == "success":
+                st.success("✅ **Validation Completed Successfully** - Docker build and CI/CD workflow executed without errors")
+                
+                with st.expander("🔬 Validation Summary", expanded=False):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        docker_result = exec_result.get("docker_build", {})
+                        st.markdown("**🐳 Docker Build**")
+                        st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
+                        if docker_result.get("success"):
+                            st.success("✅ Success")
+                        else:
+                            st.error("❌ Failed")
+                    
+                    with col2:
+                        act_result = exec_result.get("act", {})
+                        st.markdown("**⚡ Act Workflow**")
+                        st.metric("Exit Code", act_result.get("exit_code", "N/A"))
+                        if act_result.get("success"):
+                            st.success("✅ Success")
+                        else:
+                            st.error("❌ Failed")
+                    
+                    with col3:
+                        st.markdown("**📁 Workspace**")
+                        st.caption(f"`{exec_result.get('workspace', 'N/A')}`")
+                        st.caption(f"Image: `{exec_result.get('image_name', 'N/A')}`")
+            else:
+                st.warning(f"⚠️ **Validation Failed** - {exec_result.get('message', 'Unknown error')}")
+                with st.expander("🔍 Validation Error Details"):
+                    st.json(exec_result)
         
         # Display planner usage indicator
         if result.get("used_planner"):
@@ -1267,6 +1773,9 @@ def main():
         
         # Agent status
         display_agent_status(result)
+
+        # Local docker/act execution details
+        display_pipeline_execution(result)
         
         st.markdown("")
         

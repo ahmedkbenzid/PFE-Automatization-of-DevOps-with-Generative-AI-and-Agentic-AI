@@ -7,9 +7,15 @@ Nodes receive the current state and return updates to be merged.
 
 import json
 import os
+import queue
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 import time
+import copy
 from typing import Any, Dict
 from pathlib import Path
 
@@ -35,7 +41,7 @@ def initialize_components():
 
     api_key = _config.LLM_API_KEY
     if not api_key:
-        raise ValueError("GROQ_API_KEY is missing from environment. Cannot initialize orchestrator.")
+        print("[Orchestrator] GROQ_API_KEY not set. Running with fast-path/fallback routing.")
 
     _guardrails = Guardrails(api_key=api_key, model_name=_config.MODEL_NAME)
     _router = IntentRouter(api_key=api_key, model_name=_config.MODEL_NAME)
@@ -255,9 +261,14 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
         is_available = repo_context.error is None and repo_context.analysis_mode != "prompt-only"
         source = {
             "mcp": "github",
+            "github": "github",
             "local": "local",
             "prompt-only": "none"
         }.get(repo_context.analysis_mode, "none")
+
+        context_path = repo_path or ""
+        if source == "github":
+            context_path = repo_context.github_url or github_url or ""
 
         # Print error details if analysis failed
         if repo_context.error:
@@ -266,7 +277,8 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
         context_dict: RepoContextDict = {
             "is_available": is_available,
             "source": source,
-            "path": repo_path or "",
+            "path": context_path,
+            "github_url": repo_context.github_url or github_url or "",
             "languages": repo_context.languages,
             "build_system": repo_context.build_system,
             "package_managers": repo_context.package_managers,
@@ -476,12 +488,34 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
     user_prompt = state.get("user_prompt", "")
     repo_context = state.get("repo_context", {})
     repository_path = state.get("repository_path") or _config.DEFAULT_REPOSITORY_PATH
+    github_url = state.get("github_url") or ""
+    if not github_url and isinstance(repo_context, dict):
+        repo_ctx_url = repo_context.get("github_url")
+        if isinstance(repo_ctx_url, str) and repo_ctx_url.strip():
+            github_url = repo_ctx_url.strip()
+        elif repo_context.get("source") == "github":
+            repo_ctx_path = repo_context.get("path")
+            if isinstance(repo_ctx_path, str) and repo_ctx_path.startswith("http"):
+                github_url = repo_ctx_path
+    
+    # FIXED: Use GitHub URL for agent execution when available
+    # This ensures docker-agent analyzes the correct repository instead of the orchestrator's directory
+    agent_repo_path = github_url if github_url else repository_path
+    
     approved_plan = state.get("approved_execution_plan")
 
     agent_outputs = dict(state.get("agent_outputs", {}))
     errors = list(state.get("errors", []))
 
     print("[Orchestrator] Dispatching to Target Agents...")
+    
+    # Enhance repo_context if Docker agent is being executed
+    enhanced_repo_context = dict(repo_context) if repo_context else {}
+    if "docker-agent" in target_agents:
+        print("[Orchestrator] Docker agent detected - enhancing context for CI/CD agent...")
+        enhanced_repo_context["dockerfile_being_generated"] = True
+        enhanced_repo_context["dockerfile_path"] = "Dockerfile"
+        enhanced_repo_context["docker_context_path"] = "."
     
     # If approved plan exists, execute according to plan order
     if approved_plan and "execution_order" in approved_plan:
@@ -496,7 +530,7 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=len(step)) as executor:
                     futures = {}
                     for agent in step:
-                        future = executor.submit(_execute_single_agent, agent, user_prompt, repository_path, repo_context)
+                        future = executor.submit(_execute_single_agent, agent, user_prompt, agent_repo_path, enhanced_repo_context)
                         futures[future] = agent
                     
                     for future in concurrent.futures.as_completed(futures):
@@ -511,17 +545,30 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
             else:
                 # Sequential execution
                 print(f"[Orchestrator] Step {step_idx}: Executing {step}")
-                result = _execute_single_agent(step, user_prompt, repository_path, repo_context)
+                result = _execute_single_agent(step, user_prompt, agent_repo_path, enhanced_repo_context)
                 agent_outputs[step] = result
                 if result.get("status") == "error":
                     errors.append(f"{step} failed: {result.get('message', 'Unknown error')}")
     else:
         # Default execution (no plan) - execute all agents in parallel
         for agent in target_agents:
-            result = _execute_single_agent(agent, user_prompt, repository_path, repo_context)
+            result = _execute_single_agent(agent, user_prompt, agent_repo_path, enhanced_repo_context)
             agent_outputs[agent] = result
             if result.get("status") == "error":
                 errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
+
+    # DISABLED: Automatic pipeline execution moved to separate execution agent
+    # Users must explicitly trigger validation via UI after reviewing artifacts
+    # pipeline_execution = _execute_pipeline_with_self_repair(
+    #     agent_outputs=agent_outputs,
+    #     user_prompt=user_prompt,
+    #     repository_path=repository_path,
+    #     github_url=github_url,
+    #     repo_context=repo_context,
+    # )
+    # agent_outputs["pipeline_execution"] = pipeline_execution
+    # if pipeline_execution.get("status") == "error":
+    #     errors.append(pipeline_execution.get("message", "Local pipeline execution failed"))
 
     return {
         "agent_outputs": agent_outputs,
@@ -882,3 +929,503 @@ def _execute_iac_agent(
     except Exception as e:
         print(f"[Orchestrator] Error executing {agent}: {str(e)}")
         return {"status": "error", "message": str(e)}
+
+
+def _extract_generated_dockerfile(agent_outputs: Dict[str, Any]) -> str:
+    docker_output = (agent_outputs.get("docker-agent") or {}).get("data") or {}
+    configuration = docker_output.get("configuration") or {}
+    raw_dockerfile = configuration.get("dockerfile_content") or ""
+    return _sanitize_generated_dockerfile(raw_dockerfile)
+
+
+def _extract_generated_cicd_workflow(agent_outputs: Dict[str, Any]) -> str:
+    cicd_output = (agent_outputs.get("cicd-agent") or {}).get("data") or {}
+    raw_workflow = cicd_output.get("workflow_yaml") or ""
+    return _sanitize_generated_workflow_yaml(raw_workflow)
+
+
+def _extract_fenced_blocks(text: str) -> list[tuple[str, str]]:
+    blocks: list[tuple[str, str]] = []
+    pattern = re.compile(r"```([a-zA-Z0-9_+\-]*)[ \t]*\n(.*?)```", re.DOTALL)
+    for match in pattern.finditer(text):
+        language = (match.group(1) or "").strip().lower()
+        content = (match.group(2) or "").strip()
+        if content:
+            blocks.append((language, content))
+    return blocks
+
+
+def _dockerfile_score(content: str) -> int:
+    if not content:
+        return 0
+
+    instructions = (
+        "FROM ", "RUN ", "COPY ", "ADD ", "WORKDIR ", "CMD ", "ENTRYPOINT ",
+        "EXPOSE ", "ENV ", "ARG ", "USER ", "LABEL ", "HEALTHCHECK ",
+        "SHELL ", "STOPSIGNAL ", "VOLUME ", "ONBUILD ",
+    )
+
+    score = 0
+    from_count = 0
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        upper_line = line.upper()
+        if upper_line.startswith("FROM "):
+            score += 6
+            from_count += 1
+        elif upper_line.startswith(instructions):
+            score += 2
+
+    lower_content = content.lower()
+    if "pipeline {" in lower_content:
+        score -= 8
+    if "stages:" in lower_content and "jobs:" not in lower_content:
+        score -= 4
+    if any(token in lower_content for token in ["github actions", "jenkins", "gitlab"]):
+        score -= 2
+
+    if from_count == 0:
+        return 0
+    return score
+
+
+def _github_actions_score(content: str) -> int:
+    if not content:
+        return 0
+
+    lower_content = content.lower()
+    score = 0
+
+    if "jobs:" in lower_content:
+        score += 6
+    if "\non:" in lower_content or lower_content.startswith("on:") or "'on':" in lower_content or '"on":' in lower_content:
+        score += 4
+    if "uses: actions/" in lower_content:
+        score += 2
+    if "pipeline {" in lower_content:
+        score -= 8
+    if "stages:" in lower_content and "jobs:" not in lower_content:
+        score -= 4
+
+    return score
+
+
+def _sanitize_generated_dockerfile(raw_content: str) -> str:
+    text = (raw_content or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+
+    fenced_blocks = _extract_fenced_blocks(text)
+    docker_candidates: list[tuple[int, str]] = []
+    for language, block in fenced_blocks:
+        if language in {"dockerfile", "docker", "", "text", "plaintext"}:
+            score = _dockerfile_score(block)
+            if score > 0:
+                docker_candidates.append((score, block))
+
+    if docker_candidates:
+        best_block = max(docker_candidates, key=lambda item: item[0])[1]
+        return best_block.strip() + "\n"
+
+    no_fence_lines = [line for line in text.splitlines() if not line.strip().startswith("```")]
+    no_fence_text = "\n".join(no_fence_lines).strip()
+    if _dockerfile_score(no_fence_text) > 0:
+        return no_fence_text + "\n"
+
+    instruction_prefixes = (
+        "FROM ", "RUN ", "COPY ", "ADD ", "WORKDIR ", "CMD ", "ENTRYPOINT ",
+        "EXPOSE ", "ENV ", "ARG ", "USER ", "LABEL ", "HEALTHCHECK ",
+        "SHELL ", "STOPSIGNAL ", "VOLUME ", "ONBUILD ",
+    )
+    lines = no_fence_text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().upper().startswith(instruction_prefixes):
+            candidate = "\n".join(lines[index:]).strip()
+            if candidate:
+                return candidate + "\n"
+
+    return no_fence_text + "\n"
+
+
+def _sanitize_generated_workflow_yaml(raw_content: str) -> str:
+    text = (raw_content or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+
+    fenced_blocks = _extract_fenced_blocks(text)
+    workflow_candidates: list[tuple[int, str]] = []
+    for language, block in fenced_blocks:
+        if language in {"yaml", "yml", "", "text", "plaintext", "github-actions"}:
+            score = _github_actions_score(block)
+            if score > 0:
+                workflow_candidates.append((score, block))
+
+    if workflow_candidates:
+        best_block = max(workflow_candidates, key=lambda item: item[0])[1]
+        return best_block.strip() + "\n"
+
+    no_fence_lines = [line for line in text.splitlines() if not line.strip().startswith("```")]
+    no_fence_text = "\n".join(no_fence_lines).strip()
+    if _github_actions_score(no_fence_text) > 0:
+        return no_fence_text + "\n"
+
+    return no_fence_text + "\n"
+
+
+def _tail_lines(lines: list[str], max_lines: int = 60) -> list[str]:
+    if len(lines) <= max_lines:
+        return lines
+    return lines[-max_lines:]
+
+
+def _summarize_pipeline_failure(execution_result: Dict[str, Any]) -> str:
+    docker_result = execution_result.get("docker_build") or {}
+    act_result = execution_result.get("act") or {}
+
+    summary_lines = [
+        "Previous local pipeline execution failed.",
+        f"docker build exit_code={docker_result.get('exit_code')} timed_out={docker_result.get('timed_out')}",
+        f"act exit_code={act_result.get('exit_code')} timed_out={act_result.get('timed_out')}",
+        "Recent docker log lines:",
+    ]
+
+    docker_logs = [entry.get("line", "") for entry in docker_result.get("logs", []) if isinstance(entry, dict)]
+    for line in _tail_lines(docker_logs, max_lines=20):
+        summary_lines.append(f"- {line}")
+
+    summary_lines.append("Recent act log lines:")
+    act_logs = [entry.get("line", "") for entry in act_result.get("logs", []) if isinstance(entry, dict)]
+    for line in _tail_lines(act_logs, max_lines=20):
+        summary_lines.append(f"- {line}")
+
+    return "\n".join(summary_lines)
+
+
+def _copy_repo_source_to_workspace(repository_path: str, workspace_path: Path, github_url: str = "") -> Dict[str, Any]:
+    if not github_url and isinstance(repository_path, str):
+        repo_path_candidate = repository_path.strip()
+        if repo_path_candidate.startswith("http://") or repo_path_candidate.startswith("https://"):
+            github_url = repo_path_candidate
+
+    if github_url:
+        clone = subprocess.run(
+            ["git", "clone", "--depth", "1", github_url, str(workspace_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if clone.returncode == 0:
+            copied_entries = len(list(workspace_path.iterdir()))
+            return {
+                "copied": True,
+                "source": github_url,
+                "destination": str(workspace_path),
+                "copied_entries": copied_entries,
+                "mode": "git-clone",
+            }
+
+        clone_error = (clone.stderr or clone.stdout or "git clone failed").strip()
+        return {
+            "copied": False,
+            "reason": f"Failed to clone GitHub repository: {clone_error}",
+            "source": github_url,
+            "destination": str(workspace_path),
+            "mode": "git-clone",
+        }
+
+    if not repository_path:
+        return {"copied": False, "reason": "No repository path provided"}
+
+    source_path = Path(repository_path)
+    if not source_path.exists() or not source_path.is_dir():
+        return {
+            "copied": False,
+            "reason": f"Repository path not found or not a directory: {repository_path}",
+        }
+
+    ignore_dirs = {
+        ".git",
+        ".hg",
+        ".svn",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".venv",
+        "venv",
+        "node_modules",
+    }
+
+    copied_entries = 0
+    for child in source_path.iterdir():
+        if child.name in ignore_dirs:
+            continue
+
+        target = workspace_path / child.name
+        if child.is_dir():
+            shutil.copytree(child, target, dirs_exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, target)
+        copied_entries += 1
+
+    return {
+        "copied": True,
+        "source": str(source_path),
+        "destination": str(workspace_path),
+        "copied_entries": copied_entries,
+    }
+
+
+def _stream_command_with_timeout(command: list[str], cwd: str, timeout_seconds: int, step_name: str) -> Dict[str, Any]:
+    """Run a command with real-time stdout/stderr streaming and hard timeout."""
+    print(f"[Orchestrator] [{step_name}] Running: {' '.join(command)}")
+
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+
+    output_queue: queue.Queue[tuple[str, str]] = queue.Queue()
+    collected_logs = []
+
+    def _reader(pipe, stream_name: str) -> None:
+        if pipe is None:
+            return
+        try:
+            for line in iter(pipe.readline, ""):
+                if line:
+                    output_queue.put((stream_name, line.rstrip("\n")))
+        except Exception as exc:
+            output_queue.put(("stderr", f"[{step_name}] log reader error ({stream_name}): {exc}"))
+        finally:
+            try:
+                pipe.close()
+            except Exception:
+                pass
+
+    stdout_thread = threading.Thread(target=_reader, args=(process.stdout, "stdout"), daemon=True)
+    stderr_thread = threading.Thread(target=_reader, args=(process.stderr, "stderr"), daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+
+    start = time.monotonic()
+    timed_out = False
+
+    while True:
+        if (time.monotonic() - start) > timeout_seconds:
+            timed_out = True
+            process.kill()
+            break
+
+        try:
+            stream_name, line = output_queue.get(timeout=0.1)
+            print(f"[Orchestrator] [{step_name}][{stream_name}] {line}")
+            if len(collected_logs) < 2000:
+                collected_logs.append({"stream": stream_name, "line": line})
+        except queue.Empty:
+            pass
+
+        if process.poll() is not None and output_queue.empty() and not stdout_thread.is_alive() and not stderr_thread.is_alive():
+            break
+
+    # Drain any residual buffered lines.
+    while True:
+        try:
+            stream_name, line = output_queue.get_nowait()
+            print(f"[Orchestrator] [{step_name}][{stream_name}] {line}")
+            if len(collected_logs) < 2000:
+                collected_logs.append({"stream": stream_name, "line": line})
+        except queue.Empty:
+            break
+
+    exit_code = process.wait()
+    if timed_out:
+        print(f"[Orchestrator] [{step_name}] Timed out after {timeout_seconds}s")
+
+    return {
+        "step": step_name,
+        "command": command,
+        "cwd": cwd,
+        "exit_code": exit_code,
+        "timed_out": timed_out,
+        "logs": collected_logs,
+        "success": (not timed_out and exit_code == 0),
+    }
+
+
+def _execute_generated_pipeline(agent_outputs: Dict[str, Any], repository_path: str, github_url: str = "") -> Dict[str, Any]:
+    """Build and run generated CI/CD artifacts in a temp workspace."""
+    docker_agent = agent_outputs.get("docker-agent") or {}
+    cicd_agent = agent_outputs.get("cicd-agent") or {}
+
+    if docker_agent.get("status") != "success" or cicd_agent.get("status") != "success":
+        return {
+            "status": "skipped",
+            "message": "Skipped pipeline execution because docker-agent or cicd-agent did not succeed.",
+            "should_self_repair": False,
+        }
+
+    dockerfile_content = _extract_generated_dockerfile(agent_outputs)
+    ci_workflow_content = _extract_generated_cicd_workflow(agent_outputs)
+
+    # Keep downstream consumers (UI/JSON output) aligned with sanitized artifacts.
+    docker_data = docker_agent.get("data") if isinstance(docker_agent, dict) else None
+    if isinstance(docker_data, dict):
+        configuration = docker_data.get("configuration")
+        if isinstance(configuration, dict) and dockerfile_content:
+            configuration["dockerfile_content"] = dockerfile_content
+
+    cicd_data = cicd_agent.get("data") if isinstance(cicd_agent, dict) else None
+    if isinstance(cicd_data, dict) and ci_workflow_content:
+        cicd_data["workflow_yaml"] = ci_workflow_content
+
+    if not dockerfile_content or not ci_workflow_content:
+        return {
+            "status": "error",
+            "message": "Generated Dockerfile or CI workflow is missing.",
+            "should_self_repair": True,
+            "docker_build": {"exit_code": -1, "timed_out": False},
+            "act": {"exit_code": -1, "timed_out": False},
+        }
+
+    temp_workspace = tempfile.mkdtemp(prefix="orchestrator-exec-")
+    workspace_path = Path(temp_workspace)
+
+    try:
+        copy_result = _copy_repo_source_to_workspace(repository_path, workspace_path, github_url=github_url)
+        print(f"[Orchestrator] [workspace] Copy result: {copy_result}")
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to copy repository source into workspace: {str(e)}",
+            "should_self_repair": True,
+            "workspace": str(workspace_path),
+            "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+            "act": {"exit_code": -1, "timed_out": False, "logs": []},
+        }
+
+    if not copy_result.get("copied"):
+        return {
+            "status": "error",
+            "message": f"Failed to prepare execution workspace: {copy_result.get('reason', 'unknown reason')}",
+            "should_self_repair": True,
+            "workspace": str(workspace_path),
+            "repo_copy": copy_result,
+            "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+            "act": {"exit_code": -1, "timed_out": False, "logs": []},
+        }
+
+    dockerfile_path = workspace_path / "Dockerfile"
+    workflow_path = workspace_path / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+
+    dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
+    workflow_path.write_text(ci_workflow_content, encoding="utf-8")
+
+    image_name = f"orchestrator-generated-{int(time.time())}"
+
+    docker_build_result = _stream_command_with_timeout(
+        command=["docker", "build", "-t", f"{image_name}:latest", "."],
+        cwd=str(workspace_path),
+        timeout_seconds=600,  # Increased from 300s to 600s (10 minutes) for large base images
+        step_name="docker-build",
+    )
+
+    act_result = _stream_command_with_timeout(
+        command=["act", "-W", ".github/workflows/ci.yml"],
+        cwd=str(workspace_path),
+        timeout_seconds=600,
+        step_name="act-run",
+    )
+
+    pipeline_success = docker_build_result.get("success") and act_result.get("success")
+    should_self_repair = not pipeline_success
+
+    return {
+        "status": "success" if pipeline_success else "error",
+        "message": "Local pipeline execution completed" if pipeline_success else "Local pipeline execution failed",
+        "workspace": str(workspace_path),
+        "repo_copy": copy_result,
+        "image_name": image_name,
+        "docker_build": docker_build_result,
+        "act": act_result,
+        "should_self_repair": should_self_repair,
+    }
+
+
+def _execute_pipeline_with_self_repair(
+    agent_outputs: Dict[str, Any],
+    user_prompt: str,
+    repository_path: str,
+    github_url: str,
+    repo_context: Dict[str, Any],
+    max_self_repair_retries: int = 2,
+) -> Dict[str, Any]:
+    """Execute generated pipeline and retry with self-repair if local execution fails."""
+    attempts = []
+
+    execution_result = _execute_generated_pipeline(
+        agent_outputs,
+        repository_path=repository_path,
+        github_url=github_url,
+    )
+    attempts.append({"attempt_number": 1, "kind": "initial", "result": copy.deepcopy(execution_result)})
+
+    if not execution_result.get("should_self_repair"):
+        execution_result["attempts"] = attempts
+        execution_result["repair_retry_count"] = 0
+        execution_result["max_self_repair_retries"] = max_self_repair_retries
+        return execution_result
+
+    for retry_idx in range(1, max_self_repair_retries + 1):
+        failure_summary = _summarize_pipeline_failure(execution_result)
+        repair_prompt = (
+            f"{user_prompt}\n\n"
+            f"Self-repair attempt {retry_idx}: fix generated Dockerfile and CI workflow so local execution succeeds.\n"
+            f"{failure_summary}"
+        )
+
+        print(f"[Orchestrator] Triggering self-repair attempt {retry_idx}/{max_self_repair_retries}")
+        repaired_docker = _execute_docker_agent(repair_prompt, repository_path, repo_context)
+        repaired_cicd = _execute_cicd_agent(repair_prompt, repository_path, repo_context)
+
+        if repaired_docker.get("status") == "success":
+            agent_outputs["docker-agent"] = repaired_docker
+        if repaired_cicd.get("status") == "success":
+            agent_outputs["cicd-agent"] = repaired_cicd
+
+        execution_result = _execute_generated_pipeline(
+            agent_outputs,
+            repository_path=repository_path,
+            github_url=github_url,
+        )
+        attempts.append(
+            {
+                "attempt_number": retry_idx + 1,
+                "kind": "self_repair",
+                "repair_prompt": repair_prompt,
+                "result": copy.deepcopy(execution_result),
+            }
+        )
+
+        if execution_result.get("status") == "success":
+            execution_result["attempts"] = attempts
+            execution_result["repair_retry_count"] = retry_idx
+            execution_result["max_self_repair_retries"] = max_self_repair_retries
+            return execution_result
+
+    execution_result["attempts"] = attempts
+    execution_result["repair_retry_count"] = max_self_repair_retries
+    execution_result["max_self_repair_retries"] = max_self_repair_retries
+    return execution_result

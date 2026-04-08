@@ -243,6 +243,41 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
         print("No agent artifacts found in orchestrator output.")
 
 
+def _safe_dump_json(data: Any) -> str:
+    """Serialize data to JSON while tolerating circular references."""
+    try:
+        return json.dumps(data, default=str)
+    except ValueError as err:
+        if "Circular reference detected" in str(err):
+            def _decycle(value: Any, seen: Optional[set[int]] = None):
+                if seen is None:
+                    seen = set()
+
+                if isinstance(value, dict):
+                    obj_id = id(value)
+                    if obj_id in seen:
+                        return "<circular-ref>"
+                    seen.add(obj_id)
+                    out = {str(k): _decycle(v, seen) for k, v in value.items()}
+                    seen.remove(obj_id)
+                    return out
+
+                if isinstance(value, list):
+                    obj_id = id(value)
+                    if obj_id in seen:
+                        return "<circular-ref>"
+                    seen.add(obj_id)
+                    out = [_decycle(v, seen) for v in value]
+                    seen.remove(obj_id)
+                    return out
+
+                return value
+
+            decycled = _decycle(data)
+            return json.dumps(decycled, default=str)
+        raise
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the orchestrator with a user prompt")
     parser.add_argument("--prompt", type=str, default="", help="User prompt to route through orchestrator")
@@ -381,7 +416,7 @@ def main() -> int:
         
         # Output full result as JSON for Streamlit parsing
         print("\n=== JSON OUTPUT ===")
-        print(json.dumps(result, default=str))
+        print(_safe_dump_json(result))
         print("=== END JSON OUTPUT ===")
         
         print("\n=== Orchestration Summary ===")
@@ -402,7 +437,10 @@ def main() -> int:
         return 0
     except ValueError as error:
         print(f"Configuration Error: {error}")
-        print("Please set GROQ_API_KEY in orchestrator-agent/.env")
+        if "GROQ_API_KEY" in str(error):
+            print("Please set GROQ_API_KEY in orchestrator-agent/.env")
+        else:
+            print("See error details above.")
         return 1
 
 

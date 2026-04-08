@@ -46,6 +46,20 @@ class IntentLayer:
         languages = repo_context.get('languages') or []
         workflows = repo_context.get('workflows') or []
         build_system = repo_context.get('build_system', 'None detected')
+        
+        # Version information from dependency analysis
+        python_version = repo_context.get('python_version')
+        java_version = repo_context.get('java_version')
+        node_version = repo_context.get('node_version')
+        go_version = repo_context.get('go_version')
+        spring_boot_version = repo_context.get('spring_boot_version')
+        django_version = repo_context.get('django_version')
+        
+        # Docker-specific context (for Docker agent integration)
+        has_dockerfile = repo_context.get('has_dockerfile', False)
+        dockerfile_being_generated = repo_context.get('dockerfile_being_generated', False)
+        dockerfile_path = repo_context.get('dockerfile_path', 'Dockerfile')
+        docker_context_path = repo_context.get('docker_context_path', '.')
 
         dynamic_goals = [
             f"Primary goal: {intent.intent}",
@@ -77,17 +91,34 @@ class IntentLayer:
         requests_monitoring = any(token in combined for token in ["prometheus", "grafana", "monitoring", "observability"])
 
         if any(token in combined for token in ["python", "pytest", "pip"]):
-            requirement_lines.append("Include Python setup and test execution steps.")
+            if python_version:
+                requirement_lines.append(f"Include Python setup with version {python_version} (detected from dependencies) and test execution steps.")
+            else:
+                requirement_lines.append("Include Python setup and test execution steps.")
         if any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript"]):
-            requirement_lines.append("Include Node.js setup and package install/test steps.")
+            if node_version:
+                requirement_lines.append(f"Include Node.js setup with version {node_version} (detected from package.json) and package install/test steps.")
+            else:
+                requirement_lines.append("Include Node.js setup and package install/test steps.")
         if requests_java:
-            requirement_lines.append("Use Java build/test steps with Maven or Gradle and configure JDK with actions/setup-java.")
+            if java_version:
+                requirement_lines.append(f"Use Java {java_version} (detected from pom.xml/build.gradle) with actions/setup-java. Use Maven or Gradle for build/test steps.")
+            else:
+                requirement_lines.append("Use Java build/test steps with Maven or Gradle and configure JDK with actions/setup-java.")
         if requests_maven:
             requirement_lines.append("Build and test using Maven commands (for example mvn -B clean verify) and Maven cache.")
         if requests_sonar:
             requirement_lines.append("Include SonarQube analysis steps using secrets for SONAR_TOKEN and SONAR_HOST_URL.")
         if any(token in combined for token in ["docker", "image", "registry", "buildx"]):
-            requirement_lines.append("Include Docker build workflow steps with safe defaults.")
+            if dockerfile_being_generated or has_dockerfile:
+                # Dockerfile exists or is being generated - provide explicit path
+                requirement_lines.append(
+                    f"Include Docker build workflow steps. "
+                    f"Use context: '{docker_context_path}' and file: './{dockerfile_path}' for docker/build-push-action."
+                )
+            else:
+                # No Dockerfile detected - use generic guidance
+                requirement_lines.append("Include Docker build workflow steps with safe defaults.")
         if requests_dockerhub:
             requirement_lines.append("Login to Docker Hub with docker/login-action and push image with docker/build-push-action.")
         if requests_ansible:
@@ -119,6 +150,33 @@ class IntentLayer:
             f"Build system: {build_system}",
             f"Existing workflows: {', '.join(workflows) if workflows else 'None'}",
         ]
+        
+        # Add version information if available
+        version_info = []
+        if python_version:
+            version_info.append(f"Python {python_version}")
+        if java_version:
+            version_info.append(f"Java {java_version}")
+        if node_version:
+            version_info.append(f"Node.js {node_version}")
+        if go_version:
+            version_info.append(f"Go {go_version}")
+        if spring_boot_version:
+            version_info.append(f"Spring Boot {spring_boot_version}")
+        if django_version:
+            version_info.append(f"Django {django_version}")
+        
+        if version_info:
+            repo_context_block.append(f"Detected versions: {', '.join(version_info)}")
+        
+        # Add Docker context information if relevant
+        if dockerfile_being_generated:
+            repo_context_block.append(f"Dockerfile: Being generated by Docker agent at '{dockerfile_path}'")
+        elif has_dockerfile:
+            repo_context_block.append(f"Dockerfile: Exists at '{dockerfile_path}'")
+        
+        if dockerfile_being_generated or has_dockerfile:
+            repo_context_block.append(f"Docker build context: '{docker_context_path}'")
 
         knowledge_block = []
         for index, page in enumerate(knowledge_pages or [], start=1):

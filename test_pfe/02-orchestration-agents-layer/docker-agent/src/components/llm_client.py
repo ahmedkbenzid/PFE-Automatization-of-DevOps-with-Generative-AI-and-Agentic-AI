@@ -134,6 +134,12 @@ class LLMClient:
         """Generate Dockerfile content based on prompt and project context"""
         stack_type = context.get("stack_type", "generic")
         
+        # Extract version information from context
+        python_version = context.get("python_version", "3.11")
+        java_version = context.get("java_version", "17")
+        node_version = context.get("node_version", "20")
+        go_version = context.get("go_version", "1.21")
+        
         # Build context string
         context_items = []
         for k, v in context.items():
@@ -141,40 +147,155 @@ class LLMClient:
                 context_items.append(f"{k}: {v}")
         context_str = "\n".join(context_items) if context_items else "No additional context"
         
-        # Map stack type to explicit language instructions
-        stack_instructions = {
-            "spring": "This is a Java/Spring Boot application using Maven. Use maven:3.9-eclipse-temurin base image for building and eclipse-temurin:17-jre for runtime.",
-            "java": "This is a Java application. Use maven or gradle for building and a JRE base image for runtime.",
-            "node": "This is a Node.js/JavaScript application. Use node:20-alpine base image with multi-stage build.",
-            "python": "This is a Python application. Use python:3.11-slim base image.",
-            "go": "This is a Go application. Use golang:1.21-alpine for building and alpine:latest for runtime.",
-            "rust": "This is a Rust application. Use rust:1.75-alpine for building and alpine:latest for runtime.",
-            "ruby": "This is a Ruby application. Use ruby:3.2-alpine base image.",
+        # Stack-specific examples to guide the LLM
+        stack_examples = {
+            "spring": f"""EXAMPLE for Java/Spring Boot (MUST FOLLOW THIS STRUCTURE):
+```dockerfile
+FROM maven:3.9-eclipse-temurin-{java_version}-alpine AS builder
+WORKDIR /app
+COPY pom.xml ./
+COPY src ./src
+RUN mvn -B -DskipTests package
+
+FROM eclipse-temurin:{java_version}-jre-jammy
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+RUN groupadd -r spring && useradd -r -g spring spring
+USER spring
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+```
+**YOU MUST USE THESE EXACT BASE IMAGES**: maven:3.9-eclipse-temurin-{java_version}-alpine and eclipse-temurin:{java_version}-jre-jammy
+**DO NOT USE**: alpine, ubuntu, debian, or generic images for Java applications.""",
+
+            "java": f"""EXAMPLE for Java/Maven (MUST FOLLOW THIS STRUCTURE):
+```dockerfile
+FROM maven:3.9-eclipse-temurin-{java_version}-alpine AS builder
+WORKDIR /app
+COPY pom.xml ./
+COPY src ./src
+RUN mvn -B -DskipTests package
+
+FROM eclipse-temurin:{java_version}-jre-jammy
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+RUN useradd -m appuser
+USER appuser
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+```
+**MANDATORY**: Use maven or gradle base image for building, eclipse-temurin for runtime.""",
+
+            "node": f"""EXAMPLE for Node.js (MUST FOLLOW THIS STRUCTURE):
+```dockerfile
+FROM node:{node_version}-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:{node_version}-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
+USER node
+EXPOSE 3000
+CMD ["node", "dist/main.js"]
+```
+**MANDATORY**: Use node:{node_version}-alpine base image, multi-stage build.""",
+
+            "python": f"""EXAMPLE for Python (MUST FOLLOW THIS STRUCTURE):
+```dockerfile
+FROM python:{python_version}-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN useradd -m appuser
+USER appuser
+EXPOSE 8000
+CMD ["python", "main.py"]
+```
+**MANDATORY**: Use python:{python_version}-slim base image.""",
+
+            "go": f"""EXAMPLE for Go (MUST FOLLOW THIS STRUCTURE):
+```dockerfile
+FROM golang:{go_version}-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o app
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/app .
+RUN adduser -D appuser
+USER appuser
+EXPOSE 8080
+CMD ["./app"]
+```
+**MANDATORY**: Use golang:{go_version}-alpine for building, alpine for runtime."""
         }
         
-        stack_instruction = stack_instructions.get(stack_type, f"This is a {stack_type} application.")
+        example = stack_examples.get(stack_type, "")
         
-        full_prompt = f"""You are an expert Docker engineer. Generate a production-ready, secure, and optimized Dockerfile.
+        # Add version-specific critical warnings
+        version_critical = ""
+        if stack_type in ["spring", "java"]:
+            version_critical = f"""
+🚨 ABSOLUTELY CRITICAL - READ THIS CAREFULLY 🚨
+Java version {java_version} was detected in the project's pom.xml.
+YOU MUST USE THESE EXACT BASE IMAGES (not alpine, not ubuntu, not debian):
+- Build stage: maven:3.9-eclipse-temurin-{java_version}-alpine
+- Runtime stage: eclipse-temurin:{java_version}-jre-jammy
+FAILURE TO USE THESE IMAGES WILL CAUSE RUNTIME FAILURES.
 
-**CRITICAL: {stack_instruction}**
+DO NOT generate a generic Alpine/Ubuntu Dockerfile.
+DO NOT use "FROM alpine" or "FROM ubuntu" for Java applications.
+ONLY use Maven/Eclipse Temurin base images as shown in the example."""
+
+        elif stack_type == "node":
+            version_critical = f"""
+🚨 CRITICAL 🚨
+Node.js version {node_version} detected in package.json.
+YOU MUST USE: node:{node_version}-alpine as the base image.
+DO NOT use generic alpine, ubuntu, or debian images."""
+
+        elif stack_type == "python":
+            version_critical = f"""
+🚨 CRITICAL 🚨
+Python version {python_version} detected in project dependencies.
+YOU MUST USE: python:{python_version}-slim as the base image.
+DO NOT use generic alpine, ubuntu, or debian images."""
+        
+        full_prompt = f"""You are an expert Docker engineer generating production-ready Dockerfiles.
+
+🎯 STACK TYPE: {stack_type}
+{version_critical}
+
+{example}
 
 Project Context:
-- Stack Type: {stack_type}
 {context_str}
 
 User Request: {prompt}
 
-Requirements:
-1. Use multi-stage builds when appropriate for the {stack_type} stack
-2. Use the correct base image for {stack_type} (NOT Python unless stack is Python)
-3. Minimize image size
-4. Follow security best practices (non-root user, minimal packages)
-5. Use specific version tags, not 'latest'
-6. Optimize layer caching
-7. Include health checks if applicable
-8. Set appropriate environment variables for {stack_type}
+MANDATORY REQUIREMENTS:
+1. You MUST follow the example structure shown above for {stack_type} applications
+2. You MUST use the exact base images specified (with correct version numbers)
+3. DO NOT use generic images (alpine, ubuntu, debian) when stack-specific images exist
+4. Use multi-stage builds for compiled languages (Java, Go, Node.js)
+5. Run as non-root user for security
+6. Include EXPOSE for the appropriate port
 
-Generate ONLY the Dockerfile content, no explanations or markdown formatting."""
+Generate ONLY the Dockerfile content. No markdown formatting, no explanations, no comments before or after.
+Start directly with "FROM" instruction."""
 
         return self.generate_text(full_prompt, max_tokens=2048)
 

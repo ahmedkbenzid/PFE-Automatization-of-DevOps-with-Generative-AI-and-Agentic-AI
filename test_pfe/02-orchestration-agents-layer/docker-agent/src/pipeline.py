@@ -126,6 +126,17 @@ class DockerPipeline:
                 if orchestrator_stack:
                     analysis.stack_type = orchestrator_stack
                     analysis.confidence = 0.95  # High confidence from orchestrator
+                
+                # FIXED: Also update the context object with orchestrator's detected information
+                # This ensures the output context matches what orchestrator detected, not empty local analysis
+                if repo_context.get('languages'):
+                    context.project_languages = repo_context.get('languages', [])
+                if repo_context.get('package_managers'):
+                    context.package_managers = repo_context.get('package_managers', [])
+                if repo_context.get('frameworks'):
+                    context.frameworks = repo_context.get('frameworks', [])
+                if repo_context.get('build_system'):
+                    context.build_tools = [repo_context.get('build_system')] if repo_context.get('build_system') else []
                     
             except (KeyError, AttributeError, TypeError) as e:
                 # If repo_context is malformed, continue with local analysis

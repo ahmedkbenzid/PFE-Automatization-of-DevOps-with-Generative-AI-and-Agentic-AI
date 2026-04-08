@@ -7,18 +7,32 @@ from pathlib import Path
 from typing import List
 
 from src.models.types import RepositoryContext
+from src.components.dependency_analyzer import DependencyAnalyzer
 
 
 @dataclass
 class AnalysisResult:
-    stack_type: str
-    confidence: float
+    stack_type: str = "unknown"
+    confidence: float = 0.0
 
 
 class AnalyzeProject:
     """Detect repository stack and core containerization signals."""
 
     def analyze(self, repository_path: str) -> tuple[RepositoryContext, AnalysisResult]:
+        # FIXED: Check if repository_path is a URL (GitHub) instead of local path
+        # If it's a URL, we'll rely on repo_context passed from orchestrator
+        if repository_path.startswith("http://") or repository_path.startswith("https://"):
+            print(f"[Docker Agent] Repository is GitHub URL, skipping local file detection: {repository_path}")
+            # Return empty context - will be filled by orchestrator's repo_context
+            return RepositoryContext(
+                repository_path=repository_path,
+                project_languages=[],
+                package_managers=[],
+                frameworks=[],
+                build_tools=[],
+            ), AnalysisResult()
+        
         repo = Path(repository_path)
         languages: List[str] = []
         package_managers: List[str] = []
@@ -69,6 +83,54 @@ class AnalyzeProject:
 
         detected_ports = self._detect_ports(repo)
         env_vars = self._detect_env_vars(repo)
+        
+        # NEW: Analyze dependencies to extract version information
+        print("[Docker Agent] Analyzing project dependencies...")
+        try:
+            dep_analyzer = DependencyAnalyzer(str(repo))
+            dep_info = dep_analyzer.analyze()
+            
+            # Log findings
+            if dep_info.python_version:
+                print(f"  ✓ Detected Python {dep_info.python_version}")
+            if dep_info.java_version:
+                print(f"  ✓ Detected Java {dep_info.java_version}")
+            if dep_info.node_version:
+                print(f"  ✓ Detected Node.js {dep_info.node_version}")
+            if dep_info.django_version:
+                print(f"  ✓ Detected Django {dep_info.django_version}")
+            if dep_info.spring_boot_version:
+                print(f"  ✓ Detected Spring Boot {dep_info.spring_boot_version}")
+            
+            # Log warnings
+            if dep_info.warnings:
+                print(f"  ⚠ {len(dep_info.warnings)} compatibility warning(s)")
+                for warning in dep_info.warnings:
+                    print(f"    - {warning}")
+            
+            # Log recommendations
+            if dep_info.recommendations:
+                print(f"  ℹ {len(dep_info.recommendations)} recommendation(s)")
+                for rec in dep_info.recommendations[:3]:  # Show first 3
+                    print(f"    - {rec}")
+        
+        except Exception as e:
+            print(f"  ⚠ Dependency analysis failed: {str(e)}")
+            # Create empty dep_info to avoid errors
+            class EmptyDepInfo:
+                python_version = None
+                java_version = None
+                node_version = None
+                go_version = None
+                django_version = None
+                fastapi_version = None
+                flask_version = None
+                spring_boot_version = None
+                express_version = None
+                warnings = []
+                recommendations = []
+                has_version_conflicts = False
+            dep_info = EmptyDepInfo()
 
         # Determine stack type - use None if not clearly detected
         stack_type = None
@@ -99,6 +161,19 @@ class AnalyzeProject:
             existing_compose_files=existing_compose_files,
             detected_ports=detected_ports,
             environment_variables=env_vars,
+            # NEW: Add dependency version information
+            python_version=dep_info.python_version,
+            java_version=dep_info.java_version,
+            node_version=dep_info.node_version,
+            go_version=dep_info.go_version,
+            django_version=dep_info.django_version,
+            fastapi_version=dep_info.fastapi_version,
+            flask_version=dep_info.flask_version,
+            spring_boot_version=dep_info.spring_boot_version,
+            express_version=dep_info.express_version,
+            dependency_warnings=dep_info.warnings,
+            dependency_recommendations=dep_info.recommendations,
+            has_version_conflicts=dep_info.has_version_conflicts,
         )
         return context, AnalysisResult(stack_type=stack_type, confidence=confidence)
 

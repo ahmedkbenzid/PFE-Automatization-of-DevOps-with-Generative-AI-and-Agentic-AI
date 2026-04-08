@@ -13,6 +13,7 @@ class RepoContextDict(TypedDict, total=False):
     is_available: bool
     source: str  # "local", "github", "none"
     path: str
+    github_url: str
     languages: List[str]
     build_system: Optional[str]
     package_managers: List[str]

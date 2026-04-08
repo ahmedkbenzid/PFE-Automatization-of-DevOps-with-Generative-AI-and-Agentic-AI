@@ -67,9 +67,9 @@ class Orchestrator:
         """
         self.config = OrchestratorConfig()
 
-        # Validate API key
+        # Allow fallback mode when GROQ key is not configured.
         if not self.config.LLM_API_KEY:
-            raise ValueError("GROQ_API_KEY is missing from environment. Cannot initialize orchestrator.")
+            print("[Orchestrator] GROQ_API_KEY not set; running with keyword/fallback routing mode.")
 
         # Get the compiled graph (this also initializes components)
         self._graph = get_compiled_graph()

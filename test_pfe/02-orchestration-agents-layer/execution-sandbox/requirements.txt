@@ -1,0 +1,6 @@
+# Execution Agent Requirements
+
+# Core dependencies
+python-dotenv>=1.0.0
+
+# No additional dependencies needed - uses standard library for subprocess, threading, queue

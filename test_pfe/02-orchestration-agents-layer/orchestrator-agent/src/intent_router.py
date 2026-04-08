@@ -5,11 +5,13 @@ from pydantic import SecretStr
 
 class IntentRouter:
     def __init__(self, api_key: str, model_name: str="llama-3.1-8b-instant"):
-        self.llm = ChatGroq(
-            api_key=SecretStr(api_key), 
-            model=model_name,
-            temperature=0
-        )
+        self.llm = None
+        if api_key:
+            self.llm = ChatGroq(
+                api_key=SecretStr(api_key),
+                model=model_name,
+                temperature=0
+            )
 
     def route(self, user_prompt: str) -> dict:
         """
@@ -21,6 +23,15 @@ class IntentRouter:
         prompt_lower = user_prompt.lower()
         matched_agents = []
 
+        # FIXED: Check for "complete DevOps" requests first (should trigger both docker + cicd)
+        complete_devops_keywords = [
+            "complete devops", "full devops", "devops configuration", "devops config",
+            "entire devops", "all devops", "full stack devops", "end-to-end devops"
+        ]
+        if any(kw in prompt_lower for kw in complete_devops_keywords):
+            matched_agents.append(("docker-agent", "Docker configuration"))
+            matched_agents.append(("cicd-agent", "CI/CD pipeline"))
+
         # GitHub Actions / CI/CD keywords
         cicd_keywords = [
             "github actions", "workflow", "ci/cd", "cicd", "ci cd", "pipeline", 
@@ -31,11 +42,15 @@ class IntentRouter:
             "build and deploy", "test and deploy"
         ]
         if any(kw in prompt_lower for kw in cicd_keywords):
-            matched_agents.append(("cicd-agent", "CI/CD pipeline"))
+            # Only add if not already added by complete devops check
+            if not any(agent[0] == "cicd-agent" for agent in matched_agents):
+                matched_agents.append(("cicd-agent", "CI/CD pipeline"))
 
         # Dockerfile keywords
         if any(kw in prompt_lower for kw in ["dockerfile", "docker image", "container", "docker compose"]):
-            matched_agents.append(("docker-agent", "Docker configuration"))
+            # Only add if not already added by complete devops check
+            if not any(agent[0] == "docker-agent" for agent in matched_agents):
+                matched_agents.append(("docker-agent", "Docker configuration"))
 
         # Kubernetes keywords
         if any(kw in prompt_lower for kw in ["kubernetes", "k8s", "helm"]):
@@ -58,6 +73,13 @@ class IntentRouter:
                 "primary_agent": primary,
                 "secondary_agents": secondary,
                 "reasoning": f"Fast-path routing: {', '.join(reasons)} requested"
+            }
+
+        if self.llm is None:
+            return {
+                "primary_agent": "general-assistant",
+                "secondary_agents": [],
+                "reasoning": "LLM router unavailable and no keyword match; default fallback route",
             }
 
         # Slow-path: Use LLM for ambiguous requests

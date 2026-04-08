@@ -39,6 +39,19 @@ class RepositoryContext:
     languages: List[str] = field(default_factory=list)
     existing_workflows: List[str] = field(default_factory=list)
     build_system: Optional[str] = None
+    
+    # Version information (from dependency analysis)
+    python_version: Optional[str] = None
+    java_version: Optional[str] = None
+    node_version: Optional[str] = None
+    go_version: Optional[str] = None
+    
+    # Framework versions
+    django_version: Optional[str] = None
+    fastapi_version: Optional[str] = None
+    flask_version: Optional[str] = None
+    spring_boot_version: Optional[str] = None
+    express_version: Optional[str] = None
 
 @dataclass
 class WorkflowTemplate:

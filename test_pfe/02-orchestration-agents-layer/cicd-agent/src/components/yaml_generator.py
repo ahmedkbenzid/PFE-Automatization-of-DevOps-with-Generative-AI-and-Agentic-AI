@@ -109,13 +109,15 @@ class YAMLGenerator:
             return False, str(e)
     
     def format_yaml(self, data: Dict[str, Any], width: int = 120) -> str:
-        """Format dictionary as pretty YAML"""
+        """Format dictionary as pretty YAML with consistent indentation"""
         return yaml.dump(
             data,
             default_flow_style=False,
             sort_keys=False,
             width=width,
             allow_unicode=True,
+            default_style=None,
+            indent=2,  # Ensure 2-space indentation
         )
     
     def merge_yaml_configs(self, base_yaml: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
@@ -182,6 +184,30 @@ class YAMLGenerator:
     
     def auto_fix_common_issues(self, yaml_content: str) -> str:
         """Attempt to auto-fix common YAML issues"""
+        # First, fix indentation issues by ensuring proper spacing
+        lines = yaml_content.split('\n')
+        fixed_lines = []
+        
+        for i, line in enumerate(lines):
+            # Check if line is a job definition (should be indented with 2 spaces if under jobs)
+            if line and not line[0].isspace() and ':' in line and i > 0:
+                # Check if previous context is under 'jobs:'
+                prev_non_empty = next((l for l in reversed(lines[:i]) if l.strip()), '')
+                if prev_non_empty.strip().startswith('-') or (i > 0 and not any(c.isspace() for c in line[:1])):
+                    # This might need indentation fixing
+                    pass
+            
+            # Fix common single-space indent issues for job names
+            if line.startswith(' ') and not line.startswith('  ') and ':' in line and 'steps:' not in line:
+                # Check if this is a top-level job that got 1-space indent instead of 2
+                stripped = line.lstrip()
+                if any(stripped.startswith(kw) for kw in ['build:', 'docker:', 'deploy:', 'test:', 'lint:']):
+                    line = '  ' + stripped  # Fix to 2-space indent
+            
+            fixed_lines.append(line)
+        
+        yaml_content = '\n'.join(fixed_lines)
+        
         parsed = self.parse_yaml(yaml_content)
         
         if not parsed:
