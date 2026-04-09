@@ -136,6 +136,45 @@ class Orchestrator:
             score += 3
         
         return score
+
+    def _requested_agent_count(self, user_prompt: str) -> int:
+        """Estimate number of distinct specialized agents required by prompt intent."""
+        prompt_lower = (user_prompt or "").lower()
+        requested_agents = set()
+
+        keyword_map = {
+            "cicd-agent": [
+                "github actions", "workflow", "ci/cd", "cicd", "pipeline", "jenkins", "gitlab",
+            ],
+            "docker-agent": [
+                "docker", "dockerfile", "container", "deployment", "deploy", "image",
+            ],
+            "iac-agent": [
+                "terraform", "iac", "infrastructure", "cloudformation", "aws", "azure", "gcp",
+            ],
+            "k8s-agent": [
+                "kubernetes", "k8s", "helm", "kubectl",
+            ],
+        }
+
+        for agent_name, keywords in keyword_map.items():
+            if any(keyword in prompt_lower for keyword in keywords):
+                requested_agents.add(agent_name)
+
+        if any(
+            keyword in prompt_lower
+            for keyword in [
+                "complete devops",
+                "full devops",
+                "devops configuration",
+                "end-to-end devops",
+                "deploy automatically",
+                "automated deployment",
+            ]
+        ):
+            requested_agents.update({"docker-agent", "cicd-agent"})
+
+        return len(requested_agents)
     
     def _should_use_planner(self, user_prompt: str, repo_context: Dict[str, Any] = None) -> bool:
         """
@@ -147,6 +186,10 @@ class Orchestrator:
         """
         if not self.enable_planner:
             return False
+
+        # Product requirement: any prompt needing more than one agent must go through planner.
+        if self._requested_agent_count(user_prompt) > 1:
+            return True
         
         # Check for force keywords (always use planner)
         prompt_lower = user_prompt.lower()

@@ -160,10 +160,21 @@ Return ONLY valid JSON, no markdown.
     def _fallback_intent_analysis(self, request: str, context: Dict) -> Dict[str, Any]:
         """Fallback intent analysis using keywords"""
         request_lower = request.lower()
+
+        is_deployment_request = any(
+            k in request_lower for k in [
+                'deploy', 'deployment', 'release', 'production',
+                'ship', 'go live'
+            ]
+        )
+
+        requires_docker = any(k in request_lower for k in ['docker', 'container', 'containerize'])
+        if is_deployment_request:
+            requires_docker = True
         
         return {
             "primary_goal": "devops automation",
-            "requires_docker": any(k in request_lower for k in ['docker', 'container', 'containerize']),
+            "requires_docker": requires_docker,
             "requires_cicd": any(k in request_lower for k in ['ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow']),
             "requires_infrastructure": any(k in request_lower for k in ['infrastructure', 'terraform', 'cloud', 'aws', 'azure', 'gcp', 'deploy']),
             "requires_k8s": any(k in request_lower for k in ['kubernetes', 'k8s', 'kubectl', 'helm']),
@@ -197,8 +208,13 @@ Return ONLY valid JSON, no markdown.
         Select which agents to use based on intent analysis
         """
         selected = []
+
+        deployment_type = str(intent.get('deployment_type', 'none')).lower()
+        deployment_implies_container = deployment_type in {'container', 'k8s'}
+        primary_goal = str(intent.get('primary_goal', '')).lower()
+        deployment_requested = deployment_implies_container or ('deploy' in primary_goal) or bool(intent.get('requires_infrastructure'))
         
-        if intent.get('requires_docker'):
+        if intent.get('requires_docker') or deployment_requested:
             selected.append('docker-agent')
         
         if intent.get('requires_cicd'):

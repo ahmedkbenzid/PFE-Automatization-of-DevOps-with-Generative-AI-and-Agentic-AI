@@ -12,7 +12,7 @@ from pathlib import Path
 import json
 import time
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Set
 import tempfile
 import shutil
 import subprocess
@@ -153,6 +153,12 @@ if 'current_repo_path' not in st.session_state:
     st.session_state.current_repo_path = None
 if 'execution_result' not in st.session_state:
     st.session_state.execution_result = None
+if 'plan_editor_text' not in st.session_state:
+    st.session_state.plan_editor_text = ""
+if 'plan_editor_source' not in st.session_state:
+    st.session_state.plan_editor_source = ""
+if 'last_user_prompt' not in st.session_state:
+    st.session_state.last_user_prompt = ""
 
 
 def check_environment() -> Dict[str, bool]:
@@ -749,6 +755,713 @@ def _apply_feedback_edits_to_result(result: Dict[str, Any], edited_artifacts: Di
     return updated
 
 
+def _extract_allowed_agents(plan: Dict[str, Any]) -> Set[str]:
+    """Extract known agent ids from a planner execution plan."""
+    allowed: Set[str] = set()
+
+    for task in plan.get("tasks", []) or []:
+        if isinstance(task, dict):
+            task_id = task.get("id")
+            task_agent = task.get("agent")
+            if isinstance(task_id, str) and task_id:
+                allowed.add(task_id)
+            if isinstance(task_agent, str) and task_agent:
+                allowed.add(task_agent)
+
+    for key, value in (plan.get("dependencies", {}) or {}).items():
+        if isinstance(key, str) and key:
+            allowed.add(key)
+        if isinstance(value, list):
+            for dep in value:
+                if isinstance(dep, str) and dep:
+                    allowed.add(dep)
+
+    for step in plan.get("execution_order", []) or []:
+        if isinstance(step, list):
+            for agent in step:
+                if isinstance(agent, str) and agent:
+                    allowed.add(agent)
+        elif isinstance(step, str) and step:
+            allowed.add(step)
+
+    if not allowed:
+        allowed = {"docker-agent", "cicd-agent", "iac-agent", "k8s-agent"}
+
+    return allowed
+
+
+def _normalize_agent_name(raw_name: str, allowed_agents: Set[str]) -> Optional[str]:
+    """Normalize user-entered agent names into canonical agent ids."""
+    candidate = (raw_name or "").strip().lower().replace("`", "")
+    candidate = re.sub(r"\s+", " ", candidate)
+    if not candidate:
+        return None
+
+    alias_map = {
+        "docker": "docker-agent",
+        "docker agent": "docker-agent",
+        "cicd": "cicd-agent",
+        "ci/cd": "cicd-agent",
+        "ci cd": "cicd-agent",
+        "cicd agent": "cicd-agent",
+        "iac": "iac-agent",
+        "terraform": "iac-agent",
+        "iac agent": "iac-agent",
+        "k8s": "k8s-agent",
+        "kubernetes": "k8s-agent",
+        "k8s agent": "k8s-agent",
+    }
+
+    if candidate in alias_map:
+        candidate = alias_map[candidate]
+
+    if candidate in allowed_agents:
+        return candidate
+
+    dashed = candidate.replace("_", "-")
+    if dashed in allowed_agents:
+        return dashed
+
+    if not dashed.endswith("-agent"):
+        with_suffix = f"{dashed}-agent"
+        if with_suffix in allowed_agents:
+            return with_suffix
+
+    return None
+
+
+def _plan_to_paragraph(plan: Dict[str, Any]) -> str:
+    """Render execution_order as editable plain-text steps."""
+    execution_order = plan.get("execution_order", []) or []
+    if not execution_order:
+        return ""
+
+    lines: List[str] = []
+    for idx, step in enumerate(execution_order, 1):
+        if isinstance(step, list) and step:
+            lines.append(f"Step {idx}: {', '.join(step)} (parallel)")
+        elif isinstance(step, str) and step:
+            lines.append(f"Step {idx}: {step}")
+
+    return "\n".join(lines)
+
+
+def _paragraph_to_execution_order(plan_text: str, allowed_agents: Set[str]) -> List[Any]:
+    """Parse plain-text steps into planner execution_order format."""
+    if not plan_text or not plan_text.strip():
+        raise ValueError("Plan paragraph is empty. Add at least one step.")
+
+    parsed_steps: List[Any] = []
+    unknown_agents: Set[str] = set()
+
+    for raw_line in plan_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        line = re.sub(r"^step\s*\d+\s*[:\-]\s*", "", line, flags=re.IGNORECASE).strip()
+        line = line.rstrip(".")
+        if not line:
+            continue
+
+        parallel_marker = bool(re.search(r"\bparallel\b", line, flags=re.IGNORECASE))
+        line = re.sub(r"[\(\[]\s*parallel\s*[\)\]]", "", line, flags=re.IGNORECASE).strip()
+
+        parts = [p.strip() for p in re.split(r",|\+|\band\b", line, flags=re.IGNORECASE) if p.strip()]
+        resolved: List[str] = []
+
+        for part in parts:
+            normalized = _normalize_agent_name(part, allowed_agents)
+            if not normalized:
+                unknown_agents.add(part)
+                continue
+            if normalized not in resolved:
+                resolved.append(normalized)
+
+        if not resolved:
+            continue
+
+        if len(resolved) == 1 and not parallel_marker:
+            parsed_steps.append(resolved[0])
+        else:
+            parsed_steps.append(resolved)
+
+    if unknown_agents:
+        raise ValueError(
+            "Unknown agent names in plan paragraph: "
+            f"{', '.join(sorted(unknown_agents))}. "
+            f"Allowed: {', '.join(sorted(allowed_agents))}"
+        )
+
+    if not parsed_steps:
+        raise ValueError("No valid steps were parsed. Use lines like: Step 1: docker-agent")
+
+    return parsed_steps
+
+
+def _sanitize_dockerfile_text(raw_content: str) -> str:
+    """Extract Dockerfile content from raw or fenced output."""
+    text = (raw_content or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+
+    fenced = re.findall(r"```(?:dockerfile|docker|text|plaintext)?\s*\n(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
+    for block in fenced:
+        candidate = block.strip()
+        if candidate and re.search(r"^FROM\s+", candidate, flags=re.IGNORECASE | re.MULTILINE):
+            return candidate + "\n"
+
+    cleaned = "\n".join(line for line in text.splitlines() if not line.strip().startswith("```"))
+    cleaned = cleaned.strip()
+    if cleaned:
+        return cleaned + "\n"
+    return ""
+
+
+def _extract_dockerfile_from_agent_payload(agent_payload: Dict[str, Any]) -> str:
+    """Extract Dockerfile content from docker-agent structured response."""
+    configuration = (agent_payload.get("configuration") or {}) if isinstance(agent_payload, dict) else {}
+    dockerfile_raw = configuration.get("dockerfile_content") or ""
+    return _sanitize_dockerfile_text(dockerfile_raw)
+
+
+def _invoke_docker_agent_generation(
+    user_prompt: str,
+    repository_path: str,
+    repo_context: Optional[Dict[str, Any]] = None,
+    timeout_seconds: int = 240,
+) -> Dict[str, Any]:
+    """Invoke docker-agent subprocess and return structured payload."""
+    docker_agent_root = project_root / "test_pfe" / "02-orchestration-agents-layer" / "docker-agent"
+    if not docker_agent_root.exists():
+        raise RuntimeError(f"docker-agent not found at {docker_agent_root}")
+
+    context_payload = repo_context or {}
+    args = [user_prompt, repository_path or "", json.dumps(context_payload)]
+    args_json = json.dumps(args)
+
+    run_code = (
+        "from dataclasses import asdict; "
+        "from src.pipeline import run_pipeline; "
+        "user_prompt = args[0]; "
+        "repo_path = args[1]; "
+        "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+        "result = run_pipeline(user_prompt, repo_path, False, repo_ctx); "
+        "print('DOCKER_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
+    )
+
+    safe_run_code = (
+        "import json, sys; "
+        f"args = json.loads({repr(args_json)}); "
+        "sys.argv = [''] + args; "
+        f"{run_code}"
+    )
+
+    run_env = os.environ.copy()
+    run_env["PYTHONPATH"] = str(docker_agent_root) + os.pathsep + run_env.get("PYTHONPATH", "")
+    run_env["PYTHONIOENCODING"] = "utf-8"
+
+    completed = subprocess.run(
+        [sys.executable, "-c", safe_run_code],
+        cwd=str(docker_agent_root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=run_env,
+        check=False,
+        timeout=timeout_seconds,
+    )
+
+    if completed.returncode != 0:
+        error_msg = (completed.stderr or completed.stdout or "docker-agent execution failed").strip()
+        raise RuntimeError(error_msg)
+
+    for line in (completed.stdout or "").splitlines():
+        if line.startswith("DOCKER_RESULT_JSON="):
+            return json.loads(line[len("DOCKER_RESULT_JSON="):])
+
+    raise RuntimeError("docker-agent returned no structured Docker output")
+
+
+def _copy_repository_to_workspace(repository_path: str, workspace_path: Path) -> Dict[str, Any]:
+    """Copy repository content into isolated workspace for docker build validation."""
+    if not repository_path:
+        return {"copied": False, "reason": "No repository path provided"}
+
+    source_path = Path(repository_path)
+    if not source_path.exists() or not source_path.is_dir():
+        return {
+            "copied": False,
+            "reason": f"Repository path not found or invalid: {repository_path}",
+        }
+
+    ignore_dirs = {
+        ".git", ".hg", ".svn",
+        "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+        ".venv", "venv", "node_modules",
+    }
+
+    copied_entries = 0
+    for child in source_path.iterdir():
+        if child.name in ignore_dirs:
+            continue
+
+        target = workspace_path / child.name
+        if child.is_dir():
+            shutil.copytree(child, target, dirs_exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, target)
+        copied_entries += 1
+
+    return {
+        "copied": True,
+        "source": str(source_path),
+        "destination": str(workspace_path),
+        "copied_entries": copied_entries,
+        "mode": "local-copy",
+    }
+
+
+def _run_command_with_timeout(command: List[str], cwd: str, timeout_seconds: int, step_name: str) -> Dict[str, Any]:
+    """Run shell command with timeout and capture combined logs."""
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+            check=False,
+        )
+        combined_logs = []
+        if completed.stdout:
+            combined_logs.extend({"stream": "stdout", "line": line} for line in completed.stdout.splitlines())
+        if completed.stderr:
+            combined_logs.extend({"stream": "stderr", "line": line} for line in completed.stderr.splitlines())
+
+        return {
+            "step": step_name,
+            "command": command,
+            "cwd": cwd,
+            "exit_code": completed.returncode,
+            "timed_out": False,
+            "logs": combined_logs,
+            "success": completed.returncode == 0,
+        }
+    except subprocess.TimeoutExpired as exc:
+        timeout_logs = []
+        if exc.stdout:
+            timeout_logs.extend({"stream": "stdout", "line": line} for line in exc.stdout.splitlines())
+        if exc.stderr:
+            timeout_logs.extend({"stream": "stderr", "line": line} for line in exc.stderr.splitlines())
+        timeout_logs.append({"stream": "stderr", "line": f"Command timed out after {timeout_seconds}s"})
+        return {
+            "step": step_name,
+            "command": command,
+            "cwd": cwd,
+            "exit_code": -1,
+            "timed_out": True,
+            "logs": timeout_logs,
+            "success": False,
+        }
+
+
+def _validate_dockerfile_build(dockerfile_content: str, repository_path: str, timeout_seconds: int = 600) -> Dict[str, Any]:
+    """Validate a Dockerfile by running docker build in an isolated workspace."""
+    workspace = tempfile.mkdtemp(prefix="docker-validate-")
+    workspace_path = Path(workspace)
+
+    try:
+        copy_result = _copy_repository_to_workspace(repository_path, workspace_path)
+        if not copy_result.get("copied"):
+            return {
+                "success": False,
+                "message": copy_result.get("reason", "failed to copy repository"),
+                "repo_copy": copy_result,
+                "docker_build": {
+                    "exit_code": -1,
+                    "timed_out": False,
+                    "logs": [],
+                    "success": False,
+                },
+            }
+
+        dockerfile_path = workspace_path / "Dockerfile"
+        dockerfile_path.write_text(_sanitize_dockerfile_text(dockerfile_content), encoding="utf-8")
+
+        image_name = f"user-validation-{int(time.time())}"
+        docker_build = _run_command_with_timeout(
+            command=["docker", "build", "-t", f"{image_name}:latest", "."],
+            cwd=str(workspace_path),
+            timeout_seconds=timeout_seconds,
+            step_name="docker-build",
+        )
+
+        return {
+            "success": docker_build.get("success", False),
+            "message": "Docker image build succeeded" if docker_build.get("success") else "Docker image build failed",
+            "image_name": image_name,
+            "repo_copy": copy_result,
+            "docker_build": docker_build,
+        }
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "message": "Docker CLI not found. Install Docker and ensure it is in PATH.",
+            "docker_build": {
+                "exit_code": -1,
+                "timed_out": False,
+                "logs": [{"stream": "stderr", "line": "docker command not found"}],
+                "success": False,
+            },
+        }
+    finally:
+        shutil.rmtree(workspace_path, ignore_errors=True)
+
+
+def _summarize_docker_build_failure(build_result: Dict[str, Any]) -> str:
+    """Summarize docker build failure for docker-agent repair prompts."""
+    docker_build = build_result.get("docker_build") or {}
+    lines = [
+        f"exit_code={docker_build.get('exit_code')}",
+        f"timed_out={docker_build.get('timed_out')}",
+    ]
+
+    logs = docker_build.get("logs", [])
+    tail = logs[-40:] if isinstance(logs, list) else []
+    if tail:
+        lines.append("recent_logs:")
+        for entry in tail:
+            if isinstance(entry, dict):
+                stream = entry.get("stream", "stdout")
+                line = entry.get("line", "")
+                lines.append(f"[{stream}] {line}")
+            else:
+                lines.append(str(entry))
+
+    return "\n".join(lines)
+
+
+def _sanitize_workflow_yaml_text(raw_content: str) -> str:
+    """Extract GitHub Actions workflow YAML from raw or fenced output."""
+    text = (raw_content or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+
+    fenced = re.findall(r"```(?:yaml|yml|github-actions|text|plaintext)?\s*\n(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
+    for block in fenced:
+        candidate = block.strip()
+        if candidate and ("jobs:" in candidate.lower() or re.search(r"^on\s*:", candidate, flags=re.IGNORECASE | re.MULTILINE)):
+            return candidate + "\n"
+
+    cleaned = "\n".join(line for line in text.splitlines() if not line.strip().startswith("```"))
+    cleaned = cleaned.strip()
+    if cleaned:
+        return cleaned + "\n"
+    return ""
+
+
+def _extract_cicd_workflow_from_agent_payload(agent_payload: Dict[str, Any]) -> str:
+    """Extract workflow YAML from cicd-agent structured response."""
+    workflow_raw = ""
+    if isinstance(agent_payload, dict):
+        workflow_raw = agent_payload.get("workflow_yaml") or ""
+    return _sanitize_workflow_yaml_text(workflow_raw)
+
+
+def _invoke_cicd_agent_generation(
+    user_prompt: str,
+    repository_path: str,
+    repo_context: Optional[Dict[str, Any]] = None,
+    timeout_seconds: int = 300,
+) -> Dict[str, Any]:
+    """Invoke cicd-agent subprocess and return structured payload."""
+    cicd_agent_root = project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent"
+    if not cicd_agent_root.exists():
+        raise RuntimeError(f"cicd-agent not found at {cicd_agent_root}")
+
+    context_payload = repo_context or {}
+    args = [user_prompt, repository_path or "", json.dumps(context_payload)]
+    args_json = json.dumps(args)
+
+    run_code = (
+        "from dataclasses import asdict; "
+        "from src.pipeline import CICDPipeline; "
+        "from src.models.types import UserRequest; "
+        "user_prompt = args[0]; "
+        "repo_path = args[1]; "
+        "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+        "req = UserRequest(text=user_prompt); "
+        "result = CICDPipeline().process_request(req, repo_path=repo_path, repo_context=repo_ctx); "
+        "print('CICD_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
+    )
+
+    safe_run_code = (
+        "import json, sys; "
+        f"args = json.loads({repr(args_json)}); "
+        "sys.argv = [''] + args; "
+        f"{run_code}"
+    )
+
+    run_env = os.environ.copy()
+    run_env["PYTHONPATH"] = str(cicd_agent_root) + os.pathsep + run_env.get("PYTHONPATH", "")
+    run_env["PYTHONIOENCODING"] = "utf-8"
+
+    completed = subprocess.run(
+        [sys.executable, "-c", safe_run_code],
+        cwd=str(cicd_agent_root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=run_env,
+        check=False,
+        timeout=timeout_seconds,
+    )
+
+    if completed.returncode != 0:
+        error_msg = (completed.stderr or completed.stdout or "cicd-agent execution failed").strip()
+        raise RuntimeError(error_msg)
+
+    for line in (completed.stdout or "").splitlines():
+        if line.startswith("CICD_RESULT_JSON="):
+            return json.loads(line[len("CICD_RESULT_JSON="):])
+
+    raise RuntimeError("cicd-agent returned no structured CI/CD output")
+
+
+def _summarize_act_failure(execution_result: Dict[str, Any]) -> str:
+    """Summarize Act execution failure for cicd-agent repair prompts."""
+    act = execution_result.get("act") or {}
+    lines = [
+        f"exit_code={act.get('exit_code')}",
+        f"timed_out={act.get('timed_out')}",
+    ]
+
+    logs = act.get("logs", [])
+    tail = logs[-60:] if isinstance(logs, list) else []
+    if tail:
+        lines.append("recent_logs:")
+        for entry in tail:
+            if isinstance(entry, dict):
+                stream = entry.get("stream", "stdout")
+                line = entry.get("line", "")
+                lines.append(f"[{stream}] {line}")
+            else:
+                lines.append(str(entry))
+
+    return "\n".join(lines)
+
+
+def _ensure_executable_cicd_workflow_via_agent(
+    initial_workflow: str,
+    user_prompt: str,
+    repository_path: str,
+    run_execution_fn,
+    max_attempts: int = 4,
+    act_timeout: int = 600,
+) -> Dict[str, Any]:
+    """
+    Keep sending Act failures back to cicd-agent until workflow executes successfully
+    or retry budget is exhausted.
+    """
+    current_workflow = _sanitize_workflow_yaml_text(initial_workflow)
+    if not current_workflow:
+        return {
+            "status": "error",
+            "message": "CI/CD workflow is empty; cannot validate with Act.",
+            "attempts": [],
+            "workflow_yaml": "",
+        }
+
+    attempts: List[Dict[str, Any]] = []
+    prompt_seed = (user_prompt or "Generate a valid GitHub Actions workflow").strip()
+    repo_context = {
+        "is_available": True,
+        "source": "local",
+        "path": repository_path,
+    }
+
+    for attempt in range(1, max_attempts + 1):
+        execution_result = run_execution_fn(
+            dockerfile_content="",
+            cicd_workflow_content=current_workflow,
+            repository_path=repository_path,
+            act_timeout=act_timeout,
+        )
+        attempts.append({
+            "attempt": attempt,
+            "execution_result": execution_result,
+        })
+
+        if execution_result.get("status") == "success" and (execution_result.get("act") or {}).get("success"):
+            return {
+                "status": "success",
+                "message": "CI/CD workflow validated successfully with Act.",
+                "workflow_yaml": current_workflow,
+                "attempts": attempts,
+                "total_attempts": attempt,
+                "execution_result": execution_result,
+            }
+
+        if attempt >= max_attempts:
+            break
+
+        failure_summary = _summarize_act_failure(execution_result)
+        repair_prompt = (
+            f"{prompt_seed}\n\n"
+            "The GitHub Actions workflow below fails when executed with `act`.\n"
+            "Regenerate a corrected workflow YAML so Act passes successfully.\n"
+            "Keep it production-ready and executable.\n\n"
+            "Current workflow:\n"
+            "```yaml\n"
+            f"{current_workflow}"
+            "```\n\n"
+            "Act failure details:\n"
+            f"{failure_summary}\n"
+        )
+
+        try:
+            cicd_agent_payload = _invoke_cicd_agent_generation(
+                user_prompt=repair_prompt,
+                repository_path=repository_path,
+                repo_context=repo_context,
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "message": f"cicd-agent failed during repair attempt {attempt}: {exc}",
+                "attempts": attempts,
+                "workflow_yaml": current_workflow,
+            }
+
+        if not cicd_agent_payload.get("success"):
+            payload_errors = cicd_agent_payload.get("errors", [])
+            payload_error_text = "; ".join(str(item) for item in payload_errors) if payload_errors else "unknown cicd-agent failure"
+            return {
+                "status": "error",
+                "message": f"cicd-agent returned unsuccessful repair result: {payload_error_text}",
+                "attempts": attempts,
+                "workflow_yaml": current_workflow,
+            }
+
+        regenerated_workflow = _extract_cicd_workflow_from_agent_payload(cicd_agent_payload)
+        if not regenerated_workflow:
+            return {
+                "status": "error",
+                "message": "cicd-agent returned empty workflow during repair loop.",
+                "attempts": attempts,
+                "workflow_yaml": current_workflow,
+            }
+
+        current_workflow = regenerated_workflow
+
+    return {
+        "status": "error",
+        "message": "CI/CD workflow could not be repaired to a passing Act state within retry limit.",
+        "attempts": attempts,
+        "workflow_yaml": current_workflow,
+    }
+
+
+def _ensure_buildable_dockerfile_via_agent(
+    initial_dockerfile: str,
+    user_prompt: str,
+    repository_path: str,
+    max_attempts: int = 4,
+) -> Dict[str, Any]:
+    """
+    Keep returning Dockerfile generation to docker-agent until docker build succeeds
+    or retry budget is exhausted.
+    """
+    current_dockerfile = _sanitize_dockerfile_text(initial_dockerfile)
+    if not current_dockerfile:
+        return {
+            "status": "error",
+            "message": "Dockerfile is empty; cannot validate build.",
+            "attempts": [],
+        }
+
+    repo_context = {
+        "is_available": True,
+        "source": "local",
+        "path": repository_path,
+    }
+
+    attempts: List[Dict[str, Any]] = []
+    prompt_seed = (user_prompt or "Generate a production-ready Dockerfile").strip()
+
+    for attempt in range(1, max_attempts + 1):
+        build_result = _validate_dockerfile_build(current_dockerfile, repository_path)
+        attempts.append(
+            {
+                "attempt": attempt,
+                "build_result": build_result,
+            }
+        )
+
+        if build_result.get("success"):
+            return {
+                "status": "success",
+                "message": "Dockerfile validated successfully.",
+                "dockerfile_content": current_dockerfile,
+                "attempts": attempts,
+                "total_attempts": attempt,
+            }
+
+        if attempt >= max_attempts:
+            break
+
+        failure_summary = _summarize_docker_build_failure(build_result)
+        repair_prompt = (
+            f"{prompt_seed}\n\n"
+            "The Dockerfile below must build successfully with `docker build .` in the target repository.\n"
+            "Regenerate a corrected Dockerfile and prioritize build reliability.\n\n"
+            "Current Dockerfile:\n"
+            "```dockerfile\n"
+            f"{current_dockerfile}"
+            "```\n\n"
+            "Build failure details:\n"
+            f"{failure_summary}\n"
+        )
+
+        try:
+            docker_agent_payload = _invoke_docker_agent_generation(
+                user_prompt=repair_prompt,
+                repository_path=repository_path,
+                repo_context=repo_context,
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "message": f"docker-agent failed during repair attempt {attempt}: {exc}",
+                "attempts": attempts,
+                "dockerfile_content": current_dockerfile,
+            }
+
+        regenerated_dockerfile = _extract_dockerfile_from_agent_payload(docker_agent_payload)
+        if not regenerated_dockerfile:
+            return {
+                "status": "error",
+                "message": "docker-agent returned empty Dockerfile during repair loop.",
+                "attempts": attempts,
+                "dockerfile_content": current_dockerfile,
+            }
+
+        current_dockerfile = regenerated_dockerfile
+
+    return {
+        "status": "error",
+        "message": "Dockerfile could not be repaired to a buildable state within retry limit.",
+        "attempts": attempts,
+        "dockerfile_content": current_dockerfile,
+    }
+
+
 def apply_artifacts_to_repository(repo_path: str, artifacts: Dict[str, Any]) -> Dict[str, Any]:
     """
     Apply generated artifacts to the target repository.
@@ -921,6 +1634,11 @@ def main():
         
         plan_data = st.session_state.pending_plan
         plan = plan_data.get("execution_plan", {})
+
+        current_plan_source = _plan_to_paragraph(plan)
+        if st.session_state.plan_editor_source != current_plan_source:
+            st.session_state.plan_editor_text = current_plan_source
+            st.session_state.plan_editor_source = current_plan_source
         
         st.info("**The orchestrator has created an execution plan. Please review and approve to proceed.**")
         
@@ -936,29 +1654,51 @@ def main():
         
         # Show execution plan
         st.markdown("### 📋 Execution Plan")
-        execution_order = plan.get("execution_order", [])
-        for i, step in enumerate(execution_order, 1):
-            if isinstance(step, list):
-                st.markdown(f"**Step {i}:** Parallel execution")
-                for agent in step:
-                    st.markdown(f"  - `{agent}`")
-            else:
-                st.markdown(f"**Step {i}:** `{step}`")
+        plan_paragraph = _plan_to_paragraph(plan)
+        if plan_paragraph:
+            st.write(plan_paragraph)
+        else:
+            st.caption("No execution steps available.")
         
         if plan_data.get("planner_reasoning"):
             with st.expander("💡 Planner Reasoning", expanded=False):
                 st.text(plan_data["planner_reasoning"])
+
+        st.markdown("### ✏️ Edit Plan (Paragraph)")
+        st.caption("Use one step per line. Example: Step 1: docker-agent")
+        st.caption("For parallel steps, write: Step 2: cicd-agent, iac-agent (parallel)")
+        st.text_area(
+            "Execution Plan (Text)",
+            key="plan_editor_text",
+            height=320,
+            label_visibility="collapsed"
+        )
         
         st.markdown("---")
         col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
             if st.button("✅ Approve & Execute", type="primary", use_container_width=True):
+                try:
+                    allowed_agents = _extract_allowed_agents(plan)
+                    edited_execution_order = _paragraph_to_execution_order(
+                        st.session_state.plan_editor_text,
+                        allowed_agents,
+                    )
+                except ValueError as exc:
+                    st.error(str(exc))
+                    return
+
+                edited_plan = dict(plan)
+                edited_plan["execution_order"] = edited_execution_order
+                st.session_state.pending_plan["execution_plan"] = edited_plan
                 st.session_state.plan_approved = True
                 st.rerun()
         with col2:
             if st.button("❌ Cancel", use_container_width=True):
                 st.session_state.pending_plan = None
                 st.session_state.plan_approved = False
+                st.session_state.plan_editor_text = ""
+                st.session_state.plan_editor_source = ""
                 st.rerun()
         
         return  # Stop here, don't show the normal form
@@ -966,6 +1706,7 @@ def main():
     # If plan was approved, execute it
     if st.session_state.plan_approved and st.session_state.pending_plan:
         plan_data = st.session_state.pending_plan
+        st.session_state.last_user_prompt = (plan_data.get("prompt") or "").strip()
         
         with st.spinner("🔄 Executing approved plan..."):
             try:
@@ -1194,7 +1935,7 @@ def main():
         # Validation section (optional execution)
         st.markdown("---")
         st.markdown("### 🔬 Validation (Optional)")
-        st.info("💡 You can validate the generated artifacts by building the Docker image and running the CI/CD workflow locally using Docker and Act.")
+        st.info("💡 Validation chain: Dockerfile is repaired via docker-agent until build succeeds, then CI/CD workflow is repaired via cicd-agent until Act succeeds.")
         
         repo_path_to_use = st.session_state.current_repo_path
         github_url_from_result = None
@@ -1221,105 +1962,220 @@ def main():
         else:
             validation_button_disabled = False
         
-        if st.button("🔬 Execute & Validate", use_container_width=True, disabled=validation_button_disabled, help="Build Docker image and run CI/CD workflow locally"):
+        if st.button("🔬 Execute & Validate", use_container_width=True, disabled=validation_button_disabled, help="Repair Dockerfile until build succeeds, then run CI/CD workflow with Act"):
             with st.spinner("🔄 Executing validation... This may take several minutes."):
+                temp_clone_dir = None
                 try:
                     # If we don't have a local path but have a GitHub URL, clone it first
-                    temp_clone_dir = None
                     if not has_local_path and has_github_url:
-                        import tempfile
-                        import subprocess
-                        
-                        st.info(f"🔄 Cloning repository from {github_url_from_result}...")
+                        clone_url = str(github_url_from_result or "").strip()
+                        if not clone_url:
+                            raise Exception("GitHub URL is missing for validation clone")
+
+                        st.info(f"🔄 Cloning repository from {clone_url}...")
                         temp_clone_dir = tempfile.mkdtemp(prefix="repo_validation_")
                         
                         try:
                             clone_result = subprocess.run(
-                                ["git", "clone", github_url_from_result, temp_clone_dir],
+                                ["git", "clone", clone_url, temp_clone_dir],
                                 capture_output=True,
                                 text=True,
-                                timeout=300  # 5 minute timeout for clone
+                                timeout=600  # 10 minute timeout for clone
                             )
                             
                             if clone_result.returncode != 0:
                                 st.error(f"❌ Failed to clone repository: {clone_result.stderr}")
-                                if temp_clone_dir and Path(temp_clone_dir).exists():
-                                    import shutil
-                                    shutil.rmtree(temp_clone_dir, ignore_errors=True)
                                 raise Exception(f"Git clone failed: {clone_result.stderr}")
                             
                             repo_path_to_use = temp_clone_dir
                             st.success(f"✅ Repository cloned to temporary directory")
                             
                         except subprocess.TimeoutExpired:
-                            st.error("❌ Repository clone timed out after 5 minutes")
-                            if temp_clone_dir and Path(temp_clone_dir).exists():
-                                import shutil
-                                shutil.rmtree(temp_clone_dir, ignore_errors=True)
+                            st.error("❌ Repository clone timed out after 10 minutes")
                             raise Exception("Git clone timed out")
                         except FileNotFoundError:
                             st.error("❌ Git is not installed or not in PATH. Please install Git to clone repositories.")
                             raise Exception("Git not found")
-                    
-                    # Import execution agent
-                    exec_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "execution-sandbox"
-                    if str(exec_agent_path) not in sys.path:
-                        sys.path.insert(0, str(exec_agent_path))
-                    
-                    from pipeline import run_execution
-                    
-                    # Run execution with user's edited artifacts
-                    exec_result = run_execution(
-                        dockerfile_content=edited_dockerfile.strip() or "",
-                        cicd_workflow_content=edited_yaml.strip() or "",
-                        repository_path=repo_path_to_use,
-                        docker_timeout=600,
-                        act_timeout=600
-                    )
-                    
-                    # Cleanup temp directory if we created one
-                    if temp_clone_dir and Path(temp_clone_dir).exists():
-                        import shutil
-                        st.info("🧹 Cleaning up temporary clone directory...")
-                        shutil.rmtree(temp_clone_dir, ignore_errors=True)
+
+                    effective_dockerfile = edited_dockerfile.strip() or ""
+                    docker_repair_result = {
+                        "status": "skipped",
+                        "message": "No Dockerfile provided; skipped Docker build verification.",
+                        "attempts": [],
+                        "total_attempts": 0,
+                    }
+
+                    # Enforce docker-agent self-repair loop before Act execution.
+                    if effective_dockerfile:
+                        st.info("🐳 Verifying Dockerfile build and repairing through docker-agent if needed...")
+                        docker_repair_result = _ensure_buildable_dockerfile_via_agent(
+                            initial_dockerfile=effective_dockerfile,
+                            user_prompt=st.session_state.get("last_user_prompt", ""),
+                            repository_path=repo_path_to_use,
+                            max_attempts=4,
+                        )
+
+                        if docker_repair_result.get("status") != "success":
+                            st.error(f"❌ Docker validation failed: {docker_repair_result.get('message', 'Unknown Docker validation error')}")
+                            with st.expander("🐳 Docker Repair Attempts", expanded=True):
+                                attempts = docker_repair_result.get("attempts", [])
+                                if attempts:
+                                    for attempt in attempts:
+                                        attempt_number = attempt.get("attempt", 0)
+                                        build_result = attempt.get("build_result", {})
+                                        build_data = build_result.get("docker_build", {}) if isinstance(build_result, dict) else {}
+                                        st.markdown(f"**Attempt {attempt_number}**")
+                                        st.caption(build_result.get("message", "Build failed"))
+                                        log_lines = [
+                                            entry.get("line", "")
+                                            for entry in build_data.get("logs", [])
+                                            if isinstance(entry, dict)
+                                        ]
+                                        if log_lines:
+                                            st.code("\n".join(log_lines[-80:]), language="text")
+                                else:
+                                    st.info("No Docker repair attempts recorded.")
+
+                            exec_result = {
+                                "status": "error",
+                                "message": docker_repair_result.get("message", "Docker validation failed"),
+                                "docker_repair": docker_repair_result,
+                                "act": {"exit_code": -1, "timed_out": False, "logs": [], "success": False},
+                            }
+                            st.session_state.execution_result = exec_result
+                        else:
+                            repaired_dockerfile = docker_repair_result.get("dockerfile_content", effective_dockerfile)
+                            if repaired_dockerfile.strip() != effective_dockerfile.strip():
+                                st.warning("⚠️ Dockerfile was repaired by docker-agent to reach a buildable image.")
+                                edited_dockerfile = repaired_dockerfile
+                                st.session_state.feedback_edit_dockerfile = repaired_dockerfile
+                            else:
+                                st.success("✅ Docker image build verified successfully.")
+
+                    if docker_repair_result.get("status") != "error":
+                        # Import execution agent
+                        exec_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "execution-sandbox"
+                        if str(exec_agent_path) not in sys.path:
+                            sys.path.insert(0, str(exec_agent_path))
+                        
+                        from pipeline import run_execution
+
+                        effective_yaml = edited_yaml.strip() or ""
+                        cicd_repair_result = {
+                            "status": "skipped",
+                            "message": "No CI/CD workflow provided; skipped Act validation.",
+                            "attempts": [],
+                            "total_attempts": 0,
+                        }
+
+                        if not effective_yaml:
+                            cicd_repair_result = {
+                                "status": "error",
+                                "message": "CI/CD workflow is empty; cannot validate with Act.",
+                                "attempts": [],
+                                "total_attempts": 0,
+                            }
+                            exec_result = {
+                                "status": "error",
+                                "message": cicd_repair_result["message"],
+                                "act": {"exit_code": -1, "timed_out": False, "logs": [], "success": False},
+                            }
+                        else:
+                            st.info("⚡ Verifying CI/CD workflow with Act and repairing through cicd-agent if needed...")
+                            cicd_repair_result = _ensure_executable_cicd_workflow_via_agent(
+                                initial_workflow=effective_yaml,
+                                user_prompt=st.session_state.get("last_user_prompt", ""),
+                                repository_path=repo_path_to_use,
+                                run_execution_fn=run_execution,
+                                max_attempts=4,
+                                act_timeout=600,
+                            )
+
+                            if cicd_repair_result.get("status") != "success":
+                                st.error(f"❌ CI/CD validation failed: {cicd_repair_result.get('message', 'Unknown CI/CD validation error')}")
+                                with st.expander("⚡ CI/CD Repair Attempts", expanded=True):
+                                    attempts = cicd_repair_result.get("attempts", [])
+                                    if attempts:
+                                        for attempt in attempts:
+                                            attempt_number = attempt.get("attempt", 0)
+                                            execution_attempt = attempt.get("execution_result", {})
+                                            act_attempt = execution_attempt.get("act", {}) if isinstance(execution_attempt, dict) else {}
+                                            st.markdown(f"**Attempt {attempt_number}**")
+                                            st.caption(execution_attempt.get("message", "Act execution failed"))
+                                            log_lines = [
+                                                entry.get("line", "")
+                                                for entry in act_attempt.get("logs", [])
+                                                if isinstance(entry, dict)
+                                            ]
+                                            if log_lines:
+                                                st.code("\n".join(log_lines[-100:]), language="text")
+                                    else:
+                                        st.info("No CI/CD repair attempts recorded.")
+
+                                exec_result = cicd_repair_result.get("execution_result") or {
+                                    "status": "error",
+                                    "message": cicd_repair_result.get("message", "CI/CD validation failed before final Act execution."),
+                                    "act": {"exit_code": -1, "timed_out": False, "logs": [], "success": False},
+                                }
+                            else:
+                                repaired_yaml = cicd_repair_result.get("workflow_yaml", effective_yaml)
+                                if repaired_yaml.strip() != effective_yaml.strip():
+                                    st.warning("⚠️ CI/CD workflow was repaired by cicd-agent to reach a passing Act execution.")
+                                    edited_yaml = repaired_yaml
+                                    st.session_state.feedback_edit_yaml = repaired_yaml
+                                else:
+                                    st.success("✅ CI/CD workflow validated successfully with Act.")
+
+                                exec_result = cicd_repair_result.get("execution_result") or {
+                                    "status": "success",
+                                    "message": "CI/CD workflow validated successfully with Act.",
+                                    "act": {"exit_code": 0, "timed_out": False, "logs": [], "success": True},
+                                }
+
+                        exec_result["docker_repair"] = docker_repair_result
+                        exec_result["cicd_repair"] = cicd_repair_result
+                    else:
+                        exec_result = st.session_state.execution_result or {
+                            "status": "error",
+                            "message": "Docker validation failed before Act execution.",
+                            "docker_repair": docker_repair_result,
+                            "cicd_repair": {
+                                "status": "skipped",
+                                "message": "Skipped because Docker validation failed.",
+                                "attempts": [],
+                            },
+                            "act": {"exit_code": -1, "timed_out": False, "logs": [], "success": False},
+                        }
                     
                     # Store result
                     st.session_state.execution_result = exec_result
                     
                     # Display results
                     if exec_result["status"] == "success":
-                        st.success("✅ Validation completed successfully! Both Docker build and CI/CD workflow executed without errors.")
+                        st.success("✅ Validation completed successfully! Docker image is buildable and CI/CD workflow executed with Act without errors.")
                         
                         with st.expander("📊 Validation Details", expanded=True):
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                docker_result = exec_result.get("docker_build", {})
-                                st.markdown("**🐳 Docker Build**")
-                                st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
-                                st.metric("Status", "✅ Success" if docker_result.get("success") else "❌ Failed")
-                                if docker_result.get("timed_out"):
-                                    st.warning("⏱️ Timed out")
-                            
-                            with col2:
-                                act_result = exec_result.get("act", {})
-                                st.markdown("**⚡ Act Workflow**")
-                                st.metric("Exit Code", act_result.get("exit_code", "N/A"))
-                                st.metric("Status", "✅ Success" if act_result.get("success") else "❌ Failed")
-                                if act_result.get("timed_out"):
-                                    st.warning("⏱️ Timed out")
+                            docker_repair = exec_result.get("docker_repair", {})
+                            if docker_repair and docker_repair.get("status") != "skipped":
+                                st.markdown("**🐳 Docker Repair Loop**")
+                                st.metric("Attempts", docker_repair.get("total_attempts", len(docker_repair.get("attempts", []))))
+                                st.metric("Status", "✅ Build Verified" if docker_repair.get("status") == "success" else "❌ Failed")
+
+                            cicd_repair = exec_result.get("cicd_repair", {})
+                            if cicd_repair and cicd_repair.get("status") != "skipped":
+                                st.markdown("**⚡ CI/CD Repair Loop**")
+                                st.metric("Attempts", cicd_repair.get("total_attempts", len(cicd_repair.get("attempts", []))))
+                                st.metric("Status", "✅ Act Verified" if cicd_repair.get("status") == "success" else "❌ Failed")
+
+                            act_result = exec_result.get("act", {})
+                            st.markdown("**⚡ Act Workflow**")
+                            st.metric("Exit Code", act_result.get("exit_code", "N/A"))
+                            st.metric("Status", "✅ Success" if act_result.get("success") else "❌ Failed")
+                            if act_result.get("timed_out"):
+                                st.warning("⏱️ Timed out")
                             
                             # Show workspace info
                             st.caption(f"Workspace: `{exec_result.get('workspace', 'N/A')}`")
-                            st.caption(f"Docker Image: `{exec_result.get('image_name', 'N/A')}`")
-                            
-                            # Show logs
-                            with st.expander("🐳 Docker Build Logs (last 50 lines)"):
-                                docker_logs = [log.get("line", "") for log in docker_result.get("logs", []) if isinstance(log, dict)]
-                                if docker_logs:
-                                    st.code("\n".join(docker_logs[-50:]), language="text")
-                                else:
-                                    st.info("No logs available")
                             
                             with st.expander("⚡ Act Execution Logs (last 50 lines)"):
                                 act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
@@ -1331,28 +2187,23 @@ def main():
                         st.error(f"❌ Validation failed: {exec_result.get('message', 'Unknown error')}")
                         
                         with st.expander("🔍 Error Details", expanded=True):
-                            docker_result = exec_result.get("docker_build", {})
+                            docker_repair = exec_result.get("docker_repair", {})
+                            if docker_repair and docker_repair.get("status") != "skipped":
+                                st.markdown("**🐳 Docker Repair Loop**")
+                                st.metric("Attempts", docker_repair.get("total_attempts", len(docker_repair.get("attempts", []))))
+                                st.metric("Status", "✅ Build Verified" if docker_repair.get("status") == "success" else "❌ Failed")
+
+                            cicd_repair = exec_result.get("cicd_repair", {})
+                            if cicd_repair and cicd_repair.get("status") != "skipped":
+                                st.markdown("**⚡ CI/CD Repair Loop**")
+                                st.metric("Attempts", cicd_repair.get("total_attempts", len(cicd_repair.get("attempts", []))))
+                                st.metric("Status", "✅ Act Verified" if cicd_repair.get("status") == "success" else "❌ Failed")
+
                             act_result = exec_result.get("act", {})
-                            
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                st.markdown("**🐳 Docker Build**")
-                                st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
-                                st.metric("Success", "✅" if docker_result.get("success") else "❌")
-                            
-                            with col2:
-                                st.markdown("**⚡ Act Workflow**")
-                                st.metric("Exit Code", act_result.get("exit_code", "N/A"))
-                                st.metric("Success", "✅" if act_result.get("success") else "❌")
-                            
-                            # Show error logs
-                            with st.expander("🐳 Docker Build Logs"):
-                                docker_logs = [log.get("line", "") for log in docker_result.get("logs", []) if isinstance(log, dict)]
-                                if docker_logs:
-                                    st.code("\n".join(docker_logs[-100:]), language="text")
-                                else:
-                                    st.info("No logs available")
+
+                            st.markdown("**⚡ Act Workflow**")
+                            st.metric("Exit Code", act_result.get("exit_code", "N/A"))
+                            st.metric("Success", "✅" if act_result.get("success") else "❌")
                             
                             with st.expander("⚡ Act Execution Logs"):
                                 act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
@@ -1371,6 +2222,10 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Validation failed with exception: {str(e)}")
                     st.exception(e)
+                finally:
+                    if temp_clone_dir and Path(temp_clone_dir).exists():
+                        st.info("🧹 Cleaning up temporary clone directory...")
+                        shutil.rmtree(temp_clone_dir, ignore_errors=True)
 
         st.markdown("---")
         st.markdown("### 🎯 Action Options")
@@ -1479,6 +2334,8 @@ def main():
         if not user_prompt.strip():
             st.error("Please provide a prompt or request description.")
             return
+
+        st.session_state.last_user_prompt = user_prompt.strip()
         
         with st.spinner("🔄 Orchestrating agents and generating artifacts..."):
             try:
@@ -1677,21 +2534,36 @@ def main():
         if st.session_state.execution_result:
             exec_result = st.session_state.execution_result
             if exec_result.get("status") == "success":
-                st.success("✅ **Validation Completed Successfully** - Docker build and CI/CD workflow executed without errors")
+                st.success("✅ **Validation Completed Successfully** - Docker image build verified and CI/CD workflow executed with Act without errors")
                 
                 with st.expander("🔬 Validation Summary", expanded=False):
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
-                        docker_result = exec_result.get("docker_build", {})
-                        st.markdown("**🐳 Docker Build**")
-                        st.metric("Exit Code", docker_result.get("exit_code", "N/A"))
-                        if docker_result.get("success"):
-                            st.success("✅ Success")
+                        docker_repair = exec_result.get("docker_repair", {})
+                        st.markdown("**🐳 Docker Repair**")
+                        if docker_repair and docker_repair.get("status") != "skipped":
+                            st.metric("Attempts", docker_repair.get("total_attempts", len(docker_repair.get("attempts", []))))
+                            if docker_repair.get("status") == "success":
+                                st.success("✅ Build Verified")
+                            else:
+                                st.error("❌ Build Failed")
                         else:
-                            st.error("❌ Failed")
-                    
+                            st.caption("No Dockerfile validation performed.")
+
                     with col2:
+                        cicd_repair = exec_result.get("cicd_repair", {})
+                        st.markdown("**⚡ CI/CD Repair**")
+                        if cicd_repair and cicd_repair.get("status") != "skipped":
+                            st.metric("Attempts", cicd_repair.get("total_attempts", len(cicd_repair.get("attempts", []))))
+                            if cicd_repair.get("status") == "success":
+                                st.success("✅ Act Verified")
+                            else:
+                                st.error("❌ Repair Failed")
+                        else:
+                            st.caption("No CI/CD repair loop performed.")
+
+                    with col3:
                         act_result = exec_result.get("act", {})
                         st.markdown("**⚡ Act Workflow**")
                         st.metric("Exit Code", act_result.get("exit_code", "N/A"))
@@ -1699,11 +2571,9 @@ def main():
                             st.success("✅ Success")
                         else:
                             st.error("❌ Failed")
-                    
-                    with col3:
-                        st.markdown("**📁 Workspace**")
-                        st.caption(f"`{exec_result.get('workspace', 'N/A')}`")
-                        st.caption(f"Image: `{exec_result.get('image_name', 'N/A')}`")
+
+                    st.markdown("**📁 Workspace**")
+                    st.caption(f"`{exec_result.get('workspace', 'N/A')}`")
             else:
                 st.warning(f"⚠️ **Validation Failed** - {exec_result.get('message', 'Unknown error')}")
                 with st.expander("🔍 Validation Error Details"):
@@ -1736,15 +2606,12 @@ def main():
                 with st.expander("📋 View Execution Plan", expanded=False):
                     plan = result["execution_plan"]
                     
-                    st.markdown("**Planned Execution Order:**")
-                    execution_order = plan.get("execution_order", [])
-                    for i, step in enumerate(execution_order, 1):
-                        if isinstance(step, list):
-                            st.markdown(f"**Step {i}:** Parallel execution")
-                            for agent in step:
-                                st.markdown(f"  - `{agent}`")
-                        else:
-                            st.markdown(f"**Step {i}:** `{step}`")
+                    st.markdown("**Planned Execution Order (Paragraph):**")
+                    plan_paragraph = _plan_to_paragraph(plan)
+                    if plan_paragraph:
+                        st.write(plan_paragraph)
+                    else:
+                        st.caption("No execution steps available.")
                     
                     if result.get("planner_reasoning"):
                         st.markdown("---")

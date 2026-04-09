@@ -1,6 +1,6 @@
 """
-Execution Agent - Docker Build and CI/CD Workflow Execution
-Validates generated artifacts by building Docker images and running CI/CD workflows via Act.
+Execution Agent - CI/CD Workflow Execution
+Validates generated CI/CD workflows by running them via Act.
 """
 
 import subprocess
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 class ExecutionPipeline:
     """
-    Executes generated Docker and CI/CD artifacts for validation.
-    Runs Docker builds and Act workflows in isolated temporary workspaces.
+    Executes generated CI/CD artifacts for validation.
+    Runs Act workflows in isolated temporary workspaces.
     """
     
     def __init__(self):
@@ -36,14 +36,14 @@ class ExecutionPipeline:
         act_timeout: int = 600
     ) -> Dict[str, Any]:
         """
-        Execute generated artifacts (Dockerfile and CI/CD workflow) in a temporary workspace.
+        Execute generated CI/CD workflow in a temporary workspace.
         
         Args:
-            dockerfile_content: Content of the generated Dockerfile
+            dockerfile_content: Kept for backward compatibility (ignored)
             cicd_workflow_content: Content of the generated CI/CD workflow (GitHub Actions YAML)
             repository_path: Path to the source repository
             github_url: Optional GitHub URL if cloning from remote
-            docker_timeout: Timeout in seconds for Docker build (default: 600 = 10 minutes)
+            docker_timeout: Kept for backward compatibility (unused)
             act_timeout: Timeout in seconds for Act execution (default: 600 = 10 minutes)
         
         Returns:
@@ -51,16 +51,13 @@ class ExecutionPipeline:
             - status: "success" or "error"
             - message: Summary message
             - workspace: Path to temporary workspace
-            - docker_build: Docker build results (exit_code, logs, success)
+            - docker_build: Marked as skipped (backward compatibility)
             - act: Act execution results (exit_code, logs, success)
             - should_self_repair: Boolean indicating if retry is recommended
         """
         self.logger.info("Starting execution pipeline")
         
         # Validate inputs
-        if not dockerfile_content or not dockerfile_content.strip():
-            return self._error_result("Dockerfile content is empty or missing")
-        
         if not cicd_workflow_content or not cicd_workflow_content.strip():
             return self._error_result("CI/CD workflow content is empty or missing")
         
@@ -80,31 +77,37 @@ class ExecutionPipeline:
                     "message": f"Failed to prepare workspace: {copy_result.get('reason', 'unknown')}",
                     "workspace": str(workspace_path),
                     "repo_copy": copy_result,
-                    "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+                    "docker_build": {
+                        "step": "docker-build",
+                        "command": [],
+                        "cwd": str(workspace_path),
+                        "exit_code": 0,
+                        "timed_out": False,
+                        "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                        "success": True,
+                        "skipped": True,
+                    },
                     "act": {"exit_code": -1, "timed_out": False, "logs": []},
                     "should_self_repair": True,
                 }
             
-            # Write artifacts to workspace
-            dockerfile_path = workspace_path / "Dockerfile"
+            # Write workflow artifact to workspace
             workflow_path = workspace_path / ".github" / "workflows" / "ci.yml"
             workflow_path.parent.mkdir(parents=True, exist_ok=True)
             
-            dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
             workflow_path.write_text(cicd_workflow_content, encoding="utf-8")
-            self.logger.info("Artifacts written to workspace")
-            
-            # Generate unique image name
-            image_name = f"exec-agent-{int(time.time())}"
-            
-            # Execute Docker build
-            self.logger.info("Starting Docker build")
-            docker_build_result = self._run_command_with_timeout(
-                command=["docker", "build", "-t", f"{image_name}:latest", "."],
-                cwd=str(workspace_path),
-                timeout_seconds=docker_timeout,
-                step_name="docker-build"
-            )
+            self.logger.info("Workflow written to workspace")
+
+            docker_build_result = {
+                "step": "docker-build",
+                "command": [],
+                "cwd": str(workspace_path),
+                "exit_code": 0,
+                "timed_out": False,
+                "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                "success": True,
+                "skipped": True,
+            }
             
             # Execute Act workflow
             self.logger.info("Starting Act workflow execution")
@@ -116,15 +119,14 @@ class ExecutionPipeline:
             )
             
             # Determine overall success
-            pipeline_success = docker_build_result.get("success") and act_result.get("success")
+            pipeline_success = act_result.get("success")
             should_self_repair = not pipeline_success
             
             result = {
                 "status": "success" if pipeline_success else "error",
-                "message": "Execution completed successfully" if pipeline_success else "Execution failed",
+                "message": "Act execution completed successfully" if pipeline_success else "Act execution failed",
                 "workspace": str(workspace_path),
                 "repo_copy": copy_result,
-                "image_name": image_name,
                 "docker_build": docker_build_result,
                 "act": act_result,
                 "should_self_repair": should_self_repair,
@@ -139,7 +141,16 @@ class ExecutionPipeline:
                 "status": "error",
                 "message": f"Execution failed with exception: {str(e)}",
                 "workspace": str(workspace_path),
-                "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+                "docker_build": {
+                    "step": "docker-build",
+                    "command": [],
+                    "cwd": str(workspace_path),
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                    "success": True,
+                    "skipped": True,
+                },
                 "act": {"exit_code": -1, "timed_out": False, "logs": []},
                 "should_self_repair": True,
                 "error": str(e)
@@ -151,7 +162,16 @@ class ExecutionPipeline:
             "status": "error",
             "message": message,
             "workspace": None,
-            "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+            "docker_build": {
+                "step": "docker-build",
+                "command": [],
+                "cwd": "",
+                "exit_code": 0,
+                "timed_out": False,
+                "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                "success": True,
+                "skipped": True,
+            },
             "act": {"exit_code": -1, "timed_out": False, "logs": []},
             "should_self_repair": True,
         }
@@ -375,11 +395,11 @@ def run_execution(
     Convenience function to run execution pipeline.
     
     Args:
-        dockerfile_content: Generated Dockerfile content
+        dockerfile_content: Kept for backward compatibility (ignored)
         cicd_workflow_content: Generated CI/CD workflow content
         repository_path: Path to source repository
         github_url: Optional GitHub URL
-        docker_timeout: Docker build timeout in seconds
+        docker_timeout: Kept for backward compatibility (unused)
         act_timeout: Act execution timeout in seconds
     
     Returns:

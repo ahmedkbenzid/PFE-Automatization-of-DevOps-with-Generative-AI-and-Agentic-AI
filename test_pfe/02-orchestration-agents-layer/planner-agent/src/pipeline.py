@@ -180,6 +180,15 @@ Return ONLY valid JSON, no markdown.
         
         requires_docker = any(k in request_lower for k in docker_keywords)
         requires_cicd = any(k in request_lower for k in cicd_keywords)
+        is_deployment_request = any(
+            k in request_lower for k in [
+                'deploy', 'deployment', 'release', 'production',
+                'ship', 'go live'
+            ]
+        )
+
+        if is_deployment_request:
+            requires_docker = True
         
         print(f"[Planner] Keyword analysis: requires_docker={requires_docker}, requires_cicd={requires_cicd}")
         print(f"[Planner] Request: {request_lower[:100]}...")
@@ -220,8 +229,13 @@ Return ONLY valid JSON, no markdown.
         Select which agents to use based on intent analysis
         """
         selected = []
+
+        deployment_type = str(intent.get('deployment_type', 'none')).lower()
+        deployment_implies_container = deployment_type in {'container', 'k8s'}
+        primary_goal = str(intent.get('primary_goal', '')).lower()
+        deployment_requested = deployment_implies_container or ('deploy' in primary_goal) or bool(intent.get('requires_infrastructure'))
         
-        if intent.get('requires_docker'):
+        if intent.get('requires_docker') or deployment_requested:
             selected.append('docker-agent')
         
         if intent.get('requires_cicd'):

@@ -47,7 +47,10 @@ class IntentRouter:
                 matched_agents.append(("cicd-agent", "CI/CD pipeline"))
 
         # Dockerfile keywords
-        if any(kw in prompt_lower for kw in ["dockerfile", "docker image", "container", "docker compose"]):
+        if any(kw in prompt_lower for kw in [
+            "dockerfile", "docker image", "container", "docker compose",
+            "deployment", "deploy", "production deploy", "release"
+        ]):
             # Only add if not already added by complete devops check
             if not any(agent[0] == "docker-agent" for agent in matched_agents):
                 matched_agents.append(("docker-agent", "Docker configuration"))

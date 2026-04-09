@@ -96,10 +96,56 @@ def _calculate_complexity(user_prompt: str, repo_context: Dict[str, Any] = None)
     return score
 
 
+def _requested_agent_count(user_prompt: str) -> int:
+    """Estimate how many specialized agents are explicitly needed by the prompt."""
+    prompt_lower = (user_prompt or "").lower()
+    requested_agents = set()
+
+    keyword_map = {
+        "cicd-agent": [
+            "github actions", "workflow", "ci/cd", "cicd", "ci cd", "pipeline",
+            "jenkins", "gitlab", "circleci", "continuous integration", "continuous deployment",
+        ],
+        "docker-agent": [
+            "docker", "dockerfile", "container", "docker compose", "image", "deployment", "deploy",
+        ],
+        "iac-agent": [
+            "terraform", "iac", "infrastructure", "ansible", "cloudformation", "aws", "azure", "gcp",
+        ],
+        "k8s-agent": [
+            "kubernetes", "k8s", "helm", "kubectl",
+        ],
+    }
+
+    for agent_name, keywords in keyword_map.items():
+        if any(keyword in prompt_lower for keyword in keywords):
+            requested_agents.add(agent_name)
+
+    # Explicit complete DevOps requests imply both Docker and CI/CD at minimum.
+    if any(
+        keyword in prompt_lower
+        for keyword in [
+            "complete devops",
+            "full devops",
+            "devops configuration",
+            "end-to-end devops",
+            "deploy automatically",
+            "automated deployment",
+        ]
+    ):
+        requested_agents.update({"docker-agent", "cicd-agent"})
+
+    return len(requested_agents)
+
+
 def _should_use_planner(user_prompt: str, repo_context: Dict[str, Any], enabled: bool, threshold: int, skip_planner: bool) -> bool:
     """Determine planner usage."""
     if skip_planner or not enabled:
         return False
+
+    # Product requirement: any request that needs multiple agents must go through planner.
+    if _requested_agent_count(user_prompt) > 1:
+        return True
 
     prompt_lower = (user_prompt or "").lower()
     force_keywords = ["production setup", "complete deployment", "end-to-end", "full stack setup", "microservices", "complete ci/cd"]
@@ -573,7 +619,7 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
     return {
         "agent_outputs": agent_outputs,
         "errors": errors,
-        "status": "completed",
+        "status": "error" if errors else "completed",
     }
 
 
@@ -873,22 +919,168 @@ def _execute_docker_agent(
             "print('DOCKER_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
         )
 
-        docker_result = _invoke_python_agent(
+        deployment_request = _is_deployment_request(user_prompt)
+        max_react_retries = 2
+        react_trace: list[Dict[str, Any]] = []
+
+        current_prompt = user_prompt
+        current_result = _invoke_python_agent(
             agent_name="docker-agent",
             agent_folder_name="docker-agent",
             run_code=run_code,
-            args=[user_prompt, repo_path or "", repo_context_json],
+            args=[current_prompt, repo_path or "", repo_context_json],
             result_prefix="DOCKER_RESULT_JSON=",
-            timeout=150,  # 2.5 minutes base, up to 7.5 minutes with retries
+            timeout=150,
             max_retries=2,
         )
 
-        print(f"[Orchestrator] <- Result received from {agent}")
-        return {"status": "success", "data": docker_result}
+        if not deployment_request:
+            print(f"[Orchestrator] <- Result received from {agent}")
+            return {"status": "success", "data": current_result}
+
+        print("[Orchestrator] Deployment request detected - running Docker ReAct loop until image build succeeds")
+
+        for attempt in range(1, max_react_retries + 2):
+            build_check = _validate_generated_docker_image(
+                docker_agent_result=current_result,
+                repository_path=repo_path,
+            )
+            react_trace.append(
+                {
+                    "attempt": attempt,
+                    "generation_prompt": current_prompt,
+                    "build_check": copy.deepcopy(build_check),
+                }
+            )
+
+            if build_check.get("success"):
+                current_result["react_validation"] = {
+                    "deployment_request": True,
+                    "image_build_verified": True,
+                    "attempts": react_trace,
+                    "final_image_name": build_check.get("image_name", ""),
+                }
+                print(f"[Orchestrator] <- Result received from {agent} with verified image build")
+                return {"status": "success", "data": current_result}
+
+            if attempt > max_react_retries:
+                break
+
+            failure_summary = _summarize_docker_build_failure(build_check)
+            current_prompt = (
+                f"{user_prompt}\n\n"
+                f"ReAct repair attempt {attempt}: regenerate Dockerfile so docker build succeeds.\n"
+                f"Build failure details:\n{failure_summary}"
+            )
+            print(f"[Orchestrator] Docker ReAct retry {attempt}/{max_react_retries}")
+            current_result = _invoke_python_agent(
+                agent_name="docker-agent",
+                agent_folder_name="docker-agent",
+                run_code=run_code,
+                args=[current_prompt, repo_path or "", repo_context_json],
+                result_prefix="DOCKER_RESULT_JSON=",
+                timeout=180,
+                max_retries=2,
+            )
+
+        return {
+            "status": "error",
+            "message": "Deployment request requires a successful Docker image build, but all ReAct attempts failed.",
+            "data": current_result,
+            "react_validation": {
+                "deployment_request": True,
+                "image_build_verified": False,
+                "attempts": react_trace,
+            },
+        }
 
     except Exception as e:
         print(f"[Orchestrator] Error executing {agent}: {str(e)}")
         return {"status": "error", "message": str(e)}
+
+
+def _is_deployment_request(user_prompt: str) -> bool:
+    prompt_lower = (user_prompt or "").lower()
+    deployment_keywords = [
+        "deploy",
+        "deployment",
+        "production",
+        "release",
+        "go live",
+        "ship",
+    ]
+    return any(keyword in prompt_lower for keyword in deployment_keywords)
+
+
+def _extract_dockerfile_from_agent_result(docker_agent_result: Dict[str, Any]) -> str:
+    configuration = (docker_agent_result.get("configuration") or {}) if isinstance(docker_agent_result, dict) else {}
+    dockerfile_raw = configuration.get("dockerfile_content") or ""
+    return _sanitize_generated_dockerfile(dockerfile_raw)
+
+
+def _validate_generated_docker_image(docker_agent_result: Dict[str, Any], repository_path: str) -> Dict[str, Any]:
+    dockerfile_content = _extract_dockerfile_from_agent_result(docker_agent_result)
+    if not dockerfile_content:
+        return {
+            "success": False,
+            "message": "Dockerfile content is empty; cannot build image.",
+            "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+        }
+
+    workspace = tempfile.mkdtemp(prefix="orchestrator-docker-react-")
+    workspace_path = Path(workspace)
+
+    copy_result = _copy_repo_source_to_workspace(repository_path, workspace_path)
+    if not copy_result.get("copied"):
+        return {
+            "success": False,
+            "message": f"Failed to prepare workspace for Docker build: {copy_result.get('reason', 'unknown reason')}",
+            "workspace": str(workspace_path),
+            "repo_copy": copy_result,
+            "docker_build": {"exit_code": -1, "timed_out": False, "logs": []},
+        }
+
+    dockerfile_path = workspace_path / "Dockerfile"
+    dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
+
+    image_name = f"orchestrator-react-{int(time.time())}"
+    docker_build = _stream_command_with_timeout(
+        command=["docker", "build", "-t", f"{image_name}:latest", "."],
+        cwd=str(workspace_path),
+        timeout_seconds=600,
+        step_name="docker-react-build",
+    )
+
+    return {
+        "success": docker_build.get("success", False),
+        "message": "Docker image build succeeded" if docker_build.get("success") else "Docker image build failed",
+        "workspace": str(workspace_path),
+        "repo_copy": copy_result,
+        "image_name": image_name,
+        "docker_build": docker_build,
+    }
+
+
+def _summarize_docker_build_failure(build_check: Dict[str, Any]) -> str:
+    docker_build = build_check.get("docker_build") or {}
+    lines = [
+        f"exit_code={docker_build.get('exit_code')}",
+        f"timed_out={docker_build.get('timed_out')}",
+    ]
+
+    raw_logs = docker_build.get("logs", [])
+    tail_lines = []
+    for entry in raw_logs[-30:]:
+        if isinstance(entry, dict):
+            tail_lines.append(entry.get("line", ""))
+        else:
+            tail_lines.append(str(entry))
+
+    if tail_lines:
+        lines.append("recent_logs:")
+        lines.extend(f"- {line}" for line in tail_lines)
+
+    return "\n".join(lines)
 
 
 def _execute_iac_agent(
