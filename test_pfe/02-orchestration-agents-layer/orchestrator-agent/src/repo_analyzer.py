@@ -211,6 +211,9 @@ class _GitHubAPIAnalyzer:
             # Step 4 — classify files
             self._classify_paths(paths, ctx)
 
+            # Step 5 — best-effort dependency/version extraction from key files
+            self._populate_dependency_versions_from_remote(repo_obj, ctx, paths)
+
             return ctx
 
         except Exception as e:
@@ -385,6 +388,90 @@ class _GitHubAPIAnalyzer:
         ctx.frameworks = sorted(frameworks_seen)
         ctx.package_managers = sorted(pm_seen)
 
+    def _populate_dependency_versions_from_remote(
+        self,
+        repo_obj: Any,
+        ctx: RepoContext,
+        paths: List[str],
+    ) -> None:
+        """Best-effort dependency/version extraction from key remote files via PyGithub."""
+        if not HAS_DEPENDENCY_ANALYZER:
+            return
+
+        candidate_files = [
+            "requirements.txt",
+            "pyproject.toml",
+            "setup.py",
+            "pom.xml",
+            "build.gradle",
+            "build.gradle.kts",
+            "package.json",
+            "go.mod",
+        ]
+
+        try:
+            import base64
+            import tempfile
+
+            with tempfile.TemporaryDirectory(prefix="orchestrator-remote-deps-") as temp_dir:
+                temp_path = Path(temp_dir)
+                wrote_any = False
+
+                available_paths = set(paths)
+                for rel in candidate_files:
+                    if rel not in available_paths:
+                        continue
+                    try:
+                        content_obj = repo_obj.get_contents(rel, ref=ctx.default_branch or "main")
+                    except Exception:
+                        continue
+
+                    raw_content = ""
+                    if hasattr(content_obj, "decoded_content"):
+                        try:
+                            raw_content = content_obj.decoded_content.decode("utf-8", errors="ignore")
+                        except Exception:
+                            raw_content = ""
+                    elif isinstance(getattr(content_obj, "content", None), str):
+                        try:
+                            raw_content = base64.b64decode(content_obj.content).decode("utf-8", errors="ignore")
+                        except Exception:
+                            raw_content = ""
+
+                    if not raw_content.strip():
+                        continue
+
+                    file_path = temp_path / rel
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(raw_content, encoding="utf-8", errors="ignore")
+                    wrote_any = True
+
+                if not wrote_any:
+                    return
+
+                dep_analyzer = DependencyAnalyzer(str(temp_path))
+                dep_info = dep_analyzer.analyze()
+
+                ctx.python_version = dep_info.python_version
+                ctx.java_version = dep_info.java_version
+                ctx.node_version = dep_info.node_version
+                ctx.go_version = dep_info.go_version
+                ctx.django_version = dep_info.django_version
+                ctx.fastapi_version = dep_info.fastapi_version
+                ctx.flask_version = dep_info.flask_version
+                ctx.spring_boot_version = dep_info.spring_boot_version
+                ctx.express_version = dep_info.express_version
+                ctx.maven_version = dep_info.maven_version
+                ctx.gradle_version = dep_info.gradle_version
+                ctx.npm_version = dep_info.npm_version
+                ctx.pip_version = dep_info.pip_version
+                ctx.critical_packages = dep_info.critical_packages
+                ctx.has_version_conflicts = dep_info.has_version_conflicts
+                ctx.dependency_warnings = dep_info.warnings
+                ctx.dependency_recommendations = dep_info.recommendations
+        except Exception:
+            return
+
 
 class _GitHubMCPAnalyzer:
     """Uses GitHub MCP server tools to analyze a remote repository."""
@@ -424,6 +511,7 @@ class _GitHubMCPAnalyzer:
                 ctx.tree_snapshot = paths[:200]
 
                 self._classify_paths(paths, ctx)
+                self._populate_dependency_versions_from_remote(client, owner, repo, ctx, paths)
 
             return ctx
 
@@ -503,6 +591,74 @@ class _GitHubMCPAnalyzer:
         ctx.languages = sorted(languages_seen)
         ctx.frameworks = sorted(frameworks_seen)
         ctx.package_managers = sorted(pm_seen)
+
+    def _populate_dependency_versions_from_remote(
+        self,
+        client: GitHubMCPClient,
+        owner: str,
+        repo: str,
+        ctx: RepoContext,
+        paths: List[str],
+    ) -> None:
+        """Best-effort dependency/version extraction from key remote files."""
+        if not HAS_DEPENDENCY_ANALYZER:
+            return
+
+        candidate_files = [
+            "requirements.txt",
+            "pyproject.toml",
+            "setup.py",
+            "pom.xml",
+            "build.gradle",
+            "build.gradle.kts",
+            "package.json",
+            "go.mod",
+        ]
+
+        try:
+            import tempfile
+
+            with tempfile.TemporaryDirectory(prefix="orchestrator-remote-deps-") as temp_dir:
+                temp_path = Path(temp_dir)
+                wrote_any = False
+
+                available_paths = set(paths)
+                for rel in candidate_files:
+                    if rel not in available_paths:
+                        continue
+                    content = client.get_file_at_commit(owner, repo, rel, ctx.latest_commit_sha or ctx.default_branch or "main")
+                    if not isinstance(content, str) or not content.strip():
+                        continue
+                    file_path = temp_path / rel
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding="utf-8", errors="ignore")
+                    wrote_any = True
+
+                if not wrote_any:
+                    return
+
+                dep_analyzer = DependencyAnalyzer(str(temp_path))
+                dep_info = dep_analyzer.analyze()
+
+                ctx.python_version = dep_info.python_version
+                ctx.java_version = dep_info.java_version
+                ctx.node_version = dep_info.node_version
+                ctx.go_version = dep_info.go_version
+                ctx.django_version = dep_info.django_version
+                ctx.fastapi_version = dep_info.fastapi_version
+                ctx.flask_version = dep_info.flask_version
+                ctx.spring_boot_version = dep_info.spring_boot_version
+                ctx.express_version = dep_info.express_version
+                ctx.maven_version = dep_info.maven_version
+                ctx.gradle_version = dep_info.gradle_version
+                ctx.npm_version = dep_info.npm_version
+                ctx.pip_version = dep_info.pip_version
+                ctx.critical_packages = dep_info.critical_packages
+                ctx.has_version_conflicts = dep_info.has_version_conflicts
+                ctx.dependency_warnings = dep_info.warnings
+                ctx.dependency_recommendations = dep_info.recommendations
+        except Exception:
+            return
 
 
 # ---------------------------------------------------------------------------

@@ -18,6 +18,7 @@ from src.components.prompt_intent_resolver import PromptIntentResolver
 from src.components.rag_kb import RAGKnowledgeBase
 from src.components.validate import Validate
 from src.components.write_files import WriteFiles
+from src.components.benchmark import run_generation_benchmark, serialize_benchmark
 from src.config import DATA_DIR, IAC_CONFIG
 from src.models.types import PipelineResult, UserRequest
 
@@ -63,7 +64,10 @@ class IACPipeline:
             top_k=3,
         )
 
-        terraform_config = self.generate_file.generate(
+        # Quick benchmark to compare template and llm generation quality/latency.
+        benchmark_results = run_generation_benchmark(
+            generator=self.generate_file,
+            validator=self.validate,
             request=request,
             context=context,
             provider=effective_provider,
@@ -71,15 +75,45 @@ class IACPipeline:
             rag_context=rag_context,
         )
 
+        max_repair_attempts = max(0, int(IAC_CONFIG.get("max_repair_attempts", 2)))
+        attempt = 0
+        current_prompt = request.text
+        validation = None
+        terraform_config = None
+
+        while True:
+            terraform_config = self.generate_file.generate(
+                request=UserRequest(text=current_prompt, repository_path=request.repository_path),
+                context=context,
+                provider=effective_provider,
+                resource_hints=resource_hints,
+                rag_context=rag_context,
+                mode="auto",
+            )
+            validation = self.validate.run(terraform_config)
+            terraform_config.is_valid = validation.is_valid
+            terraform_config.generation_attempts = attempt + 1
+
+            if validation.is_valid or attempt >= max_repair_attempts:
+                break
+
+            repair_context = self._build_repair_prompt(validation)
+            current_prompt = (
+                f"{request.text}\n\n"
+                f"Repair attempt {attempt + 1}: fix Terraform syntax and validation issues.\n"
+                f"Validation feedback:\n{repair_context}"
+            )
+            attempt += 1
+
         terraform_config.metadata["detected_provider"] = context.detected_cloud_provider
         terraform_config.metadata["analysis_provider"] = analysis.cloud_provider
         terraform_config.metadata["prompt_provider"] = prompt_provider
         terraform_config.metadata["prompt_provider_confidence"] = prompt_confidence
         terraform_config.metadata["prompt_provider_scores"] = provider_scores
         terraform_config.metadata["effective_provider"] = effective_provider
+        terraform_config.metadata["benchmark"] = serialize_benchmark(benchmark_results)
 
-        validation = self.validate.run(terraform_config)
-        terraform_config.is_valid = validation.is_valid
+        # validation already computed in loop
 
         written_files = self.write_files.run(
             terraform_config=terraform_config,
@@ -100,6 +134,22 @@ class IACPipeline:
             processing_time_ms=elapsed_ms,
         )
 
+    def _build_repair_prompt(self, validation) -> str:
+        lines = []
+        if validation.errors:
+            lines.append("Errors:")
+            for err in validation.errors:
+                lines.append(f"- {err}")
+        if validation.warnings:
+            lines.append("Warnings:")
+            for warn in validation.warnings:
+                lines.append(f"- {warn}")
+        if validation.suggestions:
+            lines.append("Suggestions:")
+            for suggestion in validation.suggestions:
+                lines.append(f"- {suggestion}")
+        return "\n".join(lines) if lines else "No details. Ensure terraform syntax correctness."
+
     def _apply_orchestrator_context(self, context, analysis, repo_context: dict) -> None:
         provider = self._detect_provider_from_repo_context(repo_context)
         if provider:
@@ -112,6 +162,35 @@ class IACPipeline:
 
         if repo_context.get("frameworks"):
             context.frameworks = list(repo_context.get("frameworks", []))
+
+        if repo_context.get("package_managers"):
+            context.package_managers = list(repo_context.get("package_managers", []))
+
+        if repo_context.get("build_system"):
+            context.build_system = repo_context.get("build_system")
+
+        for field_name in [
+            "python_version",
+            "java_version",
+            "node_version",
+            "go_version",
+            "django_version",
+            "fastapi_version",
+            "flask_version",
+            "spring_boot_version",
+            "express_version",
+        ]:
+            value = repo_context.get(field_name)
+            if value:
+                setattr(context, field_name, str(value))
+
+        if repo_context.get("dependency_warnings"):
+            context.dependency_warnings = list(repo_context.get("dependency_warnings", []))
+
+        if repo_context.get("dependency_recommendations"):
+            context.dependency_recommendations = list(repo_context.get("dependency_recommendations", []))
+
+        context.has_version_conflicts = bool(repo_context.get("has_version_conflicts", False))
 
         if repo_context.get("has_terraform"):
             context.existing_terraform_files = list(repo_context.get("terraform_files", []))

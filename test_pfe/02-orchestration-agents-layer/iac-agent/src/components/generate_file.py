@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Sequence
 
 from ..models.types import RepositoryContext, TerraformConfiguration, UserRequest
+from ..config import IAC_CONFIG
+from .llm_client import IACLLMClient
 
 
 class GenerateFile:
     """Generate Terraform files aligned to provider and resource intent."""
 
     _SUPPORTED_PROVIDERS = {"aws", "azure", "gcp"}
+
+    def __init__(self):
+        self.llm_client = IACLLMClient()
 
     def generate(
         self,
@@ -19,12 +25,27 @@ class GenerateFile:
         provider: str,
         resource_hints: Sequence[str],
         rag_context: Sequence[Dict[str, Any]],
+        mode: str = "auto",
     ) -> TerraformConfiguration:
         normalized_provider = provider.lower() if provider else "aws"
         if normalized_provider not in self._SUPPORTED_PROVIDERS:
             normalized_provider = "aws"
 
         merged_hints = self._merge_hints(resource_hints, rag_context, context, request.text)
+
+        if mode == "auto":
+            mode = "llm" if IAC_CONFIG.get("use_llm", True) else "template"
+
+        if mode == "llm":
+            llm_generated = self._generate_with_llm(
+                request=request,
+                context=context,
+                provider=normalized_provider,
+                resource_hints=merged_hints,
+                rag_context=rag_context,
+            )
+            if llm_generated is not None:
+                return llm_generated
 
         providers_tf = self._build_providers_tf(normalized_provider)
         variables_tf = self._build_variables_tf(normalized_provider, merged_hints)
@@ -47,10 +68,155 @@ class GenerateFile:
                 "requested": request.text,
                 "resource_hints": sorted(merged_hints),
                 "rag_pages": [page.get("page_id") or page.get("title") for page in rag_context],
+                "generation_mode": mode,
             },
             generation_attempts=1,
             is_valid=False,
         )
+
+    def _generate_with_llm(
+        self,
+        request: UserRequest,
+        context: RepositoryContext,
+        provider: str,
+        resource_hints: set[str],
+        rag_context: Sequence[Dict[str, Any]],
+    ) -> TerraformConfiguration | None:
+        """Use LLM to generate Terraform sections; fallback is handled by caller."""
+        prompt = self._build_llm_prompt(request, context, provider, resource_hints, rag_context)
+        response = self.llm_client.generate(prompt)
+        parsed = self._extract_terraform_sections(response)
+        if not parsed:
+            return None
+
+        providers_tf = parsed.get("providers_tf", "").strip()
+        variables_tf = parsed.get("variables_tf", "").strip()
+        main_tf = parsed.get("main_tf", "").strip()
+        outputs_tf = parsed.get("outputs_tf", "").strip()
+
+        if not providers_tf or not main_tf:
+            return None
+
+        resources = self._extract_resource_types(main_tf)
+        combined_hcl = self._combine_hcl(providers_tf, variables_tf, main_tf, outputs_tf)
+
+        return TerraformConfiguration(
+            providers_tf=providers_tf + "\n",
+            variables_tf=(variables_tf + "\n") if variables_tf else "",
+            main_tf=main_tf + "\n",
+            outputs_tf=(outputs_tf + "\n") if outputs_tf else "",
+            provider=provider,
+            resources=resources,
+            combined_hcl=combined_hcl,
+            metadata={
+              "generator": "llm",
+              "requested": request.text,
+              "resource_hints": sorted(resource_hints),
+              "rag_pages": [page.get("page_id") or page.get("title") for page in rag_context],
+              "generation_mode": "llm",
+            },
+            generation_attempts=1,
+            is_valid=False,
+        )
+
+    def _build_llm_prompt(
+        self,
+        request: UserRequest,
+        context: RepositoryContext,
+        provider: str,
+        resource_hints: set[str],
+        rag_context: Sequence[Dict[str, Any]],
+    ) -> str:
+        kb_snippets: List[str] = []
+        for page in rag_context[:3]:
+            title = str(page.get("title", ""))
+            tags = ", ".join(page.get("tags", []))
+            content = str(page.get("content", ""))[:1500]
+            kb_snippets.append(f"TITLE: {title}\nTAGS: {tags}\nSNIPPET:\n{content}\n")
+
+        dependency_lines = [
+            f"languages={context.project_languages}",
+            f"frameworks={context.frameworks}",
+            f"package_managers={context.package_managers}",
+            f"build_system={context.build_system}",
+            f"python_version={context.python_version}",
+            f"java_version={context.java_version}",
+            f"node_version={context.node_version}",
+            f"go_version={context.go_version}",
+            f"spring_boot_version={context.spring_boot_version}",
+            f"has_version_conflicts={context.has_version_conflicts}",
+            f"dependency_warnings={context.dependency_warnings}",
+        ]
+
+        return (
+            "You are a Terraform expert. Generate production-quality Terraform sections for the request.\n"
+            "Return ONLY this exact sectioned format:\n"
+            "### providers_tf\n<terraform+provider block>\n"
+            "### variables_tf\n<variables>\n"
+            "### main_tf\n<resources>\n"
+            "### outputs_tf\n<outputs>\n\n"
+            "Constraints:\n"
+            f"- Cloud provider must be: {provider}\n"
+            f"- Include resource intent: {sorted(resource_hints)}\n"
+            "- Use Terraform syntax only, no markdown fences.\n"
+            "- Keep references consistent (resource names and variable names).\n"
+            "- Respect project dependencies and versions where relevant.\n\n"
+            f"User request:\n{request.text}\n\n"
+            f"Project dependency context:\n" + "\n".join(dependency_lines) + "\n\n"
+            f"Knowledge base excerpts:\n" + "\n---\n".join(kb_snippets)
+        )
+
+    def _extract_terraform_sections(self, text: str) -> Dict[str, str]:
+        if not text or not text.strip():
+            return {}
+
+        cleaned = text.replace("\r\n", "\n")
+        cleaned = re.sub(r"```[a-zA-Z0-9_-]*", "", cleaned)
+        cleaned = cleaned.replace("```", "").strip()
+
+        pattern = re.compile(
+            r"###\s*providers_tf\s*(.*?)###\s*variables_tf\s*(.*?)###\s*main_tf\s*(.*?)###\s*outputs_tf\s*(.*)",
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        match = pattern.search(cleaned)
+        if match:
+            return {
+              "providers_tf": match.group(1).strip(),
+              "variables_tf": match.group(2).strip(),
+              "main_tf": match.group(3).strip(),
+              "outputs_tf": match.group(4).strip(),
+            }
+
+        # Fallback: try to salvage by splitting on headings line-by-line
+        sections = {"providers_tf": "", "variables_tf": "", "main_tf": "", "outputs_tf": ""}
+        current_key = None
+        for line in cleaned.splitlines():
+            lowered = line.strip().lower()
+            if lowered.startswith("###") and "providers_tf" in lowered:
+              current_key = "providers_tf"
+              continue
+            if lowered.startswith("###") and "variables_tf" in lowered:
+              current_key = "variables_tf"
+              continue
+            if lowered.startswith("###") and "main_tf" in lowered:
+              current_key = "main_tf"
+              continue
+            if lowered.startswith("###") and "outputs_tf" in lowered:
+              current_key = "outputs_tf"
+              continue
+            if current_key:
+              sections[current_key] += line + "\n"
+
+        if sections["providers_tf"].strip() and sections["main_tf"].strip():
+            return {k: v.strip() for k, v in sections.items()}
+        return {}
+
+    def _extract_resource_types(self, main_tf: str) -> List[str]:
+        seen = []
+        for match in re.findall(r'^\s*resource\s+"([^"]+)"\s+"[^"]+"', main_tf, flags=re.MULTILINE):
+            if match not in seen:
+                seen.append(match)
+        return seen
 
     def _merge_hints(
         self,

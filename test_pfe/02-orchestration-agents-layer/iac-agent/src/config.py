@@ -19,6 +19,13 @@ IAC_CONFIG = {
     "strict_validation": os.getenv("IAC_STRICT_VALIDATION", "true").lower() == "true",
     "supported_providers": ["aws", "azure", "gcp"],
     "write_terraform_dir": os.getenv("IAC_TERRAFORM_DIR", "terraform"),
+    "use_llm": os.getenv("IAC_USE_LLM", "true").lower() == "true",
+    "llm_provider": os.getenv("IAC_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "groq")).lower(),
+    "groq_model": os.getenv("IAC_GROQ_MODEL", "llama-3.1-8b-instant"),
+    "ollama_model": os.getenv("IAC_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1")),
+    "llm_temperature": float(os.getenv("IAC_LLM_TEMPERATURE", "0.1")),
+    "llm_max_tokens": int(os.getenv("IAC_LLM_MAX_TOKENS", "4096")),
+    "max_repair_attempts": int(os.getenv("IAC_MAX_REPAIR_ATTEMPTS", "2")),
 }
 
 

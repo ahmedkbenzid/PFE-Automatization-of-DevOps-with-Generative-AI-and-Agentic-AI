@@ -221,6 +221,7 @@ def check_environment() -> Dict[str, bool]:
         "Orchestrator": True,
         "CI/CD Agent": True,
         "Docker Agent": True,
+        "IaC Agent": True
     }
     
     try:

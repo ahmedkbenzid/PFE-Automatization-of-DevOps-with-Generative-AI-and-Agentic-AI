@@ -635,8 +635,9 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                 if result.get("status") == "error":
                     errors.append(f"{step} failed: {result.get('message', 'Unknown error')}")
     else:
-        # Default execution (no plan) - execute all agents in parallel
-        for agent in target_agents:
+        # Default execution (no plan) - execute in deterministic order
+        ordered_agents = sorted(target_agents, key=_execution_priority)
+        for agent in ordered_agents:
             result = _execute_single_agent(agent, user_prompt, agent_repo_path, enhanced_repo_context)
             agent_outputs[agent] = result
             if result.get("status") == "error":
@@ -681,6 +682,16 @@ def _execute_single_agent(agent: str, user_prompt: str, repository_path: str, re
     else:
         print(f"[Orchestrator] Agent '{agent}' is not yet integrated. Skipping execution.")
         return {"status": "skipped", "message": "Not integrated"}
+
+
+def _execution_priority(agent: str) -> int:
+    """Execution priority for direct-path agent orchestration."""
+    priorities = {
+        "docker-agent": 1,
+        "iac-agent": 2,
+        "cicd-agent": 3,
+    }
+    return priorities.get(agent, 99)
 
 
 def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:

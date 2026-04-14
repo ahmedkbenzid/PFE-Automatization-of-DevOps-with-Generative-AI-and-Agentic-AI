@@ -285,6 +285,12 @@ Return ONLY valid JSON, no markdown.
             if agent_id == 'cicd-agent' and 'docker-agent' in agents:
                 if 'docker-agent' not in dependencies:
                     dependencies.append('docker-agent')
+
+            # CI/CD should also run after IaC when infrastructure artifacts are part
+            # of the same request, so pipeline steps can reference finalized infra outputs.
+            if agent_id == 'cicd-agent' and 'iac-agent' in agents:
+                if 'iac-agent' not in dependencies:
+                    dependencies.append('iac-agent')
             
             # IaC should run after Docker if both selected
             if agent_id == 'iac-agent' and 'docker-agent' in agents:

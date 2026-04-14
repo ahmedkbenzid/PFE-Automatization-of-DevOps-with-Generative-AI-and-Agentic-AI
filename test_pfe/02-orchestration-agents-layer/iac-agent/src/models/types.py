@@ -31,11 +31,26 @@ class RepositoryContext:
     repository_path: str
     project_languages: List[str] = field(default_factory=list)
     frameworks: List[str] = field(default_factory=list)
+    package_managers: List[str] = field(default_factory=list)
+    build_system: Optional[str] = None
     existing_terraform_files: List[str] = field(default_factory=list)
     detected_cloud_provider: Optional[str] = None
     detected_resources: List[str] = field(default_factory=list)
     has_dockerfile: bool = False
     has_k8s_manifests: bool = False
+    # Dependency signals from project review
+    python_version: Optional[str] = None
+    java_version: Optional[str] = None
+    node_version: Optional[str] = None
+    go_version: Optional[str] = None
+    django_version: Optional[str] = None
+    fastapi_version: Optional[str] = None
+    flask_version: Optional[str] = None
+    spring_boot_version: Optional[str] = None
+    express_version: Optional[str] = None
+    dependency_warnings: List[str] = field(default_factory=list)
+    dependency_recommendations: List[str] = field(default_factory=list)
+    has_version_conflicts: bool = False
 
 
 @dataclass

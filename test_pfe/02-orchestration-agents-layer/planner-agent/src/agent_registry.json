@@ -20,7 +20,7 @@
       "metadata": ["workflow_name", "triggers", "jobs", "validation_result"]
     },
     "dependencies": {
-      "requires_before": [],
+      "requires_before": ["docker-agent", "iac-agent"],
       "provides_for": ["deployment-agent"],
       "works_with": ["docker-agent", "k8s-agent"]
     },
@@ -96,7 +96,7 @@
       "llm_model": "glm-5:cloud"
     },
     "priority": 2,
-    "can_run_parallel_with": ["cicd-agent"]
+    "can_run_parallel_with": []
   },
   
   "k8s-agent": {
