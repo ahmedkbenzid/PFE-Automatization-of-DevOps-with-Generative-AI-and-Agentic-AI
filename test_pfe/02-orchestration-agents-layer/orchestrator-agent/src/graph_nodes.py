@@ -181,6 +181,8 @@ def _invoke_planner(user_prompt: str, repo_context: Dict[str, Any], max_retries:
                 [sys.executable, str(planner_path), user_prompt, json.dumps(repo_context or {})],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=current_timeout,
                 cwd=str(planner_root),
                 env=env,
@@ -334,6 +336,25 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
             "has_ci_workflows": repo_context.has_github_actions,
             "existing_workflows": repo_context.ci_workflows,
             "config_files": {},
+            # Add version information for project-aware CI/CD workflows
+            "python_version": repo_context.python_version,
+            "java_version": repo_context.java_version,
+            "node_version": repo_context.node_version,
+            "go_version": repo_context.go_version,
+            "django_version": repo_context.django_version,
+            "fastapi_version": repo_context.fastapi_version,
+            "flask_version": repo_context.flask_version,
+            "spring_boot_version": repo_context.spring_boot_version,
+            "express_version": repo_context.express_version,
+            "maven_version": repo_context.maven_version,
+            "gradle_version": repo_context.gradle_version,
+            "npm_version": repo_context.npm_version,
+            "pip_version": repo_context.pip_version,
+            # Add dependency analysis metadata
+            "critical_packages": repo_context.critical_packages,
+            "has_version_conflicts": repo_context.has_version_conflicts,
+            "dependency_warnings": repo_context.dependency_warnings,
+            "dependency_recommendations": repo_context.dependency_recommendations,
         }
 
         if is_available:
@@ -365,6 +386,24 @@ def repo_analysis_node(state: OrchestratorState) -> Dict[str, Any]:
                 "has_ci_workflows": False,
                 "existing_workflows": [],
                 "config_files": {},
+                # Version fields (empty on error)
+                "python_version": None,
+                "java_version": None,
+                "node_version": None,
+                "go_version": None,
+                "django_version": None,
+                "fastapi_version": None,
+                "flask_version": None,
+                "spring_boot_version": None,
+                "express_version": None,
+                "maven_version": None,
+                "gradle_version": None,
+                "npm_version": None,
+                "pip_version": None,
+                "critical_packages": {},
+                "has_version_conflicts": False,
+                "dependency_warnings": [],
+                "dependency_recommendations": [],
             }
         }
 
@@ -802,6 +841,8 @@ def _invoke_python_agent(
                 cwd=agent_path,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=env,
                 check=False,
                 timeout=current_timeout,

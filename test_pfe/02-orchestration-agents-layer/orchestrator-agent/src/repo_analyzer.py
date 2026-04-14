@@ -26,6 +26,17 @@ from typing import Any, Dict, List, Optional, Tuple
 from .github_manager import GitHubURLParser, GitHubMCPClient, ChangeDetector
 from .models.github_types import GitHubRepoInfo, ChangeAnalysis, CommitComparison, ChangedFile
 
+# Try to import DependencyAnalyzer from Docker agent for extracting versions
+try:
+    import sys
+    docker_agent_path = Path(__file__).parent.parent.parent / "docker-agent" / "src" / "components"
+    if docker_agent_path.exists() and str(docker_agent_path) not in sys.path:
+        sys.path.insert(0, str(docker_agent_path))
+    from dependency_analyzer import DependencyAnalyzer
+    HAS_DEPENDENCY_ANALYZER = True
+except (ImportError, ModuleNotFoundError):
+    HAS_DEPENDENCY_ANALYZER = False
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -81,6 +92,27 @@ class RepoContext:
     frameworks: List[str] = field(default_factory=list)
     build_system: Optional[str] = None
     package_managers: List[str] = field(default_factory=list)
+    
+    # -- Version information (extracted by dependency analyzer) ----------------
+    python_version: Optional[str] = None
+    java_version: Optional[str] = None
+    node_version: Optional[str] = None
+    go_version: Optional[str] = None
+    django_version: Optional[str] = None
+    fastapi_version: Optional[str] = None
+    flask_version: Optional[str] = None
+    spring_boot_version: Optional[str] = None
+    express_version: Optional[str] = None
+    maven_version: Optional[str] = None
+    gradle_version: Optional[str] = None
+    npm_version: Optional[str] = None
+    pip_version: Optional[str] = None
+    
+    # -- Dependency analysis metadata -------------------------------------------
+    critical_packages: Dict[str, str] = field(default_factory=dict)
+    has_version_conflicts: bool = False
+    dependency_warnings: List[str] = field(default_factory=list)
+    dependency_recommendations: List[str] = field(default_factory=list)
 
     # -- Existing configurations ----------------------------------------------
     has_dockerfile: bool = False
@@ -541,6 +573,36 @@ class _LocalRepoAnalyzer:
         ctx.languages = sorted(languages_seen)
         ctx.frameworks = sorted(frameworks_seen)
         ctx.package_managers = sorted(pm_seen)
+        
+        # Extract version information using DependencyAnalyzer if available
+        if HAS_DEPENDENCY_ANALYZER:
+            try:
+                dep_analyzer = DependencyAnalyzer(repo_path)
+                dep_info = dep_analyzer.analyze()
+                
+                # Copy version information to RepoContext
+                ctx.python_version = dep_info.python_version
+                ctx.java_version = dep_info.java_version
+                ctx.node_version = dep_info.node_version
+                ctx.go_version = dep_info.go_version
+                ctx.django_version = dep_info.django_version
+                ctx.fastapi_version = dep_info.fastapi_version
+                ctx.flask_version = dep_info.flask_version
+                ctx.spring_boot_version = dep_info.spring_boot_version
+                ctx.express_version = dep_info.express_version
+                ctx.maven_version = dep_info.maven_version
+                ctx.gradle_version = dep_info.gradle_version
+                ctx.npm_version = dep_info.npm_version
+                ctx.pip_version = dep_info.pip_version
+                
+                ctx.critical_packages = dep_info.critical_packages
+                ctx.has_version_conflicts = dep_info.has_version_conflicts
+                ctx.dependency_warnings = dep_info.warnings
+                ctx.dependency_recommendations = dep_info.recommendations
+            except Exception as e:
+                # If dependency analysis fails, continue without version info
+                pass
+        
         return ctx
 
 

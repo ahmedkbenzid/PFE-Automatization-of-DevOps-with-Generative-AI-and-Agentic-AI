@@ -40,6 +40,7 @@ class TemplateManager:
             "with": {
                 "java-version": "17",
                 "distribution": "temurin",
+                "cache": "maven",
             }
         },
     }

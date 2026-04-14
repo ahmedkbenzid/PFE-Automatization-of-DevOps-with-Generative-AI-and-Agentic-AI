@@ -18,6 +18,7 @@ from src.components.llm_client import LLMClient
 from src.components.intent_layer import IntentLayer
 from src.components.prompt_intent_resolver import PromptIntentResolver
 from src.components.context_collector import ContextCollector
+from src.components.dependency_analyzer import DependencyAnalyzer
 from src.components.template_manager import TemplateManager
 from src.components.yaml_generator import YAMLGenerator
 from src.components.schema_validator import SchemaValidator
@@ -100,6 +101,16 @@ class CICDPipeline:
                     'has_dockerfile': repo_context.get('has_dockerfile', False),
                     'has_ci_workflows': repo_context.get('has_ci_workflows', False),
                     'existing_workflows': repo_context.get('existing_workflows', []),
+                    # Version information (if available from orchestrator)
+                    'python_version': repo_context.get('python_version'),
+                    'java_version': repo_context.get('java_version'),
+                    'node_version': repo_context.get('node_version'),
+                    'go_version': repo_context.get('go_version'),
+                    'django_version': repo_context.get('django_version'),
+                    'fastapi_version': repo_context.get('fastapi_version'),
+                    'flask_version': repo_context.get('flask_version'),
+                    'spring_boot_version': repo_context.get('spring_boot_version'),
+                    'express_version': repo_context.get('express_version'),
                     # Docker-specific context (for Docker agent integration)
                     'dockerfile_being_generated': repo_context.get('dockerfile_being_generated', False),
                     'dockerfile_path': repo_context.get('dockerfile_path', 'Dockerfile'),
@@ -109,6 +120,47 @@ class CICDPipeline:
                 local_repo_context = self.context_collector.collect_from_local_repo(repo_path)
             else:
                 local_repo_context = {}
+
+            # Always run local dependency analysis when a local repo path is available.
+            # This ensures CICD retries can correct language/runtime dependency versions
+            # even if upstream repo_context is minimal.
+            if repo_path and os.path.isdir(repo_path):
+                try:
+                    dep_info = DependencyAnalyzer(repo_path).analyze()
+
+                    local_repo_context.update({
+                        'python_version': dep_info.python_version or local_repo_context.get('python_version'),
+                        'java_version': dep_info.java_version or local_repo_context.get('java_version'),
+                        'node_version': dep_info.node_version or local_repo_context.get('node_version'),
+                        'go_version': dep_info.go_version or local_repo_context.get('go_version'),
+                        'django_version': dep_info.django_version or local_repo_context.get('django_version'),
+                        'fastapi_version': dep_info.fastapi_version or local_repo_context.get('fastapi_version'),
+                        'flask_version': dep_info.flask_version or local_repo_context.get('flask_version'),
+                        'spring_boot_version': dep_info.spring_boot_version or local_repo_context.get('spring_boot_version'),
+                        'express_version': dep_info.express_version or local_repo_context.get('express_version'),
+                        'dependency_warnings': dep_info.warnings,
+                        'dependency_recommendations': dep_info.recommendations,
+                        'has_version_conflicts': dep_info.has_version_conflicts,
+                    })
+
+                    detected_versions = []
+                    if local_repo_context.get('python_version'):
+                        detected_versions.append(f"Python {local_repo_context['python_version']}")
+                    if local_repo_context.get('java_version'):
+                        detected_versions.append(f"Java {local_repo_context['java_version']}")
+                    if local_repo_context.get('node_version'):
+                        detected_versions.append(f"Node.js {local_repo_context['node_version']}")
+                    if local_repo_context.get('go_version'):
+                        detected_versions.append(f"Go {local_repo_context['go_version']}")
+
+                    if detected_versions:
+                        print(f"✓ DependencyAnalyzer versions: {', '.join(detected_versions)}")
+
+                    if dep_info.warnings:
+                        print(f"⚠ DependencyAnalyzer warnings: {len(dep_info.warnings)}")
+                except Exception as dep_exc:
+                    print(f"⚠ DependencyAnalyzer failed: {str(dep_exc)}")
+
             print(f"✓ Languages detected: {', '.join(local_repo_context.get('languages', []))}")
             print(f"✓ Build system: {local_repo_context.get('build_system', 'None')}\n")
         except Exception as e:

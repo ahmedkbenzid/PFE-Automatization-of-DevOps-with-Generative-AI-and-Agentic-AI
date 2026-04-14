@@ -249,6 +249,8 @@ class Orchestrator:
                     [sys.executable, str(planner_path), user_prompt, json.dumps(repo_context or {})],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=current_timeout,
                     cwd=str(planner_root),
                     env=env

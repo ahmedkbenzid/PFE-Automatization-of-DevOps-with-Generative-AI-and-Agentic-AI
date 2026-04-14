@@ -1,0 +1,23 @@
+{
+  "page_id": "example-gcp-cloudrun-sql",
+  "page_type": "terraform_example",
+  "title": "GCP Cloud Run and Cloud SQL",
+  "source": "iac-agent-seed",
+  "tags": [
+    "terraform",
+    "gcp",
+    "cloud-run",
+    "serverless",
+    "database",
+    "cloud-sql"
+  ],
+  "content": "resource \"google_cloud_run_v2_service\" \"app\" {\n  name     = \"app-service\"\n  location = \"us-central1\"\n\n  template {\n    containers {\n      image = \"us-docker.pkg.dev/cloudrun/container/hello\"\n    }\n  }\n}\n\nresource \"google_sql_database_instance\" \"db\" {\n  name             = \"app-sql\"\n  database_version = \"POSTGRES_15\"\n  region           = \"us-central1\"\n\n  settings {\n    tier = \"db-f1-micro\"\n  }\n}\n\nresource \"google_sql_database\" \"app\" {\n  name     = \"appdb\"\n  instance = google_sql_database_instance.db.name\n}",
+  "metadata": {
+    "provider": "gcp",
+    "resources": [
+      "google_cloud_run_v2_service",
+      "google_sql_database_instance",
+      "google_sql_database"
+    ]
+  }
+}

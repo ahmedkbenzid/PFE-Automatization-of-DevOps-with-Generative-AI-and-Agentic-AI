@@ -25,6 +25,132 @@ class ExecutionPipeline:
     
     def __init__(self):
         self.logger = logger
+
+    def _is_missing_runner_image_error(self, act_result: Dict[str, Any]) -> bool:
+        """Detect common Act runner image pull/create failures."""
+        logs = act_result.get("logs", []) if isinstance(act_result, dict) else []
+        if not isinstance(logs, list):
+            return False
+
+        for entry in logs:
+            if not isinstance(entry, dict):
+                continue
+            line = str(entry.get("line", "")).lower()
+            if "no such image" in line and "catthehacker/ubuntu:act-latest" in line:
+                return True
+            if "failed to create container" in line and "no such image" in line:
+                return True
+        return False
+
+    def _is_transient_network_error(self, act_result: Dict[str, Any]) -> bool:
+        """Detect transient network/TLS failures from act logs."""
+        logs = act_result.get("logs", []) if isinstance(act_result, dict) else []
+        if not isinstance(logs, list):
+            return False
+
+        network_markers = (
+            "tls handshake timeout",
+            "client network socket disconnected before secure tls connection was established",
+            "i/o timeout",
+            "connection reset by peer",
+            "temporary failure in name resolution",
+        )
+
+        for entry in logs:
+            if not isinstance(entry, dict):
+                continue
+            line = str(entry.get("line", "")).lower()
+            if any(marker in line for marker in network_markers):
+                return True
+        return False
+
+    def _run_act_with_network_retries(
+        self,
+        command: List[str],
+        workspace_path: Path,
+        act_timeout: int,
+        step_name_prefix: str,
+        max_retries: int = 2,
+    ) -> Dict[str, Any]:
+        """Run act command and retry on transient network/TLS failures."""
+        latest_result: Dict[str, Any] = {}
+        retries_used = 0
+
+        for attempt in range(max_retries + 1):
+            latest_result = self._run_command_with_timeout(
+                command=command,
+                cwd=str(workspace_path),
+                timeout_seconds=act_timeout,
+                step_name=f"{step_name_prefix}-try-{attempt + 1}",
+            )
+
+            if latest_result.get("success"):
+                latest_result["network_retry_attempts"] = attempt
+                return latest_result
+
+            if not self._is_transient_network_error(latest_result):
+                latest_result["network_retry_attempts"] = attempt
+                return latest_result
+
+            retries_used = attempt + 1
+            if attempt < max_retries:
+                self.logger.warning(
+                    f"Transient network error detected during act execution, retrying ({attempt + 1}/{max_retries})"
+                )
+
+        latest_result["network_retry_attempts"] = retries_used
+        return latest_result
+
+    def _run_act_with_fallback_images(self, workspace_path: Path, act_timeout: int) -> Dict[str, Any]:
+        """Run act and retry with fallback runner images if the default image is missing."""
+        base_command = ["act", "-W", ".github/workflows/ci.yml"]
+        attempt_summaries: List[Dict[str, Any]] = []
+
+        primary_result = self._run_act_with_network_retries(
+            command=base_command,
+            workspace_path=workspace_path,
+            act_timeout=act_timeout,
+            step_name_prefix="act-run",
+            max_retries=2,
+        )
+        attempt_summaries.append({"command": base_command, "result": primary_result})
+
+        if primary_result.get("success") or not self._is_missing_runner_image_error(primary_result):
+            primary_result["runner_image_attempts"] = attempt_summaries
+            return primary_result
+
+        fallback_images = [
+            "catthehacker/ubuntu:full-latest",
+            "catthehacker/ubuntu:act-22.04",
+            "nektos/act-environments-ubuntu:22.04",
+        ]
+
+        latest_result = primary_result
+        for image in fallback_images:
+            fallback_cmd = [
+                "act",
+                "-W",
+                ".github/workflows/ci.yml",
+                "-P",
+                f"ubuntu-latest={image}",
+            ]
+            self.logger.warning(f"Retrying act with fallback runner image: {image}")
+            retry_result = self._run_act_with_network_retries(
+                command=fallback_cmd,
+                workspace_path=workspace_path,
+                act_timeout=act_timeout,
+                step_name_prefix=f"act-run-fallback-{image}",
+                max_retries=2,
+            )
+            attempt_summaries.append({"command": fallback_cmd, "result": retry_result})
+            latest_result = retry_result
+            if retry_result.get("success"):
+                retry_result["runner_image_attempts"] = attempt_summaries
+                retry_result["selected_runner_image"] = image
+                return retry_result
+
+        latest_result["runner_image_attempts"] = attempt_summaries
+        return latest_result
     
     def execute(
         self,
@@ -33,7 +159,7 @@ class ExecutionPipeline:
         repository_path: str,
         github_url: str = "",
         docker_timeout: int = 600,
-        act_timeout: int = 600
+        act_timeout: int = 1800
     ) -> Dict[str, Any]:
         """
         Execute generated CI/CD workflow in a temporary workspace.
@@ -111,11 +237,9 @@ class ExecutionPipeline:
             
             # Execute Act workflow
             self.logger.info("Starting Act workflow execution")
-            act_result = self._run_command_with_timeout(
-                command=["act", "-W", ".github/workflows/ci.yml"],
-                cwd=str(workspace_path),
-                timeout_seconds=act_timeout,
-                step_name="act-run"
+            act_result = self._run_act_with_fallback_images(
+                workspace_path=workspace_path,
+                act_timeout=act_timeout,
             )
             
             # Determine overall success
@@ -389,7 +513,7 @@ def run_execution(
     repository_path: str,
     github_url: str = "",
     docker_timeout: int = 600,
-    act_timeout: int = 600
+    act_timeout: int = 1800
 ) -> Dict[str, Any]:
     """
     Convenience function to run execution pipeline.

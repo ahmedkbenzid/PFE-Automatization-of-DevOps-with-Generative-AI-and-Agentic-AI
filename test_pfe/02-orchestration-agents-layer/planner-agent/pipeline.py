@@ -141,6 +141,7 @@ Return ONLY valid JSON, no markdown.
 """
         
         response = self.llm_client.generate(prompt)
+        fallback_analysis = self._fallback_intent_analysis(user_request, repo_context)
         
         try:
             # Try to parse JSON response
@@ -150,8 +151,42 @@ Return ONLY valid JSON, no markdown.
                 response = response.split("```")[1].split("```")[0].strip()
             
             analysis = json.loads(response)
-            print(f"[Planner] Intent analysis complete: {analysis.get('primary_goal', 'unknown')}")
-            return analysis
+            if not isinstance(analysis, dict):
+                print("[Planner] LLM intent output is not an object, using fallback analysis")
+                return fallback_analysis
+
+            required_keys = {
+                "primary_goal",
+                "requires_docker",
+                "requires_cicd",
+                "requires_infrastructure",
+                "requires_k8s",
+                "cloud_provider",
+                "deployment_type",
+            }
+            has_required_shape = required_keys.issubset(set(analysis.keys()))
+            llm_selected_any = any(
+                bool(analysis.get(flag))
+                for flag in ["requires_docker", "requires_cicd", "requires_infrastructure", "requires_k8s"]
+            )
+
+            if not has_required_shape or not llm_selected_any:
+                print("[Planner] LLM intent output incomplete/empty, using fallback keyword analysis")
+                return fallback_analysis
+
+            merged = dict(analysis)
+            for flag in ["requires_docker", "requires_cicd", "requires_infrastructure", "requires_k8s"]:
+                merged[flag] = bool(analysis.get(flag)) or bool(fallback_analysis.get(flag))
+
+            if merged.get("cloud_provider") in (None, "", "none"):
+                merged["cloud_provider"] = fallback_analysis.get("cloud_provider", "none")
+            if merged.get("deployment_type") in (None, "", "none"):
+                merged["deployment_type"] = fallback_analysis.get("deployment_type", "none")
+            if not str(merged.get("primary_goal", "")).strip():
+                merged["primary_goal"] = fallback_analysis.get("primary_goal", "devops automation")
+
+            print(f"[Planner] Intent analysis complete: {merged.get('primary_goal', 'unknown')}")
+            return merged
         except json.JSONDecodeError:
             # Fallback to keyword-based analysis
             print("[Planner] LLM response not JSON, using fallback analysis")

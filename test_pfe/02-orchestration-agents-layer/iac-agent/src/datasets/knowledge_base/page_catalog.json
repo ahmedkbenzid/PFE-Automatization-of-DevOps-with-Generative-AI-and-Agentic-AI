@@ -1,0 +1,72 @@
+[
+  {
+    "page_id": "dataset-terrads-zenodo-14217386",
+    "title": "TerraDS Terraform HCL Dataset (Zenodo 14217386)",
+    "source": "zenodo-14217386",
+    "tags": [
+      "terraform",
+      "iac",
+      "dataset",
+      "zenodo",
+      "terrads",
+      "hcl"
+    ],
+    "page_type": "dataset",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\iac-agent\\src\\datasets\\knowledge_base\\pages\\dataset-terrads-zenodo-14217386.json"
+  },
+  {
+    "page_id": "example-aws-ecs-ecr-vpc",
+    "title": "AWS ECS + ECR + VPC Baseline",
+    "source": "iac-agent-seed",
+    "tags": [
+      "terraform",
+      "aws",
+      "container",
+      "ecs",
+      "ecr",
+      "networking"
+    ],
+    "page_type": "terraform_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\iac-agent\\src\\datasets\\knowledge_base\\pages\\example-aws-ecs-ecr-vpc.json"
+  },
+  {
+    "page_id": "example-aws-s3-cloudfront-static-site",
+    "title": "AWS Static Site with S3 and CloudFront",
+    "source": "iac-agent-seed",
+    "tags": [
+      "terraform",
+      "aws",
+      "storage",
+      "static-site",
+      "cloudfront"
+    ],
+    "page_type": "terraform_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\iac-agent\\src\\datasets\\knowledge_base\\pages\\example-aws-s3-cloudfront-static-site.json"
+  },
+  {
+    "page_id": "example-azure-appservice-sql",
+    "title": "Azure AppService and PostgreSQL",
+    "source": "iac-agent-seed",
+    "tags": [
+      "terraform",
+      "azure",
+      "appservice",
+      "database"
+    ],
+    "page_type": "terraform_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\iac-agent\\src\\datasets\\knowledge_base\\pages\\example-azure-appservice-sql.json"
+  },
+  {
+    "page_id": "example-gcp-cloudrun-sql",
+    "title": "GCP Cloud Run and Cloud SQL",
+    "source": "iac-agent-seed",
+    "tags": [
+      "terraform",
+      "gcp",
+      "cloud-run",
+      "database"
+    ],
+    "page_type": "terraform_example",
+    "path": "C:\\test-pfe\\test_pfe\\02-orchestration-agents-layer\\iac-agent\\src\\datasets\\knowledge_base\\pages\\example-gcp-cloudrun-sql.json"
+  }
+]

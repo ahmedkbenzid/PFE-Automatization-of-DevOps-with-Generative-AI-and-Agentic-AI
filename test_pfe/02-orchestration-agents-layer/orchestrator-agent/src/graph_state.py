@@ -23,6 +23,31 @@ class RepoContextDict(TypedDict, total=False):
     has_ci_workflows: bool
     existing_workflows: List[str]
     config_files: Dict[str, bool]
+    
+    # Language/Runtime versions (for project-aware CI/CD workflows)
+    python_version: Optional[str]
+    java_version: Optional[str]
+    node_version: Optional[str]
+    go_version: Optional[str]
+    
+    # Framework versions
+    django_version: Optional[str]
+    fastapi_version: Optional[str]
+    flask_version: Optional[str]
+    spring_boot_version: Optional[str]
+    express_version: Optional[str]
+    
+    # Build tool versions
+    maven_version: Optional[str]
+    gradle_version: Optional[str]
+    npm_version: Optional[str]
+    pip_version: Optional[str]
+    
+    # Dependency analysis metadata
+    critical_packages: Dict[str, str]
+    has_version_conflicts: bool
+    dependency_warnings: List[str]
+    dependency_recommendations: List[str]
 
 
 class OrchestratorState(TypedDict, total=False):
@@ -124,6 +149,24 @@ def create_initial_state(
             "has_ci_workflows": False,
             "existing_workflows": [],
             "config_files": {},
+            # Version fields
+            "python_version": None,
+            "java_version": None,
+            "node_version": None,
+            "go_version": None,
+            "django_version": None,
+            "fastapi_version": None,
+            "flask_version": None,
+            "spring_boot_version": None,
+            "express_version": None,
+            "maven_version": None,
+            "gradle_version": None,
+            "npm_version": None,
+            "pip_version": None,
+            "critical_packages": {},
+            "has_version_conflicts": False,
+            "dependency_warnings": [],
+            "dependency_recommendations": [],
         },
         primary_agent="",
         secondary_agents=[],

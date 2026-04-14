@@ -1,0 +1,22 @@
+{
+  "page_id": "example-aws-s3-cloudfront-static-site",
+  "page_type": "terraform_example",
+  "title": "AWS Static Site with S3 and CloudFront",
+  "source": "iac-agent-seed",
+  "tags": [
+    "terraform",
+    "aws",
+    "storage",
+    "static-site",
+    "cloudfront",
+    "cdn"
+  ],
+  "content": "resource \"aws_s3_bucket\" \"website\" {\n  bucket = \"my-static-site\"\n}\n\nresource \"aws_cloudfront_distribution\" \"website\" {\n  enabled = true\n  origin {\n    domain_name = aws_s3_bucket.website.bucket_regional_domain_name\n    origin_id   = \"s3-origin\"\n  }\n\n  default_cache_behavior {\n    allowed_methods  = [\"GET\", \"HEAD\"]\n    cached_methods   = [\"GET\", \"HEAD\"]\n    target_origin_id = \"s3-origin\"\n    viewer_protocol_policy = \"redirect-to-https\"\n  }\n\n  viewer_certificate {\n    cloudfront_default_certificate = true\n  }\n}",
+  "metadata": {
+    "provider": "aws",
+    "resources": [
+      "aws_s3_bucket",
+      "aws_cloudfront_distribution"
+    ]
+  }
+}

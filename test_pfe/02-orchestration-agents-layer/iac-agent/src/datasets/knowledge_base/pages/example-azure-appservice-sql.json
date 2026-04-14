@@ -1,0 +1,23 @@
+{
+  "page_id": "example-azure-appservice-sql",
+  "page_type": "terraform_example",
+  "title": "Azure AppService and PostgreSQL",
+  "source": "iac-agent-seed",
+  "tags": [
+    "terraform",
+    "azure",
+    "appservice",
+    "database",
+    "postgres"
+  ],
+  "content": "resource \"azurerm_resource_group\" \"main\" {\n  name     = \"rg-app-dev\"\n  location = \"East US\"\n}\n\nresource \"azurerm_service_plan\" \"app\" {\n  name                = \"asp-app-dev\"\n  location            = azurerm_resource_group.main.location\n  resource_group_name = azurerm_resource_group.main.name\n  os_type             = \"Linux\"\n  sku_name            = \"B1\"\n}\n\nresource \"azurerm_linux_web_app\" \"app\" {\n  name                = \"web-app-dev\"\n  location            = azurerm_resource_group.main.location\n  resource_group_name = azurerm_resource_group.main.name\n  service_plan_id     = azurerm_service_plan.app.id\n}\n\nresource \"azurerm_postgresql_flexible_server\" \"db\" {\n  name                   = \"pg-app-dev\"\n  resource_group_name    = azurerm_resource_group.main.name\n  location               = azurerm_resource_group.main.location\n  version                = \"14\"\n  administrator_login    = \"pgadmin\"\n  administrator_password = \"ChangeMe123!\"\n  zone                   = \"1\"\n  storage_mb             = 32768\n  sku_name               = \"B_Standard_B1ms\"\n}",
+  "metadata": {
+    "provider": "azure",
+    "resources": [
+      "azurerm_resource_group",
+      "azurerm_service_plan",
+      "azurerm_linux_web_app",
+      "azurerm_postgresql_flexible_server"
+    ]
+  }
+}

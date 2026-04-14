@@ -54,6 +54,10 @@ class IntentLayer:
         go_version = repo_context.get('go_version')
         spring_boot_version = repo_context.get('spring_boot_version')
         django_version = repo_context.get('django_version')
+        fastapi_version = repo_context.get('fastapi_version')
+        flask_version = repo_context.get('flask_version')
+        maven_version = repo_context.get('maven_version')
+        gradle_version = repo_context.get('gradle_version')
         
         # Docker-specific context (for Docker agent integration)
         has_dockerfile = repo_context.get('has_dockerfile', False)
@@ -89,26 +93,60 @@ class IntentLayer:
         requests_ansible = any(token in combined for token in ["ansible", "playbook"])
         requests_k8s = any(token in combined for token in ["kubernetes", "k8s", "kubectl", "helm"])
         requests_monitoring = any(token in combined for token in ["prometheus", "grafana", "monitoring", "observability"])
+        
+        # Also detect based on detected frameworks and build systems
+        frameworks_str = " ".join(repo_context.get('frameworks') or []).lower()
+        build_system_str = (repo_context.get('build_system') or "").lower()
+        detected_python = "python" in frameworks_str or "python" in build_system_str or python_version
+        detected_java = "java" in frameworks_str or "maven" in build_system_str or "gradle" in build_system_str or java_version
+        detected_nodejs = "node.js" in frameworks_str or build_system_str == "npm" or node_version
+        detected_django = django_version is not None or "django" in frameworks_str
+        detected_fastapi = fastapi_version is not None or "fastapi" in frameworks_str
+        detected_flask = flask_version is not None or "flask" in frameworks_str
+        detected_spring_boot = spring_boot_version is not None or "spring" in frameworks_str.lower()
+        
+        # Merge explicit requests with detected frameworks
+        requests_python = requests_python or detected_python
+        requests_java = requests_java or detected_java
+        requests_node = requests_node or detected_nodejs
 
-        if any(token in combined for token in ["python", "pytest", "pip"]):
+        if requests_python and detected_python:  # Only if Python is actually in the project
             if python_version:
                 requirement_lines.append(f"Include Python setup with version {python_version} (detected from dependencies) and test execution steps.")
+                # Add framework-specific guidance ONLY if framework is detected
+                if detected_django:
+                    requirement_lines.append(f"Project uses Django {django_version or 'detected'}. Include Django migrations and test runner (e.g., python manage.py test).")
+                elif detected_fastapi:
+                    requirement_lines.append(f"Project uses FastAPI {fastapi_version or 'detected'}. Include uvicorn/asgi test commands and API testing steps.")
+                elif detected_flask:
+                    requirement_lines.append(f"Project uses Flask {flask_version or 'detected'}. Include Flask test runner and WSGI compatibility checks.")
             else:
                 requirement_lines.append("Include Python setup and test execution steps.")
-        if any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript"]):
+        
+        if requests_node and detected_nodejs:  # Only if Node.js is actually in the project
             if node_version:
                 requirement_lines.append(f"Include Node.js setup with version {node_version} (detected from package.json) and package install/test steps.")
             else:
                 requirement_lines.append("Include Node.js setup and package install/test steps.")
-        if requests_java:
+        
+        if requests_java and detected_java:  # Only if Java is actually in the project
             if java_version:
                 requirement_lines.append(f"Use Java {java_version} (detected from pom.xml/build.gradle) with actions/setup-java. Use Maven or Gradle for build/test steps.")
+                if detected_spring_boot:
+                    requirement_lines.append(f"Project uses Spring Boot {spring_boot_version or 'detected'}. Include Spring Boot test commands (mvn spring-boot:test or gradle bootTest).")
             else:
                 requirement_lines.append("Use Java build/test steps with Maven or Gradle and configure JDK with actions/setup-java.")
-        if requests_maven:
-            requirement_lines.append("Build and test using Maven commands (for example mvn -B clean verify) and Maven cache.")
+        
+        if requests_maven or build_system_str == "maven":
+            if java_version:
+                requirement_lines.append(f"Use Maven with Java {java_version}. Build command: mvn -B -DskipTests clean package. Test command: mvn -B test.")
+                requirement_lines.append("Ensure Maven is available: use actions/setup-java@v4 with cache: maven, or add a step: run: apt-get update && apt-get install -y maven")
+            else:
+                requirement_lines.append("Build and test using Maven commands (for example mvn -B clean verify). Ensure Maven is installed or cached.")
+        
         if requests_sonar:
             requirement_lines.append("Include SonarQube analysis steps using secrets for SONAR_TOKEN and SONAR_HOST_URL.")
+        
         if any(token in combined for token in ["docker", "image", "registry", "buildx"]):
             if dockerfile_being_generated or has_dockerfile:
                 # Dockerfile exists or is being generated - provide explicit path
@@ -119,14 +157,19 @@ class IntentLayer:
             else:
                 # No Dockerfile detected - use generic guidance
                 requirement_lines.append("Include Docker build workflow steps with safe defaults.")
+        
         if requests_dockerhub:
             requirement_lines.append("Login to Docker Hub with docker/login-action and push image with docker/build-push-action.")
+        
         if requests_ansible:
             requirement_lines.append("Install Ansible via pip and run ansible-playbook for delivery steps.")
+        
         if requests_k8s:
             requirement_lines.append("Deploy to Kubernetes by referencing the Docker Hub image tag in manifests or Ansible variables.")
+        
         if requests_monitoring:
             requirement_lines.append("Provision monitoring with Prometheus and Grafana using Kubernetes-native tooling (Helm/kubectl).")
+        
         if any(token in combined for token in ["deploy", "production", "release"]):
             requirement_lines.append("Separate build/test and deploy phases with gating conditions.")
 
@@ -144,7 +187,14 @@ class IntentLayer:
             requirement_lines.append("Optimize execution with caching and parallel matrix where relevant.")
         if intent.request_type == RequestType.VALIDATE_WORKFLOW:
             requirement_lines.append("Prioritize correctness and compatibility over feature breadth.")
-
+        
+        # Add dependency conflict warnings if present
+        if repo_context.get('has_version_conflicts'):
+            dep_warnings = repo_context.get('dependency_warnings', [])
+            if dep_warnings:
+                warning_str = "; ".join(dep_warnings[:3])  # First 3 warnings
+                requirement_lines.append(f"⚠️ Dependency conflicts detected: {warning_str}. Include version compatibility checks in workflow.")
+        
         repo_context_block = [
             f"Languages: {', '.join(languages) if languages else 'Unknown'}",
             f"Build system: {build_system}",

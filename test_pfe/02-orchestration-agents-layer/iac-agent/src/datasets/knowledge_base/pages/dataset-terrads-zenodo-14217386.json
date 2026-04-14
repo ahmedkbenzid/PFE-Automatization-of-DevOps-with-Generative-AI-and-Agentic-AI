@@ -1,0 +1,22 @@
+{
+  "page_id": "dataset-terrads-zenodo-14217386",
+  "page_type": "dataset",
+  "title": "TerraDS Terraform HCL Dataset (Zenodo 14217386)",
+  "source": "zenodo-14217386",
+  "tags": [
+    "terraform",
+    "iac",
+    "dataset",
+    "zenodo",
+    "terrads",
+    "hcl"
+  ],
+  "content": "TerraDS provides a large corpus of Terraform HCL repositories for Infrastructure as Code research and tooling. Key metadata from Zenodo record 14217386: DOI 10.5281/zenodo.14217386, License CC-BY-4.0, 62,406 repositories, 279,344 modules, 1,773,991 resources. Distributed files include TerraDS.sqlite, TerraDS.tar.gz, and HCL Dataset Tools.zip. The IaC agent uses this dataset metadata and associated Terraform patterns to bias generation toward real-world provider/resource combinations.",
+  "metadata": {
+    "record_id": 14217386,
+    "doi": "10.5281/zenodo.14217386",
+    "license": "CC-BY-4.0",
+    "dataset_key": "terrads",
+    "collected_on": "2026-04-13"
+  }
+}

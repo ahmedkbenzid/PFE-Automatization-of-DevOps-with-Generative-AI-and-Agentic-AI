@@ -12,6 +12,7 @@ from pathlib import Path
 import json
 import time
 import re
+import html
 from typing import Dict, Any, Optional, List, Set
 import tempfile
 import shutil
@@ -122,6 +123,49 @@ st.markdown("""
         border-radius: 0.5rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         text-align: center;
+    }
+    .pipeline-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: stretch;
+        margin: 0.5rem 0 1rem 0;
+    }
+    .pipeline-step {
+        min-width: 200px;
+        max-width: 280px;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        border-left: 5px solid #9E9E9E;
+        background: #fafafa;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .pipeline-step.pass {
+        border-left-color: #2e7d32;
+        background: #f1f8f4;
+    }
+    .pipeline-step.fail {
+        border-left-color: #c62828;
+        background: #ffebee;
+    }
+    .pipeline-step.running {
+        border-left-color: #ef6c00;
+        background: #fff3e0;
+    }
+    .pipeline-step-title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 0.35rem;
+    }
+    .pipeline-step-subtitle {
+        font-size: 0.85rem;
+        color: #424242;
+    }
+    .pipeline-arrow {
+        font-size: 1.2rem;
+        color: #90a4ae;
+        align-self: center;
+        padding: 0 0.1rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -257,74 +301,80 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
         cicd_output = agent_outputs.get("cicd-agent", {})
         if cicd_output.get("status") == "success":
             cicd_data = cicd_output.get("data", {})
-            # Convert generation_latency_ms to seconds
-            generation_latency_ms = cicd_data.get("generation_latency_ms", 0)
-            latency_s = generation_latency_ms / 1000 if generation_latency_ms else 0
-            
-            artifacts["yaml"] = cicd_data.get("workflow_yaml")
-            artifacts["metadata"]["cicd"] = {
-                "attempts": cicd_data.get("attempts", 1),
-                "latency_s": latency_s,
-                "validation": cicd_data.get("validation_result", {})
-            }
+            # Only extract workflow if generation was successful (check inner success field)
+            if cicd_data.get("success"):
+                # Convert generation_latency_ms to seconds
+                generation_latency_ms = cicd_data.get("generation_latency_ms", 0)
+                latency_s = generation_latency_ms / 1000 if generation_latency_ms else 0
+                
+                artifacts["yaml"] = cicd_data.get("workflow_yaml")
+                artifacts["metadata"]["cicd"] = {
+                    "attempts": cicd_data.get("attempts", 1),
+                    "latency_s": latency_s,
+                    "validation": cicd_data.get("validation_result", {})
+                }
         
         # Extract Dockerfile
         docker_output = agent_outputs.get("docker-agent", {})
         if docker_output.get("status") == "success":
             docker_data = docker_output.get("data", {})
-            configuration = docker_data.get("configuration", {})
-            config_metadata = configuration.get("metadata", {})
-            dockerfile_content = configuration.get("dockerfile_content")
-            lock_file = docker_data.get("lock_file", {})
-             
-            # Convert processing_time_ms to seconds
-            processing_time_ms = docker_data.get("processing_time_ms", 0)
-            build_time_s = processing_time_ms / 1000 if processing_time_ms else 0
+            # Only extract dockerfile if generation was successful (check inner success field)
+            if docker_data.get("success"):
+                configuration = docker_data.get("configuration", {})
+                config_metadata = configuration.get("metadata", {})
+                dockerfile_content = configuration.get("dockerfile_content")
+                lock_file = docker_data.get("lock_file", {})
+                 
+                # Convert processing_time_ms to seconds
+                processing_time_ms = docker_data.get("processing_time_ms", 0)
+                build_time_s = processing_time_ms / 1000 if processing_time_ms else 0
 
-            # Resolve base image with fallbacks: explicit field -> metadata -> lock file -> parsed FROM
-            lock_base_images = lock_file.get("base_images", {}) if isinstance(lock_file, dict) else {}
-            lock_first_image = next(iter(lock_base_images.keys()), None) if isinstance(lock_base_images, dict) else None
-            base_image = (
-                configuration.get("base_image")
-                or config_metadata.get("base_image")
-                or lock_first_image
-                or _first_base_image_from_dockerfile(dockerfile_content)
-                or "Unknown"
-            )
+                # Resolve base image with fallbacks: explicit field -> metadata -> lock file -> parsed FROM
+                lock_base_images = lock_file.get("base_images", {}) if isinstance(lock_file, dict) else {}
+                lock_first_image = next(iter(lock_base_images.keys()), None) if isinstance(lock_base_images, dict) else None
+                base_image = (
+                    configuration.get("base_image")
+                    or config_metadata.get("base_image")
+                    or lock_first_image
+                    or _first_base_image_from_dockerfile(dockerfile_content)
+                    or "Unknown"
+                )
 
-            # Resolve stack type with fallbacks and inference from base image
-            raw_stack = (
-                config_metadata.get("effective_stack")
-                or config_metadata.get("detected_stack")
-                or config_metadata.get("stack_type")
-                or config_metadata.get("original_stack_input")
-            )
-            stack = _infer_stack_type(raw_stack, base_image)
+                # Resolve stack type with fallbacks and inference from base image
+                raw_stack = (
+                    config_metadata.get("effective_stack")
+                    or config_metadata.get("detected_stack")
+                    or config_metadata.get("stack_type")
+                    or config_metadata.get("original_stack_input")
+                )
+                stack = _infer_stack_type(raw_stack, base_image)
 
-            artifacts["dockerfile"] = dockerfile_content
-            artifacts["metadata"]["docker"] = {
-                "build_time_s": build_time_s,
-                "stack": stack,
-                "base_image": base_image,
-                "validation": docker_data.get("validation", {})
-            }
+                artifacts["dockerfile"] = dockerfile_content
+                artifacts["metadata"]["docker"] = {
+                    "build_time_s": build_time_s,
+                    "stack": stack,
+                    "base_image": base_image,
+                    "validation": docker_data.get("validation", {})
+                }
         
         # Extract Terraform
         iac_output = agent_outputs.get("iac-agent", {})
         if iac_output.get("status") == "success":
             iac_data = iac_output.get("data", {})
-            terraform_config = iac_data.get("terraform_config", {})
-            artifacts["terraform"] = {
-                "main_tf": terraform_config.get("main_tf"),
-                "variables_tf": terraform_config.get("variables_tf"),
-                "outputs_tf": terraform_config.get("outputs_tf"),
-                "providers_tf": terraform_config.get("providers_tf"),
-            }
-            artifacts["metadata"]["terraform"] = {
-                "provider": terraform_config.get("provider"),
-                "resources": terraform_config.get("resources", []),
-                "is_valid": terraform_config.get("is_valid", False)
-            }
+            # Only extract terraform if generation was successful (check inner success field)
+            if iac_data.get("success"):
+                terraform_config = iac_data.get("terraform_config", {})
+                artifacts["terraform"] = {
+                    "main_tf": terraform_config.get("main_tf"),
+                    "variables_tf": terraform_config.get("variables_tf"),
+                    "outputs_tf": terraform_config.get("outputs_tf"),
+                    "providers_tf": terraform_config.get("providers_tf"),
+                }
+                artifacts["metadata"]["terraform"] = {
+                    "provider": terraform_config.get("provider"),
+                    "resources": terraform_config.get("resources", []),
+                    "is_valid": terraform_config.get("is_valid", False)
+                }
     
     # Case 2: Parse console output for artifacts (from subprocess)
     elif "stdout" in result or "raw_output" in result:
@@ -603,6 +653,153 @@ def display_pipeline_execution(result: Dict[str, Any]):
                         else:
                             rendered_logs.append(str(log_item))
                     st.code("\n".join(rendered_logs), language="text")
+
+
+def _parse_act_pipeline_steps(act_logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Parse act logs into ordered pipeline steps with status and duration."""
+    start_re = re.compile(r"⭐\s+Run\s+(.+)$")
+    success_re = re.compile(r"✅\s+Success\s+-\s+(.+?)(?:\s+\[([^\]]+)\])?$")
+    fail_re = re.compile(r"❌\s+Failure\s+-\s+(.+?)(?:\s+\[([^\]]+)\])?$")
+
+    steps: List[Dict[str, Any]] = []
+    index_by_name: Dict[str, int] = {}
+
+    def _ensure_step(name: str) -> Dict[str, Any]:
+        if name not in index_by_name:
+            index_by_name[name] = len(steps)
+            steps.append({
+                "name": name,
+                "status": "running",
+                "duration": None,
+                "errors": [],
+            })
+        return steps[index_by_name[name]]
+
+    for entry in act_logs or []:
+        if not isinstance(entry, dict):
+            continue
+        raw_line = str(entry.get("line", ""))
+        if not raw_line:
+            continue
+
+        m_start = start_re.search(raw_line)
+        if m_start:
+            _ensure_step(m_start.group(1).strip())
+            continue
+
+        m_success = success_re.search(raw_line)
+        if m_success:
+            name = m_success.group(1).strip()
+            step = _ensure_step(name)
+            step["status"] = "pass"
+            step["duration"] = m_success.group(2)
+            continue
+
+        m_fail = fail_re.search(raw_line)
+        if m_fail:
+            name = m_fail.group(1).strip()
+            step = _ensure_step(name)
+            step["status"] = "fail"
+            step["duration"] = m_fail.group(2)
+            continue
+
+        lower = raw_line.lower()
+        if "::error::" in raw_line or "job failed" in lower or "exitcode" in lower:
+            target = steps[-1] if steps else _ensure_step("act")
+            target["status"] = "fail"
+            if len(target["errors"]) < 3:
+                target["errors"].append(raw_line)
+
+    return steps
+
+
+def _extract_act_failure_summary(act_logs: List[Dict[str, Any]]) -> str:
+    """Extract the most useful failure reason from act logs."""
+    plain_lines = [
+        str(item.get("line", ""))
+        for item in (act_logs or [])
+        if isinstance(item, dict) and item.get("line")
+    ]
+    for line in reversed(plain_lines):
+        if "No such image: catthehacker/ubuntu:act-latest" in line:
+            return "Act default runner image is unavailable on your Docker host. The execution agent now retries with fallback runner images automatically."
+        if "TLS handshake timeout" in line:
+            return "Network/TLS handshake timed out while Act tried to fetch a GitHub Action dependency."
+        if "Client network socket disconnected before secure TLS connection was established" in line:
+            return "Network/TLS handshake failed while an action tried to download dependencies (actions/setup-java)."
+        if "::error::" in line:
+            return line.split("::error::", 1)[1].strip() or line.strip()
+    for line in reversed(plain_lines):
+        if "Error: Job" in line or "Job failed" in line:
+            return line.strip()
+    return "Act job failed. Open the logs for the exact failing command."
+
+
+def _json_safe(value: Any, seen: set = None) -> Any:
+    """Convert arbitrary objects to a JSON-serializable structure for debug UI rendering."""
+    if seen is None:
+        seen = set()
+        
+    if isinstance(value, (int, float, str, bool, type(None))):
+        return value
+        
+    if id(value) in seen:
+        return "<circular reference>"
+        
+    seen.add(id(value))
+    
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v, seen.copy()) for k, v in value.items()}
+    elif isinstance(value, (list, tuple, set)):
+        return [_json_safe(v, seen.copy()) for v in value]
+        
+    return str(value)
+
+
+def display_act_pipeline(exec_result: Dict[str, Any], expanded: bool = True) -> None:
+    """Display act execution as a pipeline timeline instead of logs-only output."""
+    if not isinstance(exec_result, dict):
+        return
+
+    act_result = exec_result.get("act", {})
+    if not isinstance(act_result, dict):
+        return
+
+    act_logs = act_result.get("logs", [])
+    if not isinstance(act_logs, list) or not act_logs:
+        return
+
+    steps = _parse_act_pipeline_steps(act_logs)
+    if not steps:
+        return
+
+    with st.expander("🧭 Act Pipeline View", expanded=expanded):
+        segments: List[str] = []
+        for idx, step in enumerate(steps):
+            status = step.get("status", "running")
+            icon = "✅" if status == "pass" else ("❌" if status == "fail" else "⏳")
+            safe_name = html.escape(str(step.get("name", "step")))
+            duration = html.escape(str(step.get("duration") or "no duration"))
+            subtitle = f"Status: {status} | Duration: {duration}"
+
+            if step.get("errors"):
+                subtitle += " | Error captured"
+
+            segments.append(
+                """
+                <div class=\"pipeline-step {status}\">
+                    <div class=\"pipeline-step-title\">{icon} {name}</div>
+                    <div class=\"pipeline-step-subtitle\">{subtitle}</div>
+                </div>
+                """.format(status=status, icon=icon, name=safe_name, subtitle=html.escape(subtitle))
+            )
+            if idx < len(steps) - 1:
+                segments.append('<div class="pipeline-arrow">→</div>')
+
+        st.markdown(f'<div class="pipeline-row">{"".join(segments)}</div>', unsafe_allow_html=True)
+
+        if not act_result.get("success"):
+            st.error(_extract_act_failure_summary(act_logs))
 
 
 def display_artifacts(artifacts: Dict[str, Any]):
@@ -1857,6 +2054,16 @@ def main():
         feedback_result = st.session_state.pending_feedback_result
         feedback_artifacts = extract_artifacts(feedback_result)
 
+        # Apply pending editor updates before widget creation to avoid
+        # Streamlit errors when mutating widget-owned keys post-instantiation.
+        pending_yaml_update = st.session_state.pop("_pending_feedback_edit_yaml", None)
+        if pending_yaml_update is not None:
+            st.session_state["feedback_edit_yaml"] = pending_yaml_update
+
+        pending_docker_update = st.session_state.pop("_pending_feedback_edit_dockerfile", None)
+        if pending_docker_update is not None:
+            st.session_state["feedback_edit_dockerfile"] = pending_docker_update
+
         # Display generated artifacts with proper formatting
         st.markdown("### 📋 Generated Artifacts")
         
@@ -1980,6 +2187,8 @@ def main():
                                 ["git", "clone", clone_url, temp_clone_dir],
                                 capture_output=True,
                                 text=True,
+                                encoding="utf-8",
+                                errors="replace",
                                 timeout=600  # 10 minute timeout for clone
                             )
                             
@@ -2048,7 +2257,7 @@ def main():
                             if repaired_dockerfile.strip() != effective_dockerfile.strip():
                                 st.warning("⚠️ Dockerfile was repaired by docker-agent to reach a buildable image.")
                                 edited_dockerfile = repaired_dockerfile
-                                st.session_state.feedback_edit_dockerfile = repaired_dockerfile
+                                st.session_state["_pending_feedback_edit_dockerfile"] = repaired_dockerfile
                             else:
                                 st.success("✅ Docker image build verified successfully.")
 
@@ -2088,7 +2297,7 @@ def main():
                                 repository_path=repo_path_to_use,
                                 run_execution_fn=run_execution,
                                 max_attempts=4,
-                                act_timeout=600,
+                                act_timeout=int(os.environ.get("EXECUTION_ACT_TIMEOUT", 1800)),
                             )
 
                             if cicd_repair_result.get("status") != "success":
@@ -2122,7 +2331,7 @@ def main():
                                 if repaired_yaml.strip() != effective_yaml.strip():
                                     st.warning("⚠️ CI/CD workflow was repaired by cicd-agent to reach a passing Act execution.")
                                     edited_yaml = repaired_yaml
-                                    st.session_state.feedback_edit_yaml = repaired_yaml
+                                    st.session_state["_pending_feedback_edit_yaml"] = repaired_yaml
                                 else:
                                     st.success("✅ CI/CD workflow validated successfully with Act.")
 
@@ -2153,6 +2362,7 @@ def main():
                     # Display results
                     if exec_result["status"] == "success":
                         st.success("✅ Validation completed successfully! Docker image is buildable and CI/CD workflow executed with Act without errors.")
+                        display_act_pipeline(exec_result, expanded=True)
                         
                         with st.expander("📊 Validation Details", expanded=True):
                             docker_repair = exec_result.get("docker_repair", {})
@@ -2183,8 +2393,10 @@ def main():
                                     st.code("\n".join(act_logs[-50:]), language="text")
                                 else:
                                     st.info("No logs available")
+
                     else:
                         st.error(f"❌ Validation failed: {exec_result.get('message', 'Unknown error')}")
+                        display_act_pipeline(exec_result, expanded=True)
                         
                         with st.expander("🔍 Error Details", expanded=True):
                             docker_repair = exec_result.get("docker_repair", {})
@@ -2211,10 +2423,11 @@ def main():
                                     st.code("\n".join(act_logs[-100:]), language="text")
                                 else:
                                     st.info("No logs available")
+
                             
                             # Show full result for debugging
                             with st.expander("📋 Full Execution Result (Debug)"):
-                                st.json(exec_result)
+                                st.json(_json_safe(exec_result))
                 
                 except ImportError as e:
                     st.error(f"❌ Failed to import execution agent: {str(e)}")
@@ -2574,10 +2787,14 @@ def main():
 
                     st.markdown("**📁 Workspace**")
                     st.caption(f"`{exec_result.get('workspace', 'N/A')}`")
+
+                display_act_pipeline(exec_result, expanded=False)
             else:
                 st.warning(f"⚠️ **Validation Failed** - {exec_result.get('message', 'Unknown error')}")
                 with st.expander("🔍 Validation Error Details"):
-                    st.json(exec_result)
+                    st.json(_json_safe(exec_result))
+
+                display_act_pipeline(exec_result, expanded=True)
         
         # Display planner usage indicator
         if result.get("used_planner"):

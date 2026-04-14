@@ -1,0 +1,133 @@
+{
+  "cicd-agent": {
+    "agent_id": "cicd-agent",
+    "name": "CI/CD Pipeline Generator",
+    "description": "Generates GitHub Actions workflows, Jenkins pipelines, GitLab CI",
+    "capabilities": [
+      "github-actions-workflow",
+      "jenkins-pipeline",
+      "gitlab-ci",
+      "build-automation",
+      "test-automation",
+      "deployment-automation"
+    ],
+    "inputs": {
+      "required": ["user_prompt", "repo_context"],
+      "optional": ["workflow_type", "deployment_target", "docker_config"]
+    },
+    "outputs": {
+      "primary": "workflow_yaml",
+      "metadata": ["workflow_name", "triggers", "jobs", "validation_result"]
+    },
+    "dependencies": {
+      "requires_before": [],
+      "provides_for": ["deployment-agent"],
+      "works_with": ["docker-agent", "k8s-agent"]
+    },
+    "constraints": {
+      "execution_time_sec": 60,
+      "requires_repo_analysis": true,
+      "llm_model": "minimax-m2.7:cloud"
+    },
+    "priority": 2,
+    "can_run_parallel_with": ["iac-agent"]
+  },
+  
+  "docker-agent": {
+    "agent_id": "docker-agent",
+    "name": "Dockerfile Generator",
+    "description": "Creates optimized Dockerfiles for various tech stacks",
+    "capabilities": [
+      "dockerfile-generation",
+      "multi-stage-builds",
+      "docker-compose",
+      "container-optimization"
+    ],
+    "inputs": {
+      "required": ["user_prompt", "repo_context"],
+      "optional": ["stack_type", "base_image_preference"]
+    },
+    "outputs": {
+      "primary": "dockerfile_content",
+      "metadata": ["base_image", "stack_type", "build_system"]
+    },
+    "dependencies": {
+      "requires_before": [],
+      "provides_for": ["cicd-agent", "iac-agent", "k8s-agent"],
+      "works_with": ["iac-agent", "k8s-agent"]
+    },
+    "constraints": {
+      "execution_time_sec": 45,
+      "requires_repo_analysis": true,
+      "llm_model": "glm-5:cloud"
+    },
+    "priority": 1,
+    "can_run_parallel_with": []
+  },
+  
+  "iac-agent": {
+    "agent_id": "iac-agent",
+    "name": "Infrastructure as Code Generator",
+    "description": "Generates Terraform, CloudFormation, and cloud infrastructure configs",
+    "capabilities": [
+      "terraform-aws",
+      "terraform-azure",
+      "terraform-gcp",
+      "cloudformation",
+      "pulumi"
+    ],
+    "inputs": {
+      "required": ["user_prompt", "repo_context", "cloud_provider"],
+      "optional": ["services_needed", "docker_config", "region"]
+    },
+    "outputs": {
+      "primary": "terraform_config",
+      "metadata": ["provider", "resources", "estimated_cost"]
+    },
+    "dependencies": {
+      "requires_before": ["docker-agent"],
+      "provides_for": [],
+      "works_with": ["cicd-agent", "k8s-agent"]
+    },
+    "constraints": {
+      "execution_time_sec": 90,
+      "requires_repo_analysis": true,
+      "requires_cloud_provider": true,
+      "llm_model": "glm-5:cloud"
+    },
+    "priority": 2,
+    "can_run_parallel_with": ["cicd-agent"]
+  },
+  
+  "k8s-agent": {
+    "agent_id": "k8s-agent",
+    "name": "Kubernetes Manifest Generator",
+    "description": "Generates Kubernetes deployment manifests, services, and configs",
+    "capabilities": [
+      "kubernetes-manifests",
+      "helm-charts",
+      "kustomize",
+      "deployment-configs"
+    ],
+    "inputs": {
+      "required": ["user_prompt", "repo_context"],
+      "optional": ["docker_config", "namespace", "replicas"]
+    },
+    "outputs": {
+      "primary": "k8s_manifests",
+      "metadata": ["deployments", "services", "configmaps"]
+    },
+    "dependencies": {
+      "requires_before": ["docker-agent"],
+      "provides_for": [],
+      "works_with": ["iac-agent", "cicd-agent"]
+    },
+    "constraints": {
+      "execution_time_sec": 60,
+      "requires_repo_analysis": true,
+      "llm_model": "glm-5:cloud"
+    },
+    "priority": 2,
+    "can_run_parallel_with": ["cicd-agent", "iac-agent"]
+  }
+}

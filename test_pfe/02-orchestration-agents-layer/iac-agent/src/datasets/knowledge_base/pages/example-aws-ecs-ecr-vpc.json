@@ -1,0 +1,25 @@
+{
+  "page_id": "example-aws-ecs-ecr-vpc",
+  "page_type": "terraform_example",
+  "title": "AWS ECS + ECR + VPC Baseline",
+  "source": "iac-agent-seed",
+  "tags": [
+    "terraform",
+    "aws",
+    "ecs",
+    "ecr",
+    "container",
+    "networking",
+    "vpc"
+  ],
+  "content": "resource \"aws_vpc\" \"main\" {\n  cidr_block = \"10.0.0.0/16\"\n}\n\nresource \"aws_subnet\" \"public\" {\n  vpc_id     = aws_vpc.main.id\n  cidr_block = \"10.0.1.0/24\"\n}\n\nresource \"aws_ecr_repository\" \"app\" {\n  name = \"app-repo\"\n}\n\nresource \"aws_ecs_cluster\" \"main\" {\n  name = \"app-cluster\"\n}",
+  "metadata": {
+    "provider": "aws",
+    "resources": [
+      "aws_vpc",
+      "aws_subnet",
+      "aws_ecr_repository",
+      "aws_ecs_cluster"
+    ]
+  }
+}
