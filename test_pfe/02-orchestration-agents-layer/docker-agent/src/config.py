@@ -40,6 +40,8 @@ PIPELINE_CONFIG = {
     "retry_delay": 2, # seconds
     "strict_validation": True,
     "strict_security": True,
+    "build_validation_timeout_sec": int(os.getenv("DOCKER_BUILD_VALIDATION_TIMEOUT_SEC", "300")),
+    "build_validation_pull": os.getenv("DOCKER_BUILD_VALIDATION_PULL", "false").lower() == "true",
 }
 
 def validate() -> None:

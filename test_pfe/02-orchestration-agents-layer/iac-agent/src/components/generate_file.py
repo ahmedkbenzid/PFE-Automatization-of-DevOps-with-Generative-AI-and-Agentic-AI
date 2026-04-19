@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Dict, List, Sequence
 
 from ..models.types import RepositoryContext, TerraformConfiguration, UserRequest
@@ -36,7 +37,14 @@ class GenerateFile:
         if mode == "auto":
             mode = "llm" if IAC_CONFIG.get("use_llm", True) else "template"
 
+        print(
+            f"[IAC Agent] GenerateFile mode={mode} provider={normalized_provider} "
+            f"hints={len(merged_hints)}"
+        )
+
         if mode == "llm":
+            llm_started = time.time()
+            print("[IAC Agent] Starting LLM Terraform generation")
             llm_generated = self._generate_with_llm(
                 request=request,
                 context=context,
@@ -45,7 +53,14 @@ class GenerateFile:
                 rag_context=rag_context,
             )
             if llm_generated is not None:
+                llm_elapsed_ms = int((time.time() - llm_started) * 1000)
+                print(f"[IAC Agent] LLM Terraform generation succeeded in {llm_elapsed_ms}ms")
                 return llm_generated
+            llm_elapsed_ms = int((time.time() - llm_started) * 1000)
+            print(
+                f"[IAC Agent] LLM generation produced no usable sections after {llm_elapsed_ms}ms; "
+                "falling back to template generation"
+            )
 
         providers_tf = self._build_providers_tf(normalized_provider)
         variables_tf = self._build_variables_tf(normalized_provider, merged_hints)
@@ -87,6 +102,7 @@ class GenerateFile:
         response = self.llm_client.generate(prompt)
         parsed = self._extract_terraform_sections(response)
         if not parsed:
+            print("[IAC Agent] Unable to parse LLM response into Terraform sections")
             return None
 
         providers_tf = parsed.get("providers_tf", "").strip()
@@ -95,6 +111,7 @@ class GenerateFile:
         outputs_tf = parsed.get("outputs_tf", "").strip()
 
         if not providers_tf or not main_tf:
+            print("[IAC Agent] LLM response missing required providers_tf/main_tf sections")
             return None
 
         resources = self._extract_resource_types(main_tf)

@@ -1,5 +1,5 @@
 """LLM integration with Ollama Cloud (primary) and Groq (fallback)"""
-from typing import Optional, Any, Callable, List, Dict
+from typing import Optional, Any, Callable, List, Dict, cast
 from src.config import Config
 from src.models.types import IntentMetadata, RequestType
 
@@ -24,7 +24,8 @@ class LLMClient:
         self.max_tokens = Config.LLM_MAX_TOKENS
         self.temperature = Config.LLM_TEMPERATURE
         self.client = None  # Will be set by init methods
-        self.model = None
+        self.model: str = ""
+        self.fallback_models: List[str] = []
 
         # Try configured provider first, with fallback to Groq
         if self.provider == "ollama":
@@ -66,7 +67,10 @@ class LLMClient:
 
     def _ollama_completion(self, prompt: str) -> str:
         """Generate completion using Ollama"""
-        response = chat(
+        if not self.model:
+            raise RuntimeError("Ollama model is not configured")
+        chat_fn = cast(Any, chat)
+        response = chat_fn(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             options={
@@ -74,7 +78,8 @@ class LLMClient:
                 "num_predict": self.max_tokens,
             }
         )
-        return response.message.content
+        content = getattr(response.message, "content", "")
+        return content or ""
 
     def _groq_completion(self, model: str, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate completion using Groq"""
@@ -86,36 +91,54 @@ class LLMClient:
             top_p=0.95,
             stream=False,
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return content or ""
 
     def generate_text(self, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate text using the configured LLM provider"""
         if self.provider == "ollama":
             try:
-                return self._ollama_completion(prompt)
+                ollama_result = self._ollama_completion(prompt)
+                if ollama_result and ollama_result.strip():
+                    return ollama_result
+                print("[CI/CD Agent] Ollama returned empty response, trying Groq fallback")
+                self._init_groq()
+                groq_result = self._groq_completion(self.model, prompt, max_tokens)
+                if groq_result and groq_result.strip():
+                    return groq_result
+                raise RuntimeError("Both Ollama and Groq returned empty responses")
             except Exception as e:
                 print(f"[CI/CD Agent] Ollama generation failed: {e}, trying Groq fallback")
                 try:
                     self._init_groq()
-                    return self._groq_completion(self.model, prompt, max_tokens)
+                    groq_result = self._groq_completion(self.model, prompt, max_tokens)
+                    if groq_result and groq_result.strip():
+                        return groq_result
+                    raise RuntimeError("Groq returned empty response")
                 except Exception as e2:
                     raise RuntimeError(f"Both Ollama and Groq failed: {e2}")
 
         # Groq with fallback support
         try:
-            return self._groq_completion(self.model, prompt, max_tokens)
+            groq_result = self._groq_completion(self.model, prompt, max_tokens)
+            if groq_result and groq_result.strip():
+                return groq_result
+            raise RuntimeError("Primary Groq model returned empty response")
         except Exception as e:
             error_text = str(e).lower()
             should_try_fallbacks = (
                 "model_decommissioned" in error_text
                 or "decommissioned" in error_text
                 or "not found" in error_text
+                or "empty response" in error_text
             )
 
             if should_try_fallbacks:
                 for fallback_model in self.fallback_models:
                     try:
                         result = self._groq_completion(fallback_model, prompt, max_tokens)
+                        if not result or not result.strip():
+                            continue
                         self.model = fallback_model
                         return result
                     except Exception:

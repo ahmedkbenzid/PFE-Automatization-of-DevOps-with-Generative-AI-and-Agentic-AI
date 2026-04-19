@@ -803,6 +803,25 @@ def _resolve_agent_path(agent_folder_name: str) -> str:
     )
 
 
+def _get_int_env(name: str, default: int, minimum: int = 0) -> int:
+    """Read a positive integer environment variable with a safe fallback."""
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+
+    try:
+        value = int(raw)
+    except ValueError:
+        print(f"[Orchestrator] Invalid integer env {name}={raw!r}; using default {default}.")
+        return default
+
+    if value < minimum:
+        print(f"[Orchestrator] Env {name}={value} below minimum {minimum}; using default {default}.")
+        return default
+
+    return value
+
+
 def _invoke_python_agent(
     agent_name: str,
     agent_folder_name: str,
@@ -816,7 +835,7 @@ def _invoke_python_agent(
     Invoke a Python agent as a subprocess and collect results with retry logic.
 
     Args:
-        timeout: Maximum seconds to wait for agent completion (default: 120s)
+        timeout: Base timeout in seconds for first attempt (default: 120s)
         max_retries: Number of retry attempts on timeout/failure (default: 2)
     """
     agent_path = _resolve_agent_path(agent_folder_name)
@@ -826,7 +845,11 @@ def _invoke_python_agent(
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            current_timeout = timeout * (attempt + 1)  # Exponential timeout: 120s, 240s, 360s
+            current_timeout = timeout * (attempt + 1)  # Progressive timeout: base, 2x base, 3x base
+            print(
+                f"[Orchestrator] Starting {agent_name} attempt {attempt + 1}/{max_retries + 1} "
+                f"(timeout: {current_timeout}s)"
+            )
             
             if attempt > 0:
                 print(f"[Orchestrator] Retrying {agent_name} (attempt {attempt + 1}/{max_retries + 1}, timeout: {current_timeout}s)...")
@@ -835,6 +858,7 @@ def _invoke_python_agent(
             env = os.environ.copy()
             env["PYTHONPATH"] = agent_path + os.pathsep + os.environ.get("PYTHONPATH", "")
             env["PYTHONIOENCODING"] = "utf-8"
+            env.setdefault("PYTHONUNBUFFERED", "1")
 
             # Pass arguments as JSON to avoid shell escaping issues
             args_json = json.dumps(args)
@@ -847,56 +871,122 @@ def _invoke_python_agent(
                 f"{run_code}"
             )
 
-            completed = subprocess.run(
-                [sys.executable, "-c", safe_run_code],
+            process = subprocess.Popen(
+                [sys.executable, "-u", "-c", safe_run_code],
                 cwd=agent_path,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 env=env,
-                check=False,
-                timeout=current_timeout,
+                bufsize=1,
             )
-            
-            # Check if subprocess succeeded
-            if completed.returncode != 0:
-                error_msg = completed.stderr.strip() if completed.stderr else completed.stdout.strip()
-                if not error_msg:
-                    error_msg = f"Unknown {agent_name} error (exit code {completed.returncode})"
-                
-                # If it's the last attempt, raise the error
+
+            output_lines: list[str] = []
+            parse_error: str | None = None
+            parsed_result: Dict[str, Any] | None = None
+
+            def _read_output_stream() -> None:
+                nonlocal parse_error, parsed_result
+                if process.stdout is None:
+                    return
+
+                while True:
+                    line = process.stdout.readline()
+                    if line == "" and process.poll() is not None:
+                        break
+                    if not line:
+                        continue
+
+                    stripped = line.rstrip("\n")
+                    output_lines.append(stripped)
+                    if len(output_lines) > 8000:
+                        del output_lines[:2000]
+
+                    if stripped.startswith(result_prefix):
+                        print(f"[Orchestrator] [{agent_name}] Structured result received")
+                        try:
+                            parsed_result = json.loads(stripped[len(result_prefix):])
+                        except json.JSONDecodeError as e:
+                            parse_error = str(e)
+                        continue
+
+                    print(f"[Orchestrator] [{agent_name}] {stripped}")
+
+            reader_thread = threading.Thread(target=_read_output_stream, daemon=True)
+            reader_thread.start()
+
+            timed_out = False
+            try:
+                process.wait(timeout=current_timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                process.kill()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+
+            if process.stdout is not None:
+                try:
+                    process.stdout.close()
+                except Exception:
+                    pass
+            reader_thread.join(timeout=1.0)
+
+            partial_output = "\n".join(output_lines[-12:]).strip()
+
+            if timed_out:
+                if attempt == max_retries:
+                    if partial_output:
+                        raise RuntimeError(
+                            f"{agent_name} timed out after {current_timeout}s (all retries exhausted). "
+                            f"Last output:\n{partial_output}"
+                        )
+                    raise RuntimeError(f"{agent_name} timed out after {current_timeout}s (all retries exhausted)")
+                if partial_output:
+                    print(
+                        f"[Orchestrator] {agent_name} timeout at {current_timeout}s "
+                        f"(will retry with longer timeout). Last output:\n{partial_output}"
+                    )
+                else:
+                    print(f"[Orchestrator] {agent_name} timeout at {current_timeout}s (will retry with longer timeout)")
+                last_error = f"Timeout at {current_timeout}s"
+                continue
+
+            return_code = process.returncode if process.returncode is not None else -1
+
+            if return_code != 0:
+                error_msg = partial_output or f"Unknown {agent_name} error (exit code {return_code})"
                 if attempt == max_retries:
                     raise RuntimeError(error_msg)
-                
-                # Otherwise, log and retry
                 print(f"[Orchestrator] {agent_name} failed: {error_msg[:100]}... (will retry)")
                 last_error = error_msg
                 continue
-            
-            # Parse result from stdout
-            for line in (completed.stdout or "").splitlines():
-                if line.startswith(result_prefix):
-                    try:
-                        return json.loads(line[len(result_prefix):])
-                    except json.JSONDecodeError as e:
-                        if attempt == max_retries:
-                            raise RuntimeError(f"{agent_name} returned invalid JSON: {str(e)}")
-                        print(f"[Orchestrator] {agent_name} JSON parse error (will retry)")
-                        last_error = str(e)
-                        continue
-            
-            # No structured result found
+
+            if parsed_result is not None:
+                return parsed_result
+
+            if parse_error:
+                if attempt == max_retries:
+                    raise RuntimeError(f"{agent_name} returned invalid JSON: {parse_error}")
+                print(f"[Orchestrator] {agent_name} JSON parse error (will retry)")
+                last_error = parse_error
+                continue
+
             if attempt == max_retries:
-                raise RuntimeError(f"{agent_name} returned no structured result. Output: {completed.stdout}")
+                final_output = "\n".join(output_lines)
+                raise RuntimeError(f"{agent_name} returned no structured result. Output: {final_output}")
             print(f"[Orchestrator] {agent_name} returned no result (will retry)")
             last_error = "No structured result"
-            
-        except subprocess.TimeoutExpired:
+
+        except Exception as e:
             if attempt == max_retries:
-                raise RuntimeError(f"{agent_name} timed out after {current_timeout}s (all retries exhausted)")
-            print(f"[Orchestrator] {agent_name} timeout at {current_timeout}s (will retry with longer timeout)")
-            last_error = f"Timeout at {current_timeout}s"
+                raise
+            error_text = str(e)
+            print(f"[Orchestrator] {agent_name} execution error: {error_text[:180]}... (will retry)")
+            last_error = error_text
             continue
     
     # Should never reach here, but just in case
@@ -956,7 +1046,17 @@ def _execute_docker_agent(
 ) -> Dict[str, Any]:
     """Execute the Docker agent."""
     agent = "docker-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 150s base)")
+
+    build_validation_timeout = _get_int_env("DOCKER_BUILD_VALIDATION_TIMEOUT_SEC", default=300, minimum=30)
+    docker_timeout_default = max(240, build_validation_timeout + 90)
+    docker_timeout_base = _get_int_env("ORCHESTRATOR_DOCKER_AGENT_TIMEOUT_SEC", default=docker_timeout_default, minimum=60)
+    docker_timeout_retries = _get_int_env("ORCHESTRATOR_DOCKER_AGENT_MAX_RETRIES", default=1, minimum=0)
+
+    print(
+        f"[Orchestrator] -> Invoking {agent} locally "
+        f"(timeout: {docker_timeout_base}s base, retries: {docker_timeout_retries}, "
+        f"docker-build-validation: {build_validation_timeout}s)"
+    )
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
@@ -982,8 +1082,8 @@ def _execute_docker_agent(
             run_code=run_code,
             args=[current_prompt, repo_path or "", repo_context_json],
             result_prefix="DOCKER_RESULT_JSON=",
-            timeout=150,
-            max_retries=2,
+            timeout=docker_timeout_base,
+            max_retries=docker_timeout_retries,
         )
 
         if not deployment_request:
@@ -1031,8 +1131,8 @@ def _execute_docker_agent(
                 run_code=run_code,
                 args=[current_prompt, repo_path or "", repo_context_json],
                 result_prefix="DOCKER_RESULT_JSON=",
-                timeout=180,
-                max_retries=2,
+                timeout=max(docker_timeout_base, 180),
+                max_retries=docker_timeout_retries,
             )
 
         return {
@@ -1142,7 +1242,14 @@ def _execute_iac_agent(
 ) -> Dict[str, Any]:
     """Execute the IAC (Terraform) agent."""
     agent = "iac-agent"
-    print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 200s base)")
+
+    iac_timeout_base = _get_int_env("ORCHESTRATOR_IAC_AGENT_TIMEOUT_SEC", default=180, minimum=60)
+    iac_timeout_retries = _get_int_env("ORCHESTRATOR_IAC_AGENT_MAX_RETRIES", default=1, minimum=0)
+
+    print(
+        f"[Orchestrator] -> Invoking {agent} locally "
+        f"(timeout: {iac_timeout_base}s base, retries: {iac_timeout_retries})"
+    )
 
     try:
         repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
@@ -1163,8 +1270,8 @@ def _execute_iac_agent(
             run_code=run_code,
             args=[user_prompt, repo_path or "", repo_context_json],
             result_prefix="IAC_RESULT_JSON=",
-            timeout=200,  # 3.3 minutes base, up to 10 minutes with retries
-            max_retries=2,
+            timeout=iac_timeout_base,
+            max_retries=iac_timeout_retries,
         )
 
         print(f"[Orchestrator] <- Result received from {agent}")

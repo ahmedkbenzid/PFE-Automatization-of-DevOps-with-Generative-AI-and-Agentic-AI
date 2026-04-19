@@ -13,16 +13,34 @@ import json
 import time
 import re
 import html
+from collections import defaultdict, deque
 from typing import Dict, Any, Optional, List, Set
 import tempfile
 import shutil
 import subprocess
+import threading
+
+try:
+    import yaml
+except ModuleNotFoundError:
+    yaml = None
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).parent
+orchestrator_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent"
+cicd_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent"
+docker_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "docker-agent"
+iac_agent_path = project_root / "test_pfe" / "02-orchestration-agents-layer" / "iac-agent"
+
+
+def _ensure_sys_path(path: Path) -> None:
+    """Add a path to sys.path only once to avoid path bloat on reruns."""
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 # Load .env file from project root
 env_path = project_root / ".env"
@@ -41,9 +59,9 @@ if env_path.exists():
     if cicd_env.exists():
         load_dotenv(cicd_env, override=False)
 
-sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent"))
-sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent"))
-sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "docker-agent"))
+_ensure_sys_path(orchestrator_agent_path)
+_ensure_sys_path(cicd_agent_path)
+_ensure_sys_path(docker_agent_path)
 
 # Page configuration
 st.set_page_config(
@@ -56,116 +74,177 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    :root {
+        --ink: #0e1b2a;
+        --muted: #5d6b7b;
+        --paper: #f4f7fb;
+        --card: #ffffff;
+        --line: #d8e0ea;
+        --accent: #0f6d58;
+        --accent-2: #145ea8;
+        --ok: #1c7c54;
+        --warn: #c06a00;
+        --bad: #b00020;
+    }
+    .stApp {
+        background:
+            radial-gradient(1500px 560px at -10% -30%, #d6ebff 0%, transparent 70%),
+            radial-gradient(1300px 520px at 110% -20%, #d4f4e4 0%, transparent 72%),
+            var(--paper);
+        color: var(--ink);
+        font-family: "Manrope", "Segoe UI", sans-serif;
+    }
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 1rem;
+        font-size: 2.1rem;
+        font-weight: 800;
+        color: var(--ink);
+        margin: 0;
+        letter-spacing: -0.02em;
     }
     .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
+        font-size: 1.02rem;
+        color: var(--muted);
+        margin: 0.35rem 0 0 0;
+    }
+    .hero-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 1.1rem 1.25rem;
+        background: linear-gradient(115deg, rgba(255,255,255,0.94) 0%, rgba(240,248,255,0.94) 45%, rgba(236,255,246,0.94) 100%);
+        box-shadow: 0 12px 28px rgba(15, 45, 80, 0.08);
+        margin-bottom: 1rem;
+    }
+    .menu-badge {
+        display: inline-block;
+        border: 1px solid #c9d7e8;
+        background: #eef4fb;
+        color: #1d3553;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.65rem;
+        margin-bottom: 0.45rem;
     }
     .agent-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid;
-        margin: 0.5rem 0;
+        padding: 0.9rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--line);
+        margin: 0.45rem 0;
     }
     .cicd-box {
-        border-left-color: #4CAF50;
-        background-color: #f1f8f4;
+        border-left: 4px solid var(--ok);
+        background-color: #f4fbf7;
     }
     .docker-box {
-        border-left-color: #2196F3;
-        background-color: #e3f2fd;
+        border-left: 4px solid var(--accent-2);
+        background-color: #eff6ff;
     }
     .iac-box {
-        border-left-color: #FF9800;
-        background-color: #fff3e0;
+        border-left: 4px solid var(--warn);
+        background-color: #fff7ed;
+    }
+    .success-box,
+    .error-box,
+    .warning-box {
+        padding: 0.9rem;
+        border-radius: 0.55rem;
+        border: 1px solid;
+        font-weight: 600;
     }
     .success-box {
-        padding: 1rem;
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 0.25rem;
-        color: #155724;
+        background-color: #ebf8ef;
+        border-color: #b9e8c6;
+        color: #0f5a35;
     }
     .error-box {
-        padding: 1rem;
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 0.25rem;
-        color: #721c24;
+        background-color: #fdeef0;
+        border-color: #f3c4cc;
+        color: #7f1324;
     }
     .warning-box {
-        padding: 1rem;
-        background-color: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 0.25rem;
-        color: #856404;
-    }
-    .code-output {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 0.25rem;
-        padding: 1rem;
-        font-family: 'Courier New', monospace;
-        white-space: pre-wrap;
-        word-wrap: break-word;
+        background-color: #fff6e5;
+        border-color: #f7dcaa;
+        color: #7f4f00;
     }
     .metric-card {
-        background-color: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background-color: var(--card);
+        border: 1px solid var(--line);
+        padding: 0.9rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 20px rgba(10, 28, 52, 0.06);
         text-align: center;
+    }
+    .pipeline-board {
+        border: 1px solid #1f2f44;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #0f1a2b 0%, #101d31 100%);
+        padding: 1rem;
+        overflow-x: auto;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
     .pipeline-row {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
+        flex-wrap: nowrap;
+        gap: 0.6rem;
         align-items: stretch;
-        margin: 0.5rem 0 1rem 0;
+        margin: 0.4rem 0;
     }
     .pipeline-step {
-        min-width: 200px;
-        max-width: 280px;
-        padding: 0.75rem;
-        border-radius: 0.5rem;
-        border-left: 5px solid #9E9E9E;
-        background: #fafafa;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        min-width: 220px;
+        max-width: 260px;
+        padding: 0.72rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid #3c4c66;
+        background: #142339;
+        color: #e6edf7;
     }
     .pipeline-step.pass {
-        border-left-color: #2e7d32;
-        background: #f1f8f4;
+        border-color: #2d9b65;
+        background: #123428;
     }
     .pipeline-step.fail {
-        border-left-color: #c62828;
-        background: #ffebee;
+        border-color: #d05b6f;
+        background: #3a1b25;
     }
     .pipeline-step.running {
-        border-left-color: #ef6c00;
-        background: #fff3e0;
+        border-color: #e0a542;
+        background: #3b2b15;
     }
     .pipeline-step-title {
         font-weight: 700;
-        font-size: 0.95rem;
-        margin-bottom: 0.35rem;
+        font-size: 0.92rem;
+        margin-bottom: 0.3rem;
     }
     .pipeline-step-subtitle {
-        font-size: 0.85rem;
-        color: #424242;
+        font-size: 0.8rem;
+        color: #c8d5e7;
     }
     .pipeline-arrow {
-        font-size: 1.2rem;
-        color: #90a4ae;
+        font-size: 1.1rem;
+        color: #8ea4c2;
         align-self: center;
-        padding: 0 0.1rem;
+        padding: 0 0.08rem;
+    }
+    .logs-note {
+        border: 1px dashed #c8d2df;
+        border-radius: 10px;
+        background: #f8fbff;
+        padding: 0.75rem 0.85rem;
+        color: #30475f;
+        margin-bottom: 0.75rem;
+    }
+    @media (max-width: 900px) {
+        .main-header {
+            font-size: 1.7rem;
+        }
+        .hero-card {
+            padding: 0.9rem;
+        }
+        .pipeline-step {
+            min-width: 180px;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -203,47 +282,45 @@ if 'plan_editor_source' not in st.session_state:
     st.session_state.plan_editor_source = ""
 if 'last_user_prompt' not in st.session_state:
     st.session_state.last_user_prompt = ""
+if 'ui_menu' not in st.session_state:
+    st.session_state.ui_menu = "Workspace"
+if 'runtime_logs' not in st.session_state:
+    st.session_state.runtime_logs = []
+if 'orchestrator_task' not in st.session_state:
+    st.session_state.orchestrator_task = None
+if 'orchestrator_task_error' not in st.session_state:
+    st.session_state.orchestrator_task_error = None
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _is_ollama_running() -> bool:
+    """Quick cached probe for Ollama availability to avoid rerun latency."""
+    try:
+        import requests
+
+        response = requests.get("http://localhost:11434", timeout=0.6)
+        return response.status_code == 200 and "ollama is running" in response.text.lower()
+    except Exception:
+        return False
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _agent_paths_exist() -> Dict[str, bool]:
+    """Fast agent health check using expected directories/files."""
+    return {
+        "Orchestrator": (orchestrator_agent_path / "run_orchestrator.py").exists(),
+        "CI/CD Agent": (cicd_agent_path / "src" / "pipeline.py").exists(),
+        "Docker Agent": (docker_agent_path / "src" / "pipeline.py").exists(),
+        "IaC Agent": (iac_agent_path / "src" / "pipeline.py").exists(),
+    }
 
 
 def check_environment() -> Dict[str, bool]:
-    """Check if required environment variables and dependencies are configured"""
-    # Check if Ollama is running
-    ollama_running = False
-    try:
-        import requests
-        response = requests.get("http://localhost:11434", timeout=2)
-        ollama_running = response.status_code == 200 and "ollama is running" in response.text.lower()
-    except:
-        ollama_running = False
-    
+    """Check required dependencies with a lightweight cached strategy."""
     checks = {
-        "Ollama": ollama_running,
-        "Orchestrator": True,
-        "CI/CD Agent": True,
-        "Docker Agent": True,
-        "IaC Agent": True
+        "Ollama": _is_ollama_running(),
     }
-    
-    try:
-        from src.orchestrator import Orchestrator
-        checks["Orchestrator"] = True
-    except Exception:
-        pass
-    
-    try:
-        sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "cicd-agent"))
-        from src.pipeline import CICDPipeline
-        checks["CI/CD Agent"] = True
-    except Exception:
-        pass
-    
-    try:
-        sys.path.insert(0, str(project_root / "test_pfe" / "02-orchestration-agents-layer" / "docker-agent"))
-        from src.pipeline import DockerPipeline
-        checks["Docker Agent"] = True
-    except Exception:
-        pass
-    
+    checks.update(_agent_paths_exist())
     return checks
 
 
@@ -470,12 +547,14 @@ def run_orchestrator_command_with_live_logs(
     cwd: str,
     env: Dict[str, str],
     panel_title: str,
+    show_live_panel: bool = False,
 ) -> Dict[str, Any]:
     """Run orchestrator command while streaming combined stdout/stderr in the UI."""
-    log_panel = st.expander(f"🖥️ {panel_title}", expanded=True)
-    live_log = log_panel.empty()
+    log_panel = st.expander(f"Runtime Logs: {panel_title}", expanded=True) if show_live_panel else None
+    live_log = log_panel.empty() if log_panel else None
     output_lines = []
-    ui_render_enabled = True
+    max_capture_lines = 8000
+    ui_render_enabled = bool(live_log)
     last_render_at = 0.0
 
     process = subprocess.Popen(
@@ -492,7 +571,7 @@ def run_orchestrator_command_with_live_logs(
 
     def _render_logs(force: bool = False) -> None:
         nonlocal ui_render_enabled, last_render_at
-        if not ui_render_enabled:
+        if not ui_render_enabled or live_log is None:
             return
 
         now = time.monotonic()
@@ -513,17 +592,20 @@ def run_orchestrator_command_with_live_logs(
             break
         if line:
             output_lines.append(line.rstrip("\n"))
+            if len(output_lines) > max_capture_lines:
+                del output_lines[:2000]
             _render_logs()
 
     _render_logs(force=True)
 
     return_code = process.wait()
     stdout_text = "\n".join(output_lines)
+    _store_runtime_log(panel_title, output_lines, return_code)
 
     try:
-        if return_code == 0:
+        if log_panel and return_code == 0:
             log_panel.caption("Command completed successfully.")
-        else:
+        elif log_panel:
             log_panel.caption(f"Command failed with exit code {return_code}.")
     except Exception:
         pass
@@ -533,6 +615,185 @@ def run_orchestrator_command_with_live_logs(
         "stdout": stdout_text,
         "stderr": "",
     }
+
+
+def _parse_orchestrator_stdout(stdout_text: str, stderr_text: str = "") -> Dict[str, Any]:
+    """Parse orchestrator stdout into a structured result payload."""
+    output_lines = stdout_text.strip().split("\n") if stdout_text else []
+    result_data = {
+        "status": "completed",
+        "stdout": stdout_text,
+        "stderr": stderr_text,
+        "artifacts": [],
+        "raw_output": stdout_text,
+    }
+
+    json_found = False
+    for line in output_lines:
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                json_data = json.loads(line)
+                if "status" in json_data or "state" in json_data:
+                    result_data.update(json_data)
+                    json_found = True
+                    break
+            except json.JSONDecodeError:
+                continue
+
+    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
+        try:
+            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
+            json_end = stdout_text.index("=== END JSON OUTPUT ===")
+            json_str = stdout_text[json_start:json_end].strip()
+            json_data = json.loads(json_str)
+            result_data.update(json_data)
+        except (ValueError, json.JSONDecodeError):
+            pass
+
+    return result_data
+
+
+def _stream_subprocess_output(process: subprocess.Popen, output_lines: List[str], max_capture_lines: int = 8000) -> None:
+    """Background reader thread for subprocess stdout."""
+    while True:
+        line = process.stdout.readline()
+        if line == "" and process.poll() is not None:
+            break
+        if line:
+            output_lines.append(line.rstrip("\n"))
+            if len(output_lines) > max_capture_lines:
+                del output_lines[:2000]
+
+
+def _start_orchestrator_background_task(
+    cmd: List[str],
+    cwd: str,
+    env: Dict[str, str],
+    panel_title: str,
+    task_type: str,
+    payload: Dict[str, Any],
+) -> None:
+    """Launch orchestrator in background so Streamlit reruns don't restart work."""
+    launch_env = dict(env)
+    launch_env.setdefault("PYTHONUNBUFFERED", "1")
+    launch_env.setdefault("PYTHONIOENCODING", "utf-8")
+
+    launch_cmd = list(cmd)
+    if launch_cmd and len(launch_cmd) > 1:
+        exe_name = Path(str(launch_cmd[0])).name.lower()
+        if exe_name.startswith("python") and launch_cmd[1] != "-u":
+            launch_cmd = [launch_cmd[0], "-u", *launch_cmd[1:]]
+
+    process = subprocess.Popen(
+        launch_cmd,
+        cwd=cwd,
+        env=launch_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+
+    output_lines: List[str] = []
+    reader_thread = threading.Thread(
+        target=_stream_subprocess_output,
+        args=(process, output_lines),
+        daemon=True,
+    )
+    reader_thread.start()
+
+    st.session_state.orchestrator_task = {
+        "task_type": task_type,
+        "payload": payload,
+        "panel_title": panel_title,
+        "process": process,
+        "reader_thread": reader_thread,
+        "output_lines": output_lines,
+        "started_at": time.time(),
+    }
+    st.session_state.orchestrator_task_error = None
+
+
+def _is_orchestrator_task_running(task: Optional[Dict[str, Any]]) -> bool:
+    """Return True when a background orchestrator subprocess is still running."""
+    if not isinstance(task, dict):
+        return False
+    process = task.get("process")
+    return process is not None and process.poll() is None
+
+
+def _finalize_orchestrator_task_if_done() -> bool:
+    """Finalize background task output into session state when process completes."""
+    task = st.session_state.get("orchestrator_task")
+    if not isinstance(task, dict):
+        return False
+
+    process = task.get("process")
+    if process is None or process.poll() is None:
+        return False
+
+    reader_thread = task.get("reader_thread")
+    if isinstance(reader_thread, threading.Thread):
+        reader_thread.join(timeout=0.2)
+
+    output_lines = task.get("output_lines", [])
+    stdout_text = "\n".join(output_lines)
+    returncode = process.returncode if process.returncode is not None else process.poll()
+    returncode = int(returncode) if returncode is not None else -1
+
+    _store_runtime_log(task.get("panel_title", "Orchestrator Runtime Logs"), output_lines, returncode)
+
+    task_type = task.get("task_type", "plan-only")
+    payload = task.get("payload", {}) if isinstance(task.get("payload"), dict) else {}
+
+    if returncode == 0:
+        result_data = _parse_orchestrator_stdout(stdout_text, "")
+
+        if task_type == "approved-plan":
+            plan_data = payload.get("plan_data", {}) if isinstance(payload.get("plan_data"), dict) else {}
+            result_data["execution_plan"] = plan_data.get("execution_plan")
+            result_data["planner_reasoning"] = plan_data.get("planner_reasoning")
+            result_data["used_planner"] = True
+            result_data["complexity_score"] = plan_data.get("complexity_score", 0)
+
+            st.session_state.pending_feedback_result = result_data
+            st.session_state.feedback_stage = True
+            st.session_state.pending_plan = None
+            st.session_state.plan_approved = False
+
+        else:
+            user_prompt = payload.get("user_prompt", "")
+            repo_path = payload.get("repo_path")
+            github_url = payload.get("github_url")
+
+            if result_data.get("status") == "plan_ready" and result_data.get("used_planner"):
+                st.session_state.pending_plan = {
+                    "prompt": user_prompt,
+                    "repo_path": repo_path,
+                    "github_url": github_url,
+                    "execution_plan": result_data.get("execution_plan"),
+                    "planner_reasoning": result_data.get("planner_reasoning"),
+                    "complexity_score": result_data.get("complexity_score", 0),
+                }
+                st.session_state.plan_approved = False
+            else:
+                st.session_state.pending_feedback_result = result_data
+                st.session_state.feedback_stage = True
+
+        st.session_state.orchestrator_task = None
+        st.session_state.orchestrator_task_error = None
+        return True
+
+    st.session_state.orchestrator_task_error = {
+        "exit_code": returncode,
+        "stdout": stdout_text,
+        "panel_title": task.get("panel_title", "Orchestrator Runtime Logs"),
+    }
+    st.session_state.orchestrator_task = None
+    return True
 
 
 def display_agent_status(result: Dict[str, Any]):
@@ -576,7 +837,7 @@ def display_agent_status(result: Dict[str, Any]):
             st.markdown('</div>', unsafe_allow_html=True)
 
 
-def display_pipeline_execution(result: Dict[str, Any]):
+def display_pipeline_execution(result: Dict[str, Any], show_logs: bool = False):
     """Render docker/act local execution details, retries, and logs."""
     if not result or not isinstance(result, dict):
         return
@@ -646,7 +907,7 @@ def display_pipeline_execution(result: Dict[str, Any]):
                     st.metric("Success", "Yes" if step_data.get("success") else "No")
 
                 logs = step_data.get("logs", [])
-                if isinstance(logs, list) and logs:
+                if show_logs and isinstance(logs, list) and logs:
                     rendered_logs = []
                     for log_item in logs[-220:]:
                         if isinstance(log_item, dict):
@@ -736,7 +997,7 @@ def _extract_act_failure_summary(act_logs: List[Dict[str, Any]]) -> str:
     return "Act job failed. Open the logs for the exact failing command."
 
 
-def _json_safe(value: Any, seen: set = None) -> Any:
+def _json_safe(value: Any, seen: Optional[Set[int]] = None) -> Any:
     """Convert arbitrary objects to a JSON-serializable structure for debug UI rendering."""
     if seen is None:
         seen = set()
@@ -801,6 +1062,475 @@ def display_act_pipeline(exec_result: Dict[str, Any], expanded: bool = True) -> 
 
         if not act_result.get("success"):
             st.error(_extract_act_failure_summary(act_logs))
+
+
+def _normalize_pipeline_key(value: str) -> str:
+    """Normalize step/job labels for fuzzy status matching."""
+    return re.sub(r"[^a-z0-9]+", "", (value or "").strip().lower())
+
+
+def _prettify_job_name(job_id: str) -> str:
+    """Convert workflow job id into a readable label."""
+    pretty = re.sub(r"[_\-]+", " ", job_id or "").strip()
+    return pretty.title() if pretty else "Pipeline Step"
+
+
+def _default_pipeline_jobs() -> Dict[str, Dict[str, Any]]:
+    """Fallback pipeline resembling a professional CI/CD flow."""
+    return {
+        "code_quality": {"id": "code_quality", "name": "Code Quality Checks", "needs": [], "order": 0},
+        "unit_tests": {"id": "unit_tests", "name": "Unit Tests", "needs": ["code_quality"], "order": 1},
+        "build_image": {"id": "build_image", "name": "Build Docker Image", "needs": ["unit_tests"], "order": 2},
+        "scan_image": {"id": "scan_image", "name": "Container Image Scan", "needs": ["build_image"], "order": 3},
+        "deploy_dev": {"id": "deploy_dev", "name": "Deploy To Development", "needs": ["scan_image"], "order": 4},
+        "deploy_prod": {"id": "deploy_prod", "name": "Deploy To Production", "needs": ["scan_image"], "order": 5},
+    }
+
+
+def _extract_workflow_jobs(workflow_yaml: Optional[str]) -> Dict[str, Dict[str, Any]]:
+    """Parse GitHub Actions jobs and dependencies from workflow YAML."""
+    if not workflow_yaml or not workflow_yaml.strip() or yaml is None:
+        return _default_pipeline_jobs()
+
+    try:
+        payload = yaml.safe_load(workflow_yaml) or {}
+    except Exception:
+        return _default_pipeline_jobs()
+
+    jobs_raw = payload.get("jobs", {}) if isinstance(payload, dict) else {}
+    if not isinstance(jobs_raw, dict) or not jobs_raw:
+        return _default_pipeline_jobs()
+
+    jobs: Dict[str, Dict[str, Any]] = {}
+    known_ids = set(jobs_raw.keys())
+
+    for idx, (job_id, job_data) in enumerate(jobs_raw.items()):
+        item = job_data if isinstance(job_data, dict) else {}
+        job_name = item.get("name") if isinstance(item.get("name"), str) else _prettify_job_name(job_id)
+        needs_raw = item.get("needs", [])
+        if isinstance(needs_raw, str):
+            needs = [needs_raw]
+        elif isinstance(needs_raw, list):
+            needs = [dep for dep in needs_raw if isinstance(dep, str)]
+        else:
+            needs = []
+
+        needs = [dep for dep in needs if dep in known_ids]
+        jobs[job_id] = {
+            "id": job_id,
+            "name": job_name,
+            "needs": needs,
+            "order": idx,
+        }
+
+    return jobs or _default_pipeline_jobs()
+
+
+def _extract_act_status_map(execution_result: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Map execution logs to pipeline step statuses."""
+    if not isinstance(execution_result, dict):
+        return {}
+
+    act_data = execution_result.get("act", {})
+    if not isinstance(act_data, dict):
+        return {}
+
+    logs = act_data.get("logs", [])
+    if not isinstance(logs, list):
+        return {}
+
+    status_map: Dict[str, Dict[str, Any]] = {}
+    for step in _parse_act_pipeline_steps(logs):
+        key = _normalize_pipeline_key(str(step.get("name", "")))
+        if not key:
+            continue
+        status_map[key] = {
+            "status": step.get("status", "running"),
+            "duration": step.get("duration"),
+        }
+
+    return status_map
+
+
+def _extract_orchestrator_status_map(
+    orchestration_result: Optional[Dict[str, Any]],
+    jobs: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    """Map orchestrator agent outcomes to pipeline jobs when Act logs are unavailable."""
+    if not isinstance(orchestration_result, dict) or not isinstance(jobs, dict) or not jobs:
+        return {}
+
+    state = orchestration_result.get("state", {})
+    if not isinstance(state, dict):
+        return {}
+
+    agent_outputs = state.get("agent_outputs", {})
+    if not isinstance(agent_outputs, dict):
+        return {}
+
+    def _status_from_agent(agent_key: str) -> str:
+        output = agent_outputs.get(agent_key, {})
+        if not isinstance(output, dict):
+            return "pending"
+        status = str(output.get("status", "")).lower()
+        if status == "success":
+            return "pass"
+        if status in {"error", "failed"}:
+            return "fail"
+        if status in {"running", "in_progress", "in-progress"}:
+            return "running"
+        return "pending"
+
+    cicd_status = _status_from_agent("cicd-agent")
+    docker_status = _status_from_agent("docker-agent")
+    iac_status = _status_from_agent("iac-agent")
+
+    status_map: Dict[str, Dict[str, Any]] = {}
+    for data in jobs.values():
+        job_id = str(data.get("id", ""))
+        job_name = str(data.get("name", ""))
+        normalized = _normalize_pipeline_key(f"{job_id} {job_name}")
+
+        mapped = "pending"
+        if any(token in normalized for token in ["docker", "image", "container", "scan"]):
+            mapped = docker_status
+        elif any(token in normalized for token in ["terraform", "iac", "infra", "deploy", "provision"]):
+            mapped = iac_status
+        elif any(token in normalized for token in ["test", "lint", "quality", "build", "workflow", "ci", "cicd"]):
+            mapped = cicd_status
+
+        if mapped == "pending":
+            overall = str(orchestration_result.get("status", "")).lower()
+            if overall == "completed":
+                mapped = "pass"
+            elif overall in {"error", "failed", "blocked"}:
+                mapped = "fail"
+
+        duration_text = "agent result"
+        if mapped == "pending":
+            duration_text = "queued"
+        elif mapped == "running":
+            duration_text = "in progress"
+
+        status_map[_normalize_pipeline_key(job_name)] = {"status": mapped, "duration": duration_text}
+        status_map[_normalize_pipeline_key(job_id)] = {"status": mapped, "duration": duration_text}
+
+    return status_map
+
+
+def _extract_pipeline_status_map(
+    execution_result: Optional[Dict[str, Any]],
+    orchestration_result: Optional[Dict[str, Any]],
+    jobs: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    """Prefer Act-derived statuses; fallback to orchestrator agent outcomes."""
+    act_map = _extract_act_status_map(execution_result)
+    if act_map:
+        return act_map
+    return _extract_orchestrator_status_map(orchestration_result, jobs)
+
+
+def _build_job_levels(jobs: Dict[str, Dict[str, Any]]) -> List[List[str]]:
+    """Topologically group jobs into dependency levels for fallback rendering."""
+    if not jobs:
+        return []
+
+    indegree: Dict[str, int] = {job_id: 0 for job_id in jobs}
+    dependents: Dict[str, List[str]] = defaultdict(list)
+
+    for job_id, data in jobs.items():
+        for dep in data.get("needs", []):
+            if dep in jobs:
+                indegree[job_id] += 1
+                dependents[dep].append(job_id)
+
+    queue = deque(
+        sorted(
+            [job_id for job_id, degree in indegree.items() if degree == 0],
+            key=lambda item: jobs[item].get("order", 0),
+        )
+    )
+
+    topo: List[str] = []
+    while queue:
+        current = queue.popleft()
+        topo.append(current)
+        for nxt in sorted(dependents.get(current, []), key=lambda item: jobs[item].get("order", 0)):
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                queue.append(nxt)
+
+    if len(topo) != len(jobs):
+        # Fallback for malformed/cyclic dependency graphs.
+        topo = sorted(jobs.keys(), key=lambda item: jobs[item].get("order", 0))
+
+    level_by_job: Dict[str, int] = {}
+    for job_id in topo:
+        deps = [dep for dep in jobs[job_id].get("needs", []) if dep in level_by_job]
+        level_by_job[job_id] = max(level_by_job[dep] for dep in deps) + 1 if deps else 0
+
+    grouped: Dict[int, List[str]] = defaultdict(list)
+    for job_id in topo:
+        grouped[level_by_job[job_id]].append(job_id)
+
+    return [grouped[level] for level in sorted(grouped.keys())]
+
+
+def _build_pipeline_graph_dot(
+    jobs: Dict[str, Dict[str, Any]],
+    status_map: Dict[str, Dict[str, Any]],
+) -> str:
+    """Build Graphviz DOT for a GitHub Actions style pipeline board."""
+
+    def _escape(value: str) -> str:
+        return (value or "").replace("\\", "\\\\").replace('"', '\\"')
+
+    def _style_for(status: str) -> Dict[str, str]:
+        if status == "pass":
+            return {"fill": "#123928", "border": "#2da36b", "font": "#eafff1", "label": "SUCCESS"}
+        if status == "fail":
+            return {"fill": "#44202b", "border": "#d0677e", "font": "#ffe9ee", "label": "FAILED"}
+        if status == "running":
+            return {"fill": "#4a3516", "border": "#dcaa46", "font": "#fff2d5", "label": "RUNNING"}
+        return {"fill": "#172842", "border": "#425b7e", "font": "#e7efff", "label": "PENDING"}
+
+    dot_lines: List[str] = [
+        "digraph Pipeline {",
+        "rankdir=LR;",
+        'graph [bgcolor="#0d1728", pad="0.35", nodesep="0.52", ranksep="0.72", splines="ortho"];',
+        'node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, penwidth=1.2];',
+        'edge [color="#6d88ab", arrowsize=0.7, penwidth=1.0];',
+    ]
+
+    ordered_jobs = sorted(jobs.values(), key=lambda item: item.get("order", 0))
+    for data in ordered_jobs:
+        job_id = data["id"]
+        name = data.get("name") or _prettify_job_name(job_id)
+        key_options = [_normalize_pipeline_key(name), _normalize_pipeline_key(job_id)]
+
+        info = None
+        for key in key_options:
+            if key in status_map:
+                info = status_map[key]
+                break
+
+        status = (info or {}).get("status", "pending")
+        duration = (info or {}).get("duration") or "queued"
+        style = _style_for(status)
+        label = f"{name}\\n{style['label']} | {duration}"
+
+        dot_lines.append(
+            '"{job_id}" [label="{label}", fillcolor="{fill}", color="{border}", fontcolor="{font}"];'.format(
+                job_id=_escape(job_id),
+                label=_escape(label),
+                fill=style["fill"],
+                border=style["border"],
+                font=style["font"],
+            )
+        )
+
+    edge_count = 0
+    for data in ordered_jobs:
+        job_id = data["id"]
+        needs = data.get("needs", []) or []
+        for dep in needs:
+            if dep in jobs:
+                dot_lines.append(f'"{_escape(dep)}" -> "{_escape(job_id)}";')
+                edge_count += 1
+
+    if edge_count == 0 and len(ordered_jobs) > 1:
+        for idx in range(len(ordered_jobs) - 1):
+            left = ordered_jobs[idx]["id"]
+            right = ordered_jobs[idx + 1]["id"]
+            dot_lines.append(f'"{_escape(left)}" -> "{_escape(right)}";')
+
+    dot_lines.append("}")
+    return "\n".join(dot_lines)
+
+
+def _render_pipeline_fallback_cards(
+    jobs: Dict[str, Dict[str, Any]],
+    status_map: Dict[str, Dict[str, Any]],
+) -> None:
+    """Render pipeline using HTML cards if Graphviz is unavailable."""
+    levels = _build_job_levels(jobs)
+    if not levels:
+        st.info("No pipeline steps available.")
+        return
+
+    rows: List[str] = []
+    for row_idx, level_jobs in enumerate(levels):
+        segments: List[str] = []
+        for idx, job_id in enumerate(level_jobs):
+            data = jobs[job_id]
+            name = data.get("name") or _prettify_job_name(job_id)
+            key_options = [_normalize_pipeline_key(name), _normalize_pipeline_key(job_id)]
+            info = None
+            for key in key_options:
+                if key in status_map:
+                    info = status_map[key]
+                    break
+            status = (info or {}).get("status", "running")
+            duration = (info or {}).get("duration") or "queued"
+
+            icon = "SUCCESS" if status == "pass" else ("FAILED" if status == "fail" else ("RUNNING" if status == "running" else "PENDING"))
+            safe_name = html.escape(str(name))
+            subtitle = html.escape(f"{icon} | {duration}")
+
+            segments.append(
+                (
+                    '<div class="pipeline-step {status}">'
+                    '<div class="pipeline-step-title">{title}</div>'
+                    '<div class="pipeline-step-subtitle">{subtitle}</div>'
+                    "</div>"
+                ).format(status=html.escape(status), title=safe_name, subtitle=subtitle)
+            )
+            if idx < len(level_jobs) - 1:
+                segments.append('<div class="pipeline-arrow">→</div>')
+
+        rows.append(f'<div class="pipeline-row">{"".join(segments)}</div>')
+        if row_idx < len(levels) - 1:
+            rows.append('<div class="pipeline-row" style="justify-content:center;"><div class="pipeline-arrow">↓</div></div>')
+
+    st.markdown(f'<div class="pipeline-board">{"".join(rows)}</div>', unsafe_allow_html=True)
+
+
+def display_workflow_pipeline(
+    workflow_yaml: Optional[str],
+    execution_result: Optional[Dict[str, Any]] = None,
+    orchestration_result: Optional[Dict[str, Any]] = None,
+    title: str = "CI/CD Pipeline",
+) -> None:
+    """Display pipeline graph similar to GitHub Actions execution flow."""
+    jobs = _extract_workflow_jobs(workflow_yaml)
+    status_map = _extract_pipeline_status_map(execution_result, orchestration_result, jobs)
+
+    st.markdown(f"### {title}")
+    st.caption("A pipeline board view inspired by the GitHub Actions graph.")
+
+    total = len(jobs)
+    passed = 0
+    failed = 0
+    running = 0
+    pending = 0
+
+    for data in jobs.values():
+        key_name = _normalize_pipeline_key(data.get("name", ""))
+        key_id = _normalize_pipeline_key(data.get("id", ""))
+        status = status_map.get(key_name, status_map.get(key_id, {})).get("status", "pending")
+        if status == "pass":
+            passed += 1
+        elif status == "fail":
+            failed += 1
+        elif status == "running":
+            running += 1
+        else:
+            pending += 1
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.metric("Steps", total)
+    with c2:
+        st.metric("Passed", passed)
+    with c3:
+        st.metric("Failed", failed)
+    with c4:
+        st.metric("Running", running)
+    with c5:
+        st.metric("Pending", pending)
+
+    dot = _build_pipeline_graph_dot(jobs, status_map)
+    try:
+        st.graphviz_chart(dot, width="stretch", height=400)
+    except Exception:
+        _render_pipeline_fallback_cards(jobs, status_map)
+
+
+def _store_runtime_log(title: str, lines: List[str], return_code: int) -> None:
+    """Store command logs in session state for the Logs menu view."""
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "title": title,
+        "return_code": return_code,
+        "lines": list(lines[-500:]),
+    }
+    current_logs = st.session_state.get("runtime_logs", [])
+    current_logs.append(entry)
+    st.session_state.runtime_logs = current_logs[-12:]
+
+
+def display_logs_center(orchestration_result: Optional[Dict[str, Any]] = None) -> None:
+    """Dedicated logs dashboard shown from the sidebar menu."""
+    st.markdown("### Runtime Logs")
+    st.markdown(
+        '<div class="logs-note">Logs are now centralized in this menu so the main workspace stays focused on requests, pipeline flow, and artifacts.</div>',
+        unsafe_allow_html=True,
+    )
+
+    active_task = st.session_state.get("orchestrator_task")
+    if _is_orchestrator_task_running(active_task):
+        started_at = float(active_task.get("started_at", time.time()))
+        elapsed_s = max(0, int(time.time() - started_at))
+        st.info(f"Orchestrator is running in background ({elapsed_s}s).")
+        if st.button("Refresh Logs", key="refresh_active_logs", width="content"):
+            st.rerun()
+        with st.expander("Active Orchestrator Task Logs", expanded=True):
+            lines = active_task.get("output_lines", []) if isinstance(active_task, dict) else []
+            if lines:
+                st.code("\n".join(lines[-300:]), language="text")
+            else:
+                st.caption("Waiting for first log lines...")
+
+    last_task_error = st.session_state.get("orchestrator_task_error")
+    if isinstance(last_task_error, dict):
+        st.error(
+            f"Last background run failed with exit code {last_task_error.get('exit_code', 'unknown')}."
+        )
+        with st.expander("Last Background Run Output", expanded=False):
+            error_stdout = str(last_task_error.get("stdout", ""))
+            if error_stdout:
+                st.code(error_stdout[-20000:], language="text")
+            else:
+                st.caption("No output captured.")
+
+    runtime_logs = st.session_state.get("runtime_logs", [])
+    if not runtime_logs:
+        st.info("No orchestrator command logs captured yet.")
+    else:
+        for idx, entry in enumerate(reversed(runtime_logs), start=1):
+            title = entry.get("title", "Command Logs")
+            code = entry.get("return_code", "n/a")
+            timestamp = entry.get("timestamp", "")
+            with st.expander(f"{idx}. {timestamp} | {title} | exit={code}", expanded=(idx == 1)):
+                lines = entry.get("lines", [])
+                if lines:
+                    st.code("\n".join(lines[-300:]), language="text")
+                else:
+                    st.caption("No lines captured for this command.")
+
+    act_logs = []
+    if isinstance(st.session_state.get("execution_result"), dict):
+        act_payload = st.session_state.execution_result.get("act", {})
+        if isinstance(act_payload, dict):
+            act_logs = [
+                item.get("line", "")
+                for item in act_payload.get("logs", [])
+                if isinstance(item, dict) and item.get("line")
+            ]
+
+    if act_logs:
+        with st.expander("Latest Act Logs", expanded=False):
+            st.code("\n".join(act_logs[-300:]), language="text")
+
+    if orchestration_result and isinstance(orchestration_result, dict):
+        with st.expander("Raw Orchestrator JSON", expanded=False):
+            st.json(_json_safe(orchestration_result))
+
+    c1, _ = st.columns([1, 5])
+    with c1:
+        if st.button("Clear Logs", key="clear_runtime_logs"):
+            st.session_state.runtime_logs = []
+            st.rerun()
 
 
 def display_artifacts(artifacts: Dict[str, Any]):
@@ -1693,11 +2423,27 @@ def apply_artifacts_to_repository(repo_path: str, artifacts: Dict[str, Any]) -> 
 
 def main():
     # Header
-    st.markdown('<div class="main-header">🤖 Multi-Agent DevOps Orchestrator</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">AI-Powered CI/CD, Docker, and Infrastructure as Code Generation</div>', unsafe_allow_html=True)
+    st.markdown(
+        '''
+        <div class="hero-card">
+            <div class="main-header">Multi-Agent DevOps Orchestrator</div>
+            <div class="sub-header">AI-powered CI/CD, Docker, and Infrastructure-as-Code generation with planner-driven execution and validation loops.</div>
+        </div>
+        ''',
+        unsafe_allow_html=True,
+    )
     
     # Sidebar
     with st.sidebar:
+        st.markdown('<span class="menu-badge">Menu</span>', unsafe_allow_html=True)
+        ui_menu = st.radio(
+            "Workspace Menu",
+            ["Workspace", "Pipeline", "Logs"],
+            key="ui_menu",
+            label_visibility="collapsed",
+        )
+
+        st.markdown("---")
         st.markdown("## ⚙️ Configuration")
         
         # Environment check
@@ -1739,6 +2485,10 @@ def main():
                 ["asked", "all"],
                 help="Show only requested artifacts or all generated artifacts"
             )
+
+            if ui_menu == "Logs":
+                st.markdown("---")
+                st.caption("Live command output stays in the Logs menu to keep the main workspace clean.")
         
         st.markdown("---")
         
@@ -1765,12 +2515,32 @@ def main():
             - "Create complete DevOps setup for my microservice"
             - "I need to set up automated deployment for my Streamlit application. I want the deployment process to be containerized and automatically triggered whenever I push changes to the main branch."            
             """)
+
+    # Finalize background orchestrator task if it completed during a previous rerun.
+    if _finalize_orchestrator_task_if_done():
+        st.rerun()
+
+    active_task = st.session_state.get("orchestrator_task")
+    task_running = _is_orchestrator_task_running(active_task)
+
+    # Handle the edge case where the process exits between reruns so UI state
+    # transitions immediately without requiring extra user interaction.
+    if isinstance(active_task, dict) and not task_running:
+        if _finalize_orchestrator_task_if_done():
+            st.rerun()
     
     # Main content area
     if not env_checks["Ollama"]:
         st.error("⚠️ Ollama is not running. Please start Ollama before using the orchestrator.")
         st.info("Start Ollama with: `ollama serve` or run the Ollama desktop app")
         return
+
+    if task_running:
+        started_at = float(active_task.get("started_at", time.time())) if isinstance(active_task, dict) else time.time()
+        elapsed_s = max(0, int(time.time() - started_at))
+        st.info(f"🔄 Orchestrator run in progress ({elapsed_s}s).")
+        if st.button("🔄 Refresh Running Task", key="refresh_running_task", width="content"):
+            st.rerun()
     
     # Input section
     st.markdown("## 📝 Request Input")
@@ -1818,15 +2588,16 @@ def main():
     # Generate button
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        generate_button = st.button("🚀 Generate", type="primary", use_container_width=True)
+        generate_button = st.button("🚀 Generate", type="primary", width="stretch")
     with col2:
-        if st.button("🗑️ Clear", use_container_width=True):
+        if st.button("🗑️ Clear", width="stretch"
+        ):
             st.session_state.orchestration_result = None
             st.session_state.execution_history = []
             st.rerun()
     
     # Check if there's a pending plan awaiting approval
-    if st.session_state.pending_plan and not st.session_state.plan_approved:
+    if st.session_state.pending_plan and not st.session_state.plan_approved and not task_running:
         st.markdown("---")
         st.markdown("## 🧠 Execution Plan Approval")
         
@@ -1875,7 +2646,7 @@ def main():
         st.markdown("---")
         col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
-            if st.button("✅ Approve & Execute", type="primary", use_container_width=True):
+            if st.button("✅ Approve & Execute", type="primary", width="content"):
                 try:
                     allowed_agents = _extract_allowed_agents(plan)
                     edited_execution_order = _paragraph_to_execution_order(
@@ -1892,7 +2663,7 @@ def main():
                 st.session_state.plan_approved = True
                 st.rerun()
         with col2:
-            if st.button("❌ Cancel", use_container_width=True):
+            if st.button("❌ Cancel",width="stretch"):
                 st.session_state.pending_plan = None
                 st.session_state.plan_approved = False
                 st.session_state.plan_editor_text = ""
@@ -1905,139 +2676,61 @@ def main():
     if st.session_state.plan_approved and st.session_state.pending_plan:
         plan_data = st.session_state.pending_plan
         st.session_state.last_user_prompt = (plan_data.get("prompt") or "").strip()
-        
-        with st.spinner("🔄 Executing approved plan..."):
-            try:
-                # Progress tracking
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                status_text.text("Executing agents...")
-                progress_bar.progress(30)
-                
-                # Build command with execution plan
-                orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
-                
-                cmd = [sys.executable, str(orchestrator_script)]
-                cmd.extend(["--prompt", plan_data.get("prompt", "")])
-                
-                # Pass the approved execution plan
-                if plan_data.get("execution_plan"):
-                    cmd.extend(["--execute-plan", json.dumps(plan_data["execution_plan"])])
-                else:
-                    cmd.append("--skip-planner")  # Fallback if no plan
-                
-                if plan_data.get("repo_path"):
-                    cmd.extend(["--repo-path", plan_data["repo_path"]])
-                if plan_data.get("github_url"):
-                    cmd.extend(["--github-url", plan_data["github_url"]])
-                cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
-                
-                # Execute orchestrator
-                start_time = time.time()
-                run_env = os.environ.copy()
-                run_env["PYTHONIOENCODING"] = "utf-8"
-                
-                # Ensure LLM configuration is propagated to subprocess
-                llm_env_vars = [
-                    "LLM_PROVIDER", "USE_LLM", 
-                    "OLLAMA_MODEL", 
-                    "GROQ_API_KEY", "GROQ_MODEL", "GROQ_FALLBACK_MODEL"
-                ]
-                for var in llm_env_vars:
-                    env_value = os.getenv(var)
-                    if var not in run_env and env_value is not None:
-                        run_env[var] = env_value
-                
-                run_result = run_orchestrator_command_with_live_logs(
-                    cmd=cmd,
-                    cwd=str(orchestrator_script.parent),
-                    env=run_env,
-                    panel_title="Approved Plan Execution Logs",
-                )
 
-                stdout_text = run_result.get("stdout", "")
-                stderr_text = run_result.get("stderr", "")
-                elapsed_time = time.time() - start_time
-                
-                progress_bar.progress(70)
-                
-                if run_result.get("returncode", 1) == 0:
-                    # Parse output
-                    output_lines = stdout_text.strip().split('\n') if stdout_text else []
-                    result_data = {
-                        "status": "completed",
-                        "stdout": stdout_text,
-                        "stderr": stderr_text,
-                        "artifacts": [],
-                        "raw_output": stdout_text
-                    }
-                    
-                    # Parse JSON
-                    json_found = False
-                    for line in output_lines:
-                        line = line.strip()
-                        if line.startswith('{'):
-                            try:
-                                json_data = json.loads(line)
-                                if "status" in json_data or "state" in json_data:
-                                    result_data.update(json_data)
-                                    json_found = True
-                                    break
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
-                        try:
-                            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
-                            json_end = stdout_text.index("=== END JSON OUTPUT ===")
-                            json_str = stdout_text[json_start:json_end].strip()
-                            json_data = json.loads(json_str)
-                            result_data.update(json_data)
-                        except (ValueError, json.JSONDecodeError):
-                            pass
-                    
-                    # Add plan info to result
-                    result_data["execution_plan"] = plan_data.get("execution_plan")
-                    result_data["planner_reasoning"] = plan_data.get("planner_reasoning")
-                    result_data["used_planner"] = True
-                    result_data["complexity_score"] = plan_data.get("complexity_score", 0)
-                    
-                    # Route through explicit human feedback stage before finalizing UI
-                    st.session_state.pending_feedback_result = result_data
-                    st.session_state.feedback_stage = True
-                    
-                    # Clear pending plan
-                    st.session_state.pending_plan = None
-                    st.session_state.plan_approved = False
-                    
-                    progress_bar.progress(100)
-                    status_text.text("✅ Execution done")
-                    time.sleep(0.5)
-                    progress_bar.empty()
-                    status_text.empty()
-                    
-                    st.success(f"✅ Execution completed in {elapsed_time:.2f}s")
-                    st.info("Please provide human feedback to continue the flow.")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Execution failed with exit code {run_result.get('returncode', 'unknown')}")
-                    if stderr_text:
-                        st.code(stderr_text, language="text")
-                    if stdout_text:
-                        st.code(stdout_text, language="text")
-                    
-                    # Clear pending plan
-                    st.session_state.pending_plan = None
-                    st.session_state.plan_approved = False
-                    
-            except Exception as e:
-                st.error(f"❌ Error during execution: {str(e)}")
-                st.exception(e)
-                st.session_state.pending_plan = None
-                st.session_state.plan_approved = False
-        
-        return  # Stop here after execution
+        if task_running:
+            st.info("🔄 Approved plan execution is already running in the background.")
+            if ui_menu == "Logs":
+                display_logs_center(None)
+            return
+
+        try:
+            orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
+            cmd = [sys.executable, str(orchestrator_script)]
+            cmd.extend(["--prompt", plan_data.get("prompt", "")])
+
+            if plan_data.get("execution_plan"):
+                cmd.extend(["--execute-plan", json.dumps(plan_data["execution_plan"])])
+            else:
+                cmd.append("--skip-planner")
+
+            if plan_data.get("repo_path"):
+                cmd.extend(["--repo-path", plan_data["repo_path"]])
+            if plan_data.get("github_url"):
+                cmd.extend(["--github-url", plan_data["github_url"]])
+            cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
+
+            run_env = os.environ.copy()
+            run_env["PYTHONIOENCODING"] = "utf-8"
+
+            llm_env_vars = [
+                "LLM_PROVIDER", "USE_LLM",
+                "OLLAMA_MODEL",
+                "GROQ_API_KEY", "GROQ_MODEL", "GROQ_FALLBACK_MODEL",
+            ]
+            for var in llm_env_vars:
+                env_value = os.getenv(var)
+                if var not in run_env and env_value is not None:
+                    run_env[var] = env_value
+
+            _start_orchestrator_background_task(
+                cmd=cmd,
+                cwd=str(orchestrator_script.parent),
+                env=run_env,
+                panel_title="Approved Plan Execution Logs",
+                task_type="approved-plan",
+                payload={"plan_data": plan_data},
+            )
+
+            st.info("✅ Approved plan started in background. ")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error starting approved plan execution: {str(e)}")
+            st.exception(e)
+            st.session_state.pending_plan = None
+            st.session_state.plan_approved = False
+
+        return
 
     # Human feedback stage after execution (new graph: user_feedback -> create_pr/cleanup)
     if st.session_state.feedback_stage and st.session_state.pending_feedback_result:
@@ -2170,7 +2863,7 @@ def main():
         else:
             validation_button_disabled = False
         
-        if st.button("🔬 Execute & Validate", use_container_width=True, disabled=validation_button_disabled, help="Repair Dockerfile until build succeeds, then run CI/CD workflow with Act"):
+        if st.button("🔬 Execute & Validate", width="stretch", disabled=validation_button_disabled, help="Repair Dockerfile until build succeeds, then run CI/CD workflow with Act"):
             with st.spinner("🔄 Executing validation... This may take several minutes."):
                 temp_clone_dir = None
                 try:
@@ -2242,7 +2935,10 @@ def main():
                                             if isinstance(entry, dict)
                                         ]
                                         if log_lines:
-                                            st.code("\n".join(log_lines[-80:]), language="text")
+                                            if ui_menu == "Logs":
+                                                st.code("\n".join(log_lines[-80:]), language="text")
+                                            else:
+                                                st.caption("Detailed Docker repair logs are available in the Logs menu.")
                                 else:
                                     st.info("No Docker repair attempts recorded.")
 
@@ -2318,7 +3014,10 @@ def main():
                                                 if isinstance(entry, dict)
                                             ]
                                             if log_lines:
-                                                st.code("\n".join(log_lines[-100:]), language="text")
+                                                if ui_menu == "Logs":
+                                                    st.code("\n".join(log_lines[-100:]), language="text")
+                                                else:
+                                                    st.caption("Detailed CI/CD repair logs are available in the Logs menu.")
                                     else:
                                         st.info("No CI/CD repair attempts recorded.")
 
@@ -2387,13 +3086,16 @@ def main():
                             
                             # Show workspace info
                             st.caption(f"Workspace: `{exec_result.get('workspace', 'N/A')}`")
-                            
-                            with st.expander("⚡ Act Execution Logs (last 50 lines)"):
-                                act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
-                                if act_logs:
-                                    st.code("\n".join(act_logs[-50:]), language="text")
-                                else:
-                                    st.info("No logs available")
+
+                            if ui_menu == "Logs":
+                                with st.expander("⚡ Act Execution Logs (last 50 lines)"):
+                                    act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
+                                    if act_logs:
+                                        st.code("\n".join(act_logs[-50:]), language="text")
+                                    else:
+                                        st.info("No logs available")
+                            else:
+                                st.caption("Open the Logs menu for full Act execution logs.")
 
                     else:
                         st.error(f"❌ Validation failed: {exec_result.get('message', 'Unknown error')}")
@@ -2417,13 +3119,16 @@ def main():
                             st.markdown("**⚡ Act Workflow**")
                             st.metric("Exit Code", act_result.get("exit_code", "N/A"))
                             st.metric("Success", "✅" if act_result.get("success") else "❌")
-                            
-                            with st.expander("⚡ Act Execution Logs"):
-                                act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
-                                if act_logs:
-                                    st.code("\n".join(act_logs[-100:]), language="text")
-                                else:
-                                    st.info("No logs available")
+
+                            if ui_menu == "Logs":
+                                with st.expander("⚡ Act Execution Logs"):
+                                    act_logs = [log.get("line", "") for log in act_result.get("logs", []) if isinstance(log, dict)]
+                                    if act_logs:
+                                        st.code("\n".join(act_logs[-100:]), language="text")
+                                    else:
+                                        st.info("No logs available")
+                            else:
+                                st.caption("Open the Logs menu for full Act execution logs.")
 
                             
                             # Show full result for debugging
@@ -2461,7 +3166,7 @@ def main():
             if st.button(
                 "✅ Accept & Apply to Repository", 
                 type="primary", 
-                use_container_width=True, 
+                width="stretch",
                 help=apply_button_help,
                 disabled=apply_button_disabled
             ):
@@ -2498,7 +3203,7 @@ def main():
                     st.rerun()
         
         with col2:
-            if st.button("📥 Accept (Download Only)", use_container_width=True, help="Accept without writing to repository"):
+            if st.button("📥 Accept (Download Only)", width="stretch", help="Accept without writing to repository"):
                 st.session_state.user_feedback_choice = "accept"
                 edited_artifacts = {
                     "yaml": edited_yaml.strip() or None,
@@ -2519,7 +3224,7 @@ def main():
                 st.rerun()
         
         with col3:
-            if st.button("❌ Reject", use_container_width=True, help="Reject the generated artifacts"):
+            if st.button("❌ Reject", width="stretch", help="Reject the generated artifacts"):
                 st.session_state.user_feedback_choice = "not"
                 edited_artifacts = {
                     "yaml": edited_yaml.strip() or None,
@@ -2545,162 +3250,62 @@ def main():
     
     # Process request
     if generate_button:
+        if task_running:
+            st.warning("An orchestrator run is already in progress. Wait for it to finish before starting a new one.")
+            return
+
         if not user_prompt.strip():
             st.error("Please provide a prompt or request description.")
             return
 
         st.session_state.last_user_prompt = user_prompt.strip()
-        
-        with st.spinner("🔄 Orchestrating agents and generating artifacts..."):
-            try:
-                # Progress tracking
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                status_text.text("Preparing orchestrator command...")
-                progress_bar.progress(10)
-                
-                # Build command to run orchestrator
-                orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
-                
-                if not orchestrator_script.exists():
-                    st.error(f"❌ Orchestrator script not found: {orchestrator_script}")
-                    return
-                
-                # Build command arguments
-                cmd = [sys.executable, str(orchestrator_script)]
-                cmd.extend(["--prompt", user_prompt])
-                cmd.append("--plan-only")  # First, get the plan
-                
-                # Store repo_path in session state
-                if repo_path:
-                    cmd.extend(["--repo-path", str(repo_path)])
-                    st.session_state.current_repo_path = str(repo_path)
-                else:
-                    st.session_state.current_repo_path = None
-                
-                if github_url:
-                    cmd.extend(["--github-url", github_url])
-                if 'output_scope' in locals():
-                    cmd.extend(["--output-scope", output_scope])
-                cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
-                
-                status_text.text("Running orchestrator...")
-                progress_bar.progress(30)
-                
-                # Execute orchestrator
-                start_time = time.time()
-                
-                # Set up environment with UTF-8 encoding
-                run_env = os.environ.copy()
-                run_env["PYTHONIOENCODING"] = "utf-8"
-                
-                run_result = run_orchestrator_command_with_live_logs(
-                    cmd=cmd,
-                    cwd=str(orchestrator_script.parent),
-                    env=run_env,
-                    panel_title="Orchestrator Runtime Logs",
-                )
 
-                stdout_text = run_result.get("stdout", "")
-                stderr_text = run_result.get("stderr", "")
-                
-                status_text.text("Processing results...")
-                progress_bar.progress(70)
-                
-                elapsed_time = time.time() - start_time
-                
-                # Parse output
-                if run_result.get("returncode", 1) == 0:
-                    # Try to extract JSON from output
-                    output_lines = stdout_text.strip().split('\n') if stdout_text else []
-                    result_data = {
-                        "status": "completed",
-                        "stdout": stdout_text,
-                        "stderr": stderr_text,
-                        "artifacts": [],
-                        "raw_output": stdout_text
-                    }
-                    
-                    # Try to parse any JSON in the output
-                    json_found = False
-                    for line in output_lines:
-                        line = line.strip()
-                        if line.startswith('{'):
-                            try:
-                                json_data = json.loads(line)
-                                if "status" in json_data or "state" in json_data:
-                                    result_data.update(json_data)
-                                    json_found = True
-                                    break
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    # Also try to find JSON between markers
-                    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
-                        try:
-                            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
-                            json_end = stdout_text.index("=== END JSON OUTPUT ===")
-                            json_str = stdout_text[json_start:json_end].strip()
-                            json_data = json.loads(json_str)
-                            result_data.update(json_data)
-                        except (ValueError, json.JSONDecodeError):
-                            pass
-                    
-                    result = result_data
-                    
-                    status_text.text("Collecting results...")
-                    progress_bar.progress(90)
-                    
-                    # Check if this is plan_ready status (needs approval)
-                    if result.get("status") == "plan_ready" and result.get("used_planner"):
-                        # Store plan for approval
-                        st.session_state.pending_plan = {
-                            "prompt": user_prompt,
-                            "repo_path": repo_path,
-                            "github_url": github_url,
-                            "execution_plan": result.get("execution_plan"),
-                            "planner_reasoning": result.get("planner_reasoning"),
-                            "complexity_score": result.get("complexity_score", 0)
-                        }
-                        st.session_state.plan_approved = False
-                        
-                        progress_bar.progress(100)
-                        status_text.text("✅ Plan ready!")
-                        time.sleep(0.5)
-                        progress_bar.empty()
-                        status_text.empty()
-                        
-                        st.success(f"✅ Plan generated in {elapsed_time:.2f}s")
-                        st.rerun()  # Refresh to show approval UI
-                    else:
-                        # Normal execution (no planner or low complexity)
-                        # Route through explicit human feedback stage before finalizing UI
-                        st.session_state.pending_feedback_result = result
-                        st.session_state.feedback_stage = True
+        try:
+            orchestrator_script = project_root / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
 
-                        progress_bar.progress(100)
-                        status_text.text("✅ Execution done")
-                        time.sleep(0.5)
-                        progress_bar.empty()
-                        status_text.empty()
-
-                        st.success(f"✅ Execution completed in {elapsed_time:.2f}s")
-                        st.info("Please provide human feedback to continue the flow.")
-                        st.rerun()
-                else:
-                    st.error(f"❌ Orchestrator failed with exit code {run_result.get('returncode', 'unknown')}")
-                    if stderr_text:
-                        st.code(stderr_text, language="text")
-                    if stdout_text:
-                        st.markdown("**Orchestrator stdout:**")
-                        st.code(stdout_text, language="text")
-                    return
-                
-            except Exception as e:
-                st.error(f"❌ Error during orchestration: {str(e)}")
-                st.exception(e)
+            if not orchestrator_script.exists():
+                st.error(f"❌ Orchestrator script not found: {orchestrator_script}")
                 return
+
+            cmd = [sys.executable, str(orchestrator_script)]
+            cmd.extend(["--prompt", user_prompt])
+            cmd.append("--plan-only")
+
+            if repo_path:
+                cmd.extend(["--repo-path", str(repo_path)])
+                st.session_state.current_repo_path = str(repo_path)
+            else:
+                st.session_state.current_repo_path = None
+
+            if github_url:
+                cmd.extend(["--github-url", github_url])
+            if 'output_scope' in locals():
+                cmd.extend(["--output-scope", output_scope])
+            cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
+
+            run_env = os.environ.copy()
+            run_env["PYTHONIOENCODING"] = "utf-8"
+
+            _start_orchestrator_background_task(
+                cmd=cmd,
+                cwd=str(orchestrator_script.parent),
+                env=run_env,
+                panel_title="Orchestrator Runtime Logs",
+                task_type="plan-only",
+                payload={
+                    "user_prompt": user_prompt,
+                    "repo_path": repo_path,
+                    "github_url": github_url,
+                },
+            )
+
+            st.info("🔄 Orchestrator started in background. Switch between Workspace, Pipeline, and Logs without interrupting it.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error starting orchestration: {str(e)}")
+            st.exception(e)
+            return
     
     # Display results
     if st.session_state.orchestration_result:
@@ -2855,31 +3460,54 @@ def main():
             st.markdown('<div class="warning-box">⚠️ Orchestration status: {}</div>'.format(status), unsafe_allow_html=True)
         
         st.markdown("")
-        
-        # Agent status
-        display_agent_status(result)
 
-        # Local docker/act execution details
-        display_pipeline_execution(result)
-        
-        st.markdown("")
-        
-        # Artifacts
-        if status == "completed":
-            artifacts = result.get("edited_artifacts") if isinstance(result.get("edited_artifacts"), dict) else extract_artifacts(result)
-            display_artifacts(artifacts)
-        
-        # Errors
-        state = result.get("state", {})
-        errors = state.get("errors", [])
-        if errors:
-            st.markdown("### ⚠️ Errors")
-            for error in errors:
-                st.error(error)
-        
-        # Raw output (expandable)
-        with st.expander("🔍 Raw Orchestrator Output", expanded=False):
-            st.json(result)
+        artifacts = result.get("edited_artifacts") if isinstance(result.get("edited_artifacts"), dict) else extract_artifacts(result)
+
+        if ui_menu == "Logs":
+            display_logs_center(result)
+        else:
+            # Agent status
+            display_agent_status(result)
+
+            # Local docker/act execution details (metrics always, raw logs only in Logs menu)
+            display_pipeline_execution(result, show_logs=False)
+
+            st.markdown("")
+
+            # CI/CD pipeline board (GitHub Actions style)
+            workflow_yaml = artifacts.get("yaml") if isinstance(artifacts, dict) else None
+            if ui_menu == "Pipeline":
+                display_workflow_pipeline(
+                    workflow_yaml=workflow_yaml,
+                    execution_result=st.session_state.execution_result,
+                    orchestration_result=result,
+                    title="Delivery Pipeline",
+                )
+
+            if ui_menu == "Workspace" and status == "completed":
+                display_artifacts(artifacts)
+            elif ui_menu == "Pipeline":
+                st.info("Pipeline view is focused on execution flow. Switch to Workspace from the menu to edit or download artifacts.")
+
+            # Errors
+            state = result.get("state", {})
+            errors = state.get("errors", [])
+            if errors:
+                st.markdown("### ⚠️ Errors")
+                for error in errors:
+                    st.error(error)
+    elif ui_menu == "Logs":
+        st.markdown("---")
+        display_logs_center(None)
+    elif ui_menu == "Pipeline":
+        st.markdown("---")
+        st.info("Run a generation request to render your exact workflow graph. Showing a professional preview layout below.")
+        display_workflow_pipeline(
+            workflow_yaml=None,
+            execution_result=st.session_state.execution_result,
+            orchestration_result=st.session_state.orchestration_result,
+            title="Pipeline Preview",
+        )
     
     # Execution history
     if st.session_state.execution_history:

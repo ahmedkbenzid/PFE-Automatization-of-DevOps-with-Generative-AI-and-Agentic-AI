@@ -1,2 +1,4 @@
 # IaC Agent dependencies
 python-dotenv
+groq
+ollama

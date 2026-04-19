@@ -79,9 +79,9 @@ class CICDPipeline:
         print("[STEP 1] Extracting intent and metadata...")
         try:
             intent_metadata, markdown_metadata = self.intent_layer.process_request(request)
-            print(f"✓ Intent: {intent_metadata.intent}")
-            print(f"✓ Type: {intent_metadata.request_type.value}")
-            print(f"✓ Confidence: {intent_metadata.confidence:.2%}\n")
+            print(f"[OK] Intent: {intent_metadata.intent}")
+            print(f"[OK] Type: {intent_metadata.request_type.value}")
+            print(f"[OK] Confidence: {intent_metadata.confidence:.2%}\n")
         except Exception as e:
             errors.append(f"Intent extraction failed: {str(e)}")
             return self._create_failed_result(errors, 0, time.time() - start_time)
@@ -154,15 +154,15 @@ class CICDPipeline:
                         detected_versions.append(f"Go {local_repo_context['go_version']}")
 
                     if detected_versions:
-                        print(f"✓ DependencyAnalyzer versions: {', '.join(detected_versions)}")
+                        print(f"[OK] DependencyAnalyzer versions: {', '.join(detected_versions)}")
 
                     if dep_info.warnings:
-                        print(f"⚠ DependencyAnalyzer warnings: {len(dep_info.warnings)}")
+                        print(f"[WARN] DependencyAnalyzer warnings: {len(dep_info.warnings)}")
                 except Exception as dep_exc:
-                    print(f"⚠ DependencyAnalyzer failed: {str(dep_exc)}")
+                    print(f"[WARN] DependencyAnalyzer failed: {str(dep_exc)}")
 
-            print(f"✓ Languages detected: {', '.join(local_repo_context.get('languages', []))}")
-            print(f"✓ Build system: {local_repo_context.get('build_system', 'None')}\n")
+            print(f"[OK] Languages detected: {', '.join(local_repo_context.get('languages', []))}")
+            print(f"[OK] Build system: {local_repo_context.get('build_system', 'None')}\n")
         except Exception as e:
             errors.append(f"Context collection failed: {str(e)}")
             local_repo_context = {}
@@ -209,10 +209,10 @@ class CICDPipeline:
             knowledge_query = " ".join(retrieval_query_parts)
             retrieved_knowledge = self.dataset_manager.retrieve_knowledge(knowledge_query, top_k=3)
 
-            print(f"✓ Found {len(relevant_examples)} relevant examples")
+            print(f"[OK] Found {len(relevant_examples)} relevant examples")
             if preferred_languages:
-                print(f"✓ Preferred stack: {', '.join(preferred_languages)}")
-            print(f"✓ Retrieved {len(retrieved_knowledge)} knowledge pages\n")
+                print(f"[OK] Preferred stack: {', '.join(preferred_languages)}")
+            print(f"[OK] Retrieved {len(retrieved_knowledge)} knowledge pages\n")
         except Exception as e:
             print(f"Note: Could not fetch examples: {str(e)}\n")
             relevant_examples = []
@@ -237,7 +237,13 @@ class CICDPipeline:
                 
                 # Generate YAML
                 workflow = self.yaml_generator.generate_from_prompt(prompt)
-                print(f"✓ Generated YAML ({len(workflow.yaml_content)} chars)\n")
+                print(f"[OK] Generated YAML ({len(workflow.yaml_content)} chars)\n")
+
+                if not workflow.yaml_content or not workflow.yaml_content.strip():
+                    print("[WARN] LLM returned empty workflow output; using deterministic fallback workflow")
+                    workflow.yaml_content = self._build_fallback_workflow_yaml(local_repo_context, request)
+                    workflow.metadata["generation_fallback"] = "deterministic-template"
+                    print(f"[OK] Fallback YAML generated ({len(workflow.yaml_content)} chars)\n")
                 
                 # Step 5: Schema validation
                 print("[STEP 5] Validating workflow schema...")
@@ -247,25 +253,25 @@ class CICDPipeline:
                     is_valid, syntax_error = self.yaml_generator.validate_yaml_syntax(workflow.yaml_content)
                     if not is_valid:
                         workflow.validation_errors.append(f"YAML syntax error: {syntax_error}")
-                        print(f"✗ YAML syntax error\n")
+                        print(f"[ERROR] YAML syntax error\n")
                         continue
 
                     parsed_yaml = self.yaml_generator.parse_yaml(workflow.yaml_content)
                     if not parsed_yaml:
                         workflow.validation_errors.append("Could not parse YAML after syntax normalization")
-                        print("✗ Could not parse YAML after normalization\n")
+                        print("[ERROR] Could not parse YAML after normalization\n")
                         continue
                 
                 validation_result = self.schema_validator.validate_workflow(parsed_yaml, self.yaml_generator)
                 workflow.validation_errors.extend(validation_result.errors)
                 
                 if validation_result.is_valid:
-                    print(f"✓ Schema validation passed")
+                    print(f"[OK] Schema validation passed")
                     print(f"  Warnings: {len(validation_result.warnings)}")
                     print(f"  Suggestions: {len(validation_result.suggestions)}\n")
                     workflow.is_valid = True
                 else:
-                    print(f"✗ Schema validation failed ({len(validation_result.errors)} errors)")
+                    print(f"[ERROR] Schema validation failed ({len(validation_result.errors)} errors)")
                     for error in validation_result.errors[:3]:
                         print(f"  - {error}")
                     
@@ -281,9 +287,9 @@ class CICDPipeline:
                 security_audit = self.security_guardrails.audit_workflow(parsed_yaml, workflow.yaml_content)
                 
                 if security_audit.is_safe:
-                    print(f"✓ Security audit passed")
+                    print(f"[OK] Security audit passed")
                 else:
-                    print(f"⚠ Security audit found {len(security_audit.risks)} risks:")
+                    print(f"[WARN] Security audit found {len(security_audit.risks)} risks:")
                     for risk in security_audit.risks[:3]:
                         print(f"  - [{risk.get('severity', 'unknown').upper()}] {risk.get('description', 'Unknown risk')}")
                 
@@ -295,7 +301,7 @@ class CICDPipeline:
                 
             except Exception as e:
                 errors.append(f"Error on attempt {attempt}: {str(e)}")
-                print(f"✗ Generation error: {str(e)}\n")
+                print(f"[ERROR] Generation error: {str(e)}\n")
                 if attempt == max_retries:
                     return self._create_failed_result(errors, attempt, time.time() - start_time)
         
@@ -315,8 +321,8 @@ class CICDPipeline:
                 }
             )
             checksum_preview = lock_file.checksum[:12] if lock_file and lock_file.checksum else "n/a"
-            print(f"✓ Workflow compiled with checksum: {checksum_preview}...")
-            print(f"✓ Generated lock file\n")
+            print(f"[OK] Workflow compiled with checksum: {checksum_preview}...")
+            print(f"[OK] Generated lock file\n")
         except Exception as e:
             errors.append(f"Compilation failed: {str(e)}")
             compiled_yaml = workflow.yaml_content
@@ -368,6 +374,111 @@ class CICDPipeline:
             attempts=attempts,
             errors=errors,
         )
+
+    def _build_fallback_workflow_yaml(self, repo_context: Dict[str, Any], request: UserRequest) -> str:
+        """Build a deterministic workflow when the LLM returns empty output."""
+        languages = [str(lang).lower() for lang in (repo_context.get("languages") or [])]
+        build_system = str(repo_context.get("build_system") or "").lower()
+        request_text = (request.text or "").lower()
+
+        java_version_raw = str(repo_context.get("java_version") or "21")
+        java_match = re.search(r"\d+", java_version_raw)
+        java_version = java_match.group(0) if java_match else "21"
+
+        python_version_raw = str(repo_context.get("python_version") or "3.11")
+        python_match = re.search(r"\d+\.\d+", python_version_raw)
+        python_version = python_match.group(0) if python_match else "3.11"
+
+        if "java" in languages or build_system in {"maven", "gradle"}:
+            return f"""name: Java CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '{java_version}'
+          distribution: temurin
+          cache: maven
+      - name: Build and test
+        run: mvn -B clean verify
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker build -t app:latest .
+"""
+
+        if "python" in languages or build_system in {"pip", "poetry"}:
+            deploy_block = ""
+            if any(word in request_text for word in ["deploy", "deployment", "release", "production"]):
+                deploy_block = """
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, docker-build]
+    steps:
+      - name: Deploy placeholder
+        run: echo \"Add deployment command here\"
+"""
+
+            return f"""name: Python CI/CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '{python_version}'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then pytest -q; else echo \"No tests directory\"; fi
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker build -t app:latest .
+{deploy_block}
+"""
+
+        return """name: CI Workflow
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: echo \"Build step\"
+"""
 
     def _infer_preferred_languages(
         self,
@@ -437,3 +548,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

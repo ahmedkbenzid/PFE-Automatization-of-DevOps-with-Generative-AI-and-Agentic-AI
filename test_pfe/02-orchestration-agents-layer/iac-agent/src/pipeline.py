@@ -43,10 +43,17 @@ class IACPipeline:
     ) -> PipelineResult:
         start = time.time()
 
+        print(f"[IAC Agent] Starting pipeline (repo_path={repository_path})")
+
         context, analysis = self.analyze_project.analyze(repository_path)
+        print(
+            f"[IAC Agent] Analyze complete: provider={analysis.cloud_provider or 'unknown'} "
+            f"confidence={analysis.confidence:.2f}"
+        )
 
         if repo_context:
             self._apply_orchestrator_context(context, analysis, repo_context)
+            print("[IAC Agent] Applied orchestrator repo context")
 
         prompt_provider, prompt_confidence, provider_scores, resource_hints = self.prompt_intent_resolver.resolve(
             request.text
@@ -58,43 +65,82 @@ class IACPipeline:
             or analysis.cloud_provider
             or IAC_CONFIG.get("default_provider", "aws")
         )
+        print(
+            f"[IAC Agent] Provider selection: prompt={prompt_provider or 'none'}, "
+            f"context={context.detected_cloud_provider or 'none'}, effective={effective_provider}"
+        )
 
         rag_context = self.rag_kb.query(
             f"{request.text} terraform {effective_provider} {' '.join(resource_hints)}",
             top_k=3,
         )
+        print(f"[IAC Agent] RAG pages retrieved: {len(rag_context)}")
 
-        # Quick benchmark to compare template and llm generation quality/latency.
-        benchmark_results = run_generation_benchmark(
-            generator=self.generate_file,
-            validator=self.validate,
-            request=request,
-            context=context,
-            provider=effective_provider,
-            resource_hints=resource_hints,
-            rag_context=rag_context,
-        )
+        benchmark_results = {"enabled": False, "runs": []}
+        if IAC_CONFIG.get("enable_benchmark", False):
+            print("[IAC Agent] Benchmark enabled: running template and llm comparison")
+            benchmark_results = run_generation_benchmark(
+                generator=self.generate_file,
+                validator=self.validate,
+                request=request,
+                context=context,
+                provider=effective_provider,
+                resource_hints=resource_hints,
+                rag_context=rag_context,
+            )
+        else:
+            print("[IAC Agent] Benchmark disabled for faster execution")
 
         max_repair_attempts = max(0, int(IAC_CONFIG.get("max_repair_attempts", 2)))
+        max_llm_attempts = max(0, int(IAC_CONFIG.get("max_llm_attempts", 1)))
+        llm_enabled = bool(IAC_CONFIG.get("use_llm", True))
+        llm_attempts_used = 0
         attempt = 0
         current_prompt = request.text
         validation = None
         terraform_config = None
+        total_allowed_attempts = max_repair_attempts + 1
 
         while True:
+            print(
+                f"[IAC Agent] Generation attempt {attempt + 1}/{total_allowed_attempts} "
+                f"(provider={effective_provider})"
+            )
+
+            generation_mode = "template"
+            if llm_enabled and llm_attempts_used < max_llm_attempts:
+                generation_mode = "llm"
+                llm_attempts_used += 1
+
+            print(
+                f"[IAC Agent] Attempt mode: {generation_mode} "
+                f"(llm_attempts_used={llm_attempts_used}/{max_llm_attempts})"
+            )
+
             terraform_config = self.generate_file.generate(
                 request=UserRequest(text=current_prompt, repository_path=request.repository_path),
                 context=context,
                 provider=effective_provider,
                 resource_hints=resource_hints,
                 rag_context=rag_context,
-                mode="auto",
+                mode=generation_mode,
             )
             validation = self.validate.run(terraform_config)
             terraform_config.is_valid = validation.is_valid
             terraform_config.generation_attempts = attempt + 1
+            print(
+                f"[IAC Agent] Validation result: valid={validation.is_valid} "
+                f"errors={len(validation.errors)} warnings={len(validation.warnings)}"
+            )
 
             if validation.is_valid or attempt >= max_repair_attempts:
+                break
+
+            if generation_mode == "template":
+                print(
+                    "[IAC Agent] Template generation is deterministic and still invalid; "
+                    "skipping further retries."
+                )
                 break
 
             repair_context = self._build_repair_prompt(validation)
@@ -103,6 +149,7 @@ class IACPipeline:
                 f"Repair attempt {attempt + 1}: fix Terraform syntax and validation issues.\n"
                 f"Validation feedback:\n{repair_context}"
             )
+            print(f"[IAC Agent] Preparing repair prompt for next attempt ({attempt + 2}/{total_allowed_attempts})")
             attempt += 1
 
         terraform_config.metadata["detected_provider"] = context.detected_cloud_provider
@@ -112,6 +159,8 @@ class IACPipeline:
         terraform_config.metadata["prompt_provider_scores"] = provider_scores
         terraform_config.metadata["effective_provider"] = effective_provider
         terraform_config.metadata["benchmark"] = serialize_benchmark(benchmark_results)
+        terraform_config.metadata["llm_attempts_used"] = llm_attempts_used
+        terraform_config.metadata["max_llm_attempts"] = max_llm_attempts
 
         # validation already computed in loop
 
@@ -123,6 +172,10 @@ class IACPipeline:
         terraform_config.metadata["written_files"] = written_files
 
         elapsed_ms = int((time.time() - start) * 1000)
+        print(
+            f"[IAC Agent] Completed in {elapsed_ms}ms "
+            f"success={terraform_config.is_valid} attempts={terraform_config.generation_attempts}"
+        )
 
         return PipelineResult(
             success=terraform_config.is_valid,
