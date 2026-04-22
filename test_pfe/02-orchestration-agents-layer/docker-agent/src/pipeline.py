@@ -137,6 +137,34 @@ class DockerPipeline:
                     context.frameworks = repo_context.get('frameworks', [])
                 if repo_context.get('build_system'):
                     context.build_tools = [repo_context.get('build_system')] if repo_context.get('build_system') else []
+
+                # Preserve dependency/version intelligence provided by orchestrator analysis.
+                if repo_context.get('python_version'):
+                    context.python_version = repo_context.get('python_version')
+                if repo_context.get('java_version'):
+                    context.java_version = repo_context.get('java_version')
+                if repo_context.get('node_version'):
+                    context.node_version = repo_context.get('node_version')
+                if repo_context.get('go_version'):
+                    context.go_version = repo_context.get('go_version')
+
+                if repo_context.get('django_version'):
+                    context.django_version = repo_context.get('django_version')
+                if repo_context.get('fastapi_version'):
+                    context.fastapi_version = repo_context.get('fastapi_version')
+                if repo_context.get('flask_version'):
+                    context.flask_version = repo_context.get('flask_version')
+                if repo_context.get('spring_boot_version'):
+                    context.spring_boot_version = repo_context.get('spring_boot_version')
+                if repo_context.get('express_version'):
+                    context.express_version = repo_context.get('express_version')
+
+                if isinstance(repo_context.get('dependency_warnings'), list):
+                    context.dependency_warnings = repo_context.get('dependency_warnings')
+                if isinstance(repo_context.get('dependency_recommendations'), list):
+                    context.dependency_recommendations = repo_context.get('dependency_recommendations')
+                if isinstance(repo_context.get('has_version_conflicts'), bool):
+                    context.has_version_conflicts = repo_context.get('has_version_conflicts')
                     
             except (KeyError, AttributeError, TypeError) as e:
                 # If repo_context is malformed, continue with local analysis

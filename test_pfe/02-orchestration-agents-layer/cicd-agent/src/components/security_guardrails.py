@@ -1,5 +1,6 @@
 """Security guardrails for workflow execution"""
 from typing import List, Dict, Any
+import re
 from src.models.types import SecurityAuditResult
 
 class SecurityGuardrails:
@@ -29,6 +30,20 @@ class SecurityGuardrails:
         'actions/',
         'docker://',
         'github/',
+    ]
+
+    # Common hardcoded credential signatures that should never appear in generated workflows.
+    HARDCODED_SECRET_PATTERNS = [
+        (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), "GitHub personal access token"),
+        (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS access key ID"),
+        (re.compile(r"\bASIA[0-9A-Z]{16}\b"), "AWS temporary access key ID"),
+        (re.compile(r"\bxox[pboa]-[A-Za-z0-9-]{10,}\b"), "Slack token"),
+        (
+            re.compile(
+                r"(?i)\b(?:api[_-]?key|token|secret|password|private[_-]?key)\b\s*[:=]\s*[\"']?[A-Za-z0-9_\-]{12,}[\"']?"
+            ),
+            "hardcoded credential assignment",
+        ),
     ]
     
     def __init__(self, strict_mode: bool = False):
@@ -144,6 +159,28 @@ class SecurityGuardrails:
                         'severity': 'medium',
                         'description': f'Potential {indicator} exposure in output',
                     })
+
+        lines = content.split('\n')
+        for line_number, raw_line in enumerate(lines, 1):
+            line = raw_line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            lowered = line.lower()
+
+            # Skip secure secret references and common placeholder examples.
+            if '${{ secrets.' in lowered or '${{ github.token' in lowered:
+                continue
+            if any(marker in lowered for marker in ['your_token', 'example', 'changeme', '<token>', '<secret>']):
+                continue
+
+            for pattern, label in self.HARDCODED_SECRET_PATTERNS:
+                if pattern.search(line):
+                    risks.append({
+                        'line': line_number,
+                        'severity': 'critical',
+                        'description': f'Potential {label} detected. Use GitHub Secrets instead of hardcoded values.',
+                    })
         
         return risks
     
@@ -175,8 +212,7 @@ class SecurityGuardrails:
     def _check_external_urls(self, content: str) -> List[Dict]:
         """Check for downloads from external/untrusted URLs"""
         risks = []
-        
-        import re
+
         url_pattern = r'https?://[^\s\'">\]}\)]+(?:\.[a-z]{2,})+(?:[/?#].*)?'
         urls = re.findall(url_pattern, content.lower())
         

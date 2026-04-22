@@ -63,7 +63,7 @@ class LLMClient:
             raise RuntimeError("GROQ_API_KEY environment variable is required for Groq provider")
 
         self.client = Groq(api_key=api_key)
-        self.model = LLM_CONFIG.get("groq_model", "llama3-70b-8192")
+        self.model = LLM_CONFIG.get("groq_model", "mixtral-8x7b-32768")
         print(f"[Docker Agent] Using Groq with model: {self.model}")
 
     def _ollama_completion(self, prompt: str) -> str:

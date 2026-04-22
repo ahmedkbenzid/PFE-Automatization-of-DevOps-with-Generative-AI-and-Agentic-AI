@@ -10,22 +10,39 @@ if __package__ is None or __package__ == "":
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-from src.config import Config
-from src.models.types import (
-    UserRequest, PipelineResult, RequestType, GeneratedWorkflow
-)
-from src.components.llm_client import LLMClient
-from src.components.intent_layer import IntentLayer
-from src.components.prompt_intent_resolver import PromptIntentResolver
-from src.components.context_collector import ContextCollector
-from src.components.dependency_analyzer import DependencyAnalyzer
-from src.components.template_manager import TemplateManager
-from src.components.yaml_generator import YAMLGenerator
-from src.components.schema_validator import SchemaValidator
-from src.components.security_guardrails import SecurityGuardrails
-from src.components.workflow_compiler import WorkflowCompiler
-from src.components.github_integration import GitHubIntegration
-from src.datasets.dataset_manager import DatasetManager
+    from src.config import Config  # pyright: ignore[reportAttributeAccessIssue]
+    from src.models.types import (
+        UserRequest, PipelineResult, RequestType, GeneratedWorkflow
+    )
+    from src.components.llm_client import LLMClient
+    from src.components.intent_layer import IntentLayer
+    from src.components.prompt_intent_resolver import PromptIntentResolver
+    from src.components.context_collector import ContextCollector
+    from src.components.dependency_analyzer import DependencyAnalyzer
+    from src.components.template_manager import TemplateManager
+    from src.components.yaml_generator import YAMLGenerator
+    from src.components.schema_validator import SchemaValidator
+    from src.components.security_guardrails import SecurityGuardrails
+    from src.components.workflow_compiler import WorkflowCompiler
+    from src.components.github_integration import GitHubIntegration
+    from src.datasets.dataset_manager import DatasetManager
+else:
+    from .config import Config
+    from .models.types import (
+        UserRequest, PipelineResult, RequestType, GeneratedWorkflow
+    )
+    from .components.llm_client import LLMClient
+    from .components.intent_layer import IntentLayer
+    from .components.prompt_intent_resolver import PromptIntentResolver
+    from .components.context_collector import ContextCollector
+    from .components.dependency_analyzer import DependencyAnalyzer
+    from .components.template_manager import TemplateManager
+    from .components.yaml_generator import YAMLGenerator
+    from .components.schema_validator import SchemaValidator
+    from .components.security_guardrails import SecurityGuardrails
+    from .components.workflow_compiler import WorkflowCompiler
+    from .components.github_integration import GitHubIntegration
+    from .datasets.dataset_manager import DatasetManager
 
 class CICDPipeline:
     """Main CI/CD Agent Pipeline"""
@@ -115,6 +132,9 @@ class CICDPipeline:
                     'dockerfile_being_generated': repo_context.get('dockerfile_being_generated', False),
                     'dockerfile_path': repo_context.get('dockerfile_path', 'Dockerfile'),
                     'docker_context_path': repo_context.get('docker_context_path', '.'),
+                    'dockerfile_built_successfully': repo_context.get('dockerfile_built_successfully', False),
+                    # IaC-aware context so generated CI/CD can avoid Terraform runtime commands.
+                    'iac_output_available': repo_context.get('iac_output_available', False),
                 }
             elif repo_path:
                 local_repo_context = self.context_collector.collect_from_local_repo(repo_path)
@@ -444,7 +464,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v4
         with:
           python-version: '{python_version}'
       - name: Install dependencies
@@ -548,4 +568,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

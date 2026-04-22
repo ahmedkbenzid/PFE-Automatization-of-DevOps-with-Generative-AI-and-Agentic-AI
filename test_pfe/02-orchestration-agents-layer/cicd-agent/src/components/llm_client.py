@@ -65,6 +65,25 @@ class LLMClient:
         self.provider = "groq"
         print(f"[CI/CD Agent] Using Groq with model: {self.model}")
 
+    def _run_groq_fallback(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """Run one Groq fallback attempt while preserving the current provider state."""
+        previous_provider = self.provider
+        previous_model = self.model
+        previous_fallback_models = list(self.fallback_models)
+        previous_client = self.client
+
+        try:
+            self._init_groq()
+            groq_result = self._groq_completion(self.model, prompt, max_tokens)
+            if groq_result and groq_result.strip():
+                return groq_result
+            raise RuntimeError("Groq returned empty response")
+        finally:
+            self.provider = previous_provider
+            self.model = previous_model
+            self.fallback_models = previous_fallback_models
+            self.client = previous_client
+
     def _ollama_completion(self, prompt: str) -> str:
         """Generate completion using Ollama"""
         if not self.model:
@@ -97,26 +116,29 @@ class LLMClient:
     def generate_text(self, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Generate text using the configured LLM provider"""
         if self.provider == "ollama":
+            ollama_error: Optional[Exception] = None
             try:
                 ollama_result = self._ollama_completion(prompt)
                 if ollama_result and ollama_result.strip():
                     return ollama_result
+            except Exception as e:
+                ollama_error = e
+                print(f"[CI/CD Agent] Ollama generation failed: {e}")
+
+            if ollama_error is None:
                 print("[CI/CD Agent] Ollama returned empty response, trying Groq fallback")
-                self._init_groq()
-                groq_result = self._groq_completion(self.model, prompt, max_tokens)
+            else:
+                print("[CI/CD Agent] Trying Groq fallback after Ollama failure")
+
+            try:
+                groq_result = self._run_groq_fallback(prompt, max_tokens)
                 if groq_result and groq_result.strip():
                     return groq_result
-                raise RuntimeError("Both Ollama and Groq returned empty responses")
-            except Exception as e:
-                print(f"[CI/CD Agent] Ollama generation failed: {e}, trying Groq fallback")
-                try:
-                    self._init_groq()
-                    groq_result = self._groq_completion(self.model, prompt, max_tokens)
-                    if groq_result and groq_result.strip():
-                        return groq_result
-                    raise RuntimeError("Groq returned empty response")
-                except Exception as e2:
-                    raise RuntimeError(f"Both Ollama and Groq failed: {e2}")
+                raise RuntimeError("Groq returned empty response")
+            except Exception as e2:
+                if ollama_error is not None:
+                    raise RuntimeError(f"Both Ollama and Groq failed: ollama={ollama_error}; groq={e2}")
+                raise RuntimeError(f"Both Ollama and Groq failed after empty Ollama response: groq={e2}")
 
         # Groq with fallback support
         try:

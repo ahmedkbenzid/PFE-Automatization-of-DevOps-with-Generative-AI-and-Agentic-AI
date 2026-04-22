@@ -10,6 +10,7 @@ import shutil
 import threading
 import queue
 import re
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 import logging
@@ -25,6 +26,77 @@ class ExecutionPipeline:
     
     def __init__(self):
         self.logger = logger
+
+    def _collect_act_secrets(self, runtime_secrets: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """Collect runtime secrets from explicit input plus environment fallbacks."""
+        secret_key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+        merged: Dict[str, str] = {}
+
+        if isinstance(runtime_secrets, dict):
+            for raw_key, raw_value in runtime_secrets.items():
+                key = str(raw_key).strip()
+                value = str(raw_value)
+                if not key or not value:
+                    continue
+                if not secret_key_pattern.match(key):
+                    continue
+                merged[key] = value
+
+        common_env_keys = [
+            "DOCKERHUB_USERNAME",
+            "DOCKERHUB_TOKEN",
+            "DOCKERHUB_PASSWORD",
+            "DOCKER_USERNAME",
+            "DOCKER_PASSWORD",
+            "SONAR_TOKEN",
+            "SONAR_HOST_URL",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+        ]
+        for key in common_env_keys:
+            env_value = os.getenv(key)
+            if env_value and key not in merged:
+                merged[key] = env_value
+
+        for env_key, env_value in os.environ.items():
+            if not env_key.startswith("ACT_SECRET_") or not env_value:
+                continue
+            secret_name = env_key[len("ACT_SECRET_"):].strip()
+            if not secret_name or not secret_key_pattern.match(secret_name):
+                continue
+            if secret_name not in merged:
+                merged[secret_name] = env_value
+
+        if merged.get("DOCKERHUB_USERNAME") and not merged.get("DOCKER_USERNAME"):
+            merged["DOCKER_USERNAME"] = merged["DOCKERHUB_USERNAME"]
+
+        dockerhub_token = merged.get("DOCKERHUB_TOKEN") or merged.get("DOCKERHUB_PASSWORD")
+        if dockerhub_token:
+            merged.setdefault("DOCKERHUB_TOKEN", dockerhub_token)
+            merged.setdefault("DOCKERHUB_PASSWORD", dockerhub_token)
+            merged.setdefault("DOCKER_PASSWORD", dockerhub_token)
+
+        return merged
+
+    def _build_act_secret_args(self, runtime_secrets: Optional[Dict[str, str]] = None) -> List[str]:
+        """Convert secret mapping into act CLI arguments."""
+        secret_args: List[str] = []
+        for key, value in self._collect_act_secrets(runtime_secrets).items():
+            secret_args.extend(["--secret", f"{key}={value}"])
+        return secret_args
+
+    def _build_act_common_args(self) -> List[str]:
+        """Build common Act CLI args with safer defaults for Windows sandbox runs."""
+        use_bind_env = os.getenv("ACT_USE_BIND")
+        use_bind = os.name == "nt"
+        if use_bind_env is not None:
+            use_bind = use_bind_env.strip().lower() in {"1", "true", "yes", "on"}
+
+        common_args: List[str] = []
+        if use_bind:
+            # Avoid docker cp workspace transfer issues on Windows paths.
+            common_args.append("--bind")
+        return common_args
 
     def _is_missing_runner_image_error(self, act_result: Dict[str, Any]) -> bool:
         """Detect common Act runner image pull/create failures."""
@@ -70,6 +142,7 @@ class ExecutionPipeline:
         workspace_path: Path,
         act_timeout: int,
         step_name_prefix: str,
+        env: Optional[Dict[str, str]] = None,
         max_retries: int = 2,
     ) -> Dict[str, Any]:
         """Run act command and retry on transient network/TLS failures."""
@@ -82,6 +155,7 @@ class ExecutionPipeline:
                 cwd=str(workspace_path),
                 timeout_seconds=act_timeout,
                 step_name=f"{step_name_prefix}-try-{attempt + 1}",
+                env=env,
             )
 
             if latest_result.get("success"):
@@ -101,9 +175,19 @@ class ExecutionPipeline:
         latest_result["network_retry_attempts"] = retries_used
         return latest_result
 
-    def _run_act_with_fallback_images(self, workspace_path: Path, act_timeout: int) -> Dict[str, Any]:
+    def _run_act_with_fallback_images(
+        self,
+        workspace_path: Path,
+        act_timeout: int,
+        runtime_secrets: Optional[Dict[str, str]] = None,
+        extra_act_args: Optional[List[str]] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """Run act and retry with fallback runner images if the default image is missing."""
-        base_command = ["act", "-W", ".github/workflows/ci.yml"]
+        secret_args = self._build_act_secret_args(runtime_secrets)
+        common_args = self._build_act_common_args()
+        extra_args = list(extra_act_args or [])
+        base_command = ["act", "-W", ".github/workflows/ci.yml", *common_args, *secret_args, *extra_args]
         attempt_summaries: List[Dict[str, Any]] = []
 
         primary_result = self._run_act_with_network_retries(
@@ -111,6 +195,7 @@ class ExecutionPipeline:
             workspace_path=workspace_path,
             act_timeout=act_timeout,
             step_name_prefix="act-run",
+            env=env,
             max_retries=2,
         )
         attempt_summaries.append({"command": base_command, "result": primary_result})
@@ -131,6 +216,9 @@ class ExecutionPipeline:
                 "act",
                 "-W",
                 ".github/workflows/ci.yml",
+                *common_args,
+                *secret_args,
+                *extra_args,
                 "-P",
                 f"ubuntu-latest={image}",
             ]
@@ -140,6 +228,7 @@ class ExecutionPipeline:
                 workspace_path=workspace_path,
                 act_timeout=act_timeout,
                 step_name_prefix=f"act-run-fallback-{image}",
+                env=env,
                 max_retries=2,
             )
             attempt_summaries.append({"command": fallback_cmd, "result": retry_result})
@@ -159,18 +248,21 @@ class ExecutionPipeline:
         repository_path: str,
         github_url: str = "",
         docker_timeout: int = 600,
-        act_timeout: int = 1800
+        act_timeout: int = 1800,
+        secrets: Optional[Dict[str, str]] = None,
+        prebuilt_image_name: str = "",
     ) -> Dict[str, Any]:
         """
         Execute generated CI/CD workflow in a temporary workspace.
         
         Args:
-            dockerfile_content: Kept for backward compatibility (ignored)
+            dockerfile_content: Dockerfile content used only when no prebuilt image is provided
             cicd_workflow_content: Content of the generated CI/CD workflow (GitHub Actions YAML)
             repository_path: Path to the source repository
             github_url: Optional GitHub URL if cloning from remote
-            docker_timeout: Kept for backward compatibility (unused)
+            docker_timeout: Timeout in seconds for optional Docker build when prebuilt image is unavailable
             act_timeout: Timeout in seconds for Act execution (default: 600 = 10 minutes)
+            prebuilt_image_name: Existing local Docker image tag/name to use instead of building from Dockerfile
         
         Returns:
             Dictionary with execution results including:
@@ -209,7 +301,7 @@ class ExecutionPipeline:
                         "cwd": str(workspace_path),
                         "exit_code": 0,
                         "timed_out": False,
-                        "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                        "logs": [{"stream": "stdout", "line": "Skipped: execution did not start due to workspace preparation failure."}],
                         "success": True,
                         "skipped": True,
                     },
@@ -217,29 +309,102 @@ class ExecutionPipeline:
                     "should_self_repair": True,
                 }
             
-            # Write workflow artifact to workspace
+            # Write generated artifacts to workspace
             workflow_path = workspace_path / ".github" / "workflows" / "ci.yml"
             workflow_path.parent.mkdir(parents=True, exist_ok=True)
-            
             workflow_path.write_text(cicd_workflow_content, encoding="utf-8")
+            dockerfile_path = workspace_path / "Dockerfile"
+            has_dockerfile = bool(dockerfile_content and dockerfile_content.strip())
+            if has_dockerfile:
+                dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
             self.logger.info("Workflow written to workspace")
 
-            docker_build_result = {
-                "step": "docker-build",
-                "command": [],
-                "cwd": str(workspace_path),
-                "exit_code": 0,
-                "timed_out": False,
-                "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
-                "success": True,
-                "skipped": True,
-            }
+            act_temp_dir = workspace_path / ".act-temp"
+            act_temp_dir.mkdir(parents=True, exist_ok=True)
+            act_env = os.environ.copy()
+            act_env["TEMP"] = str(act_temp_dir)
+            act_env["TMP"] = str(act_temp_dir)
+            act_env["TMPDIR"] = str(act_temp_dir)
+            act_env["RUNNER_TEMP"] = str(act_temp_dir)
+
+            image_name = f"execution-generated-{int(time.time())}"
+            image_tag = f"{image_name}:latest"
+            extra_act_args: List[str] = []
+            prebuilt_image = (prebuilt_image_name or "").strip()
+
+            if prebuilt_image:
+                self.logger.info(f"Using prebuilt Docker image for execution: {prebuilt_image}")
+                image_inspect = self._run_command_with_timeout(
+                    command=["docker", "image", "inspect", prebuilt_image],
+                    cwd=str(workspace_path),
+                    timeout_seconds=min(docker_timeout, 120),
+                    step_name="docker-image-inspect",
+                )
+                if not image_inspect.get("success"):
+                    return {
+                        "status": "error",
+                        "message": f"Prebuilt Docker image not found locally: {prebuilt_image}",
+                        "workspace": str(workspace_path),
+                        "repo_copy": copy_result,
+                        "docker_build": image_inspect,
+                        "act": {"exit_code": -1, "timed_out": False, "logs": []},
+                        "should_self_repair": True,
+                    }
+
+                docker_build_result = {
+                    "step": "docker-build",
+                    "command": [],
+                    "cwd": str(workspace_path),
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "logs": [{"stream": "stdout", "line": f"Skipped: using prebuilt image {prebuilt_image}."}],
+                    "success": True,
+                    "skipped": True,
+                }
+                act_env["EXECUTION_DOCKER_IMAGE"] = prebuilt_image
+                extra_act_args.extend(["--env", f"EXECUTION_DOCKER_IMAGE={prebuilt_image}"])
+            elif has_dockerfile:
+                self.logger.info(f"Building Docker image from generated Dockerfile: {image_tag}")
+                docker_build_result = self._run_command_with_timeout(
+                    command=["docker", "build", "-t", image_tag, "."],
+                    cwd=str(workspace_path),
+                    timeout_seconds=docker_timeout,
+                    step_name="docker-build",
+                )
+                if not docker_build_result.get("success"):
+                    return {
+                        "status": "error",
+                        "message": "Docker image build failed before Act execution",
+                        "workspace": str(workspace_path),
+                        "repo_copy": copy_result,
+                        "docker_build": docker_build_result,
+                        "act": {"exit_code": -1, "timed_out": False, "logs": []},
+                        "should_self_repair": True,
+                    }
+
+                # Expose built image tag to workflows that can consume it.
+                act_env["EXECUTION_DOCKER_IMAGE"] = image_tag
+                extra_act_args.extend(["--env", f"EXECUTION_DOCKER_IMAGE={image_tag}"])
+            else:
+                docker_build_result = {
+                    "step": "docker-build",
+                    "command": [],
+                    "cwd": str(workspace_path),
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "logs": [{"stream": "stdout", "line": "Skipped: no Dockerfile content provided."}],
+                    "success": True,
+                    "skipped": True,
+                }
             
             # Execute Act workflow
             self.logger.info("Starting Act workflow execution")
             act_result = self._run_act_with_fallback_images(
                 workspace_path=workspace_path,
                 act_timeout=act_timeout,
+                runtime_secrets=secrets,
+                extra_act_args=extra_act_args,
+                env=act_env,
             )
             
             # Determine overall success
@@ -271,7 +436,7 @@ class ExecutionPipeline:
                     "cwd": str(workspace_path),
                     "exit_code": 0,
                     "timed_out": False,
-                    "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                    "logs": [{"stream": "stdout", "line": "Skipped: execution failed before Docker/Act stages."}],
                     "success": True,
                     "skipped": True,
                 },
@@ -292,7 +457,7 @@ class ExecutionPipeline:
                 "cwd": "",
                 "exit_code": 0,
                 "timed_out": False,
-                "logs": [{"stream": "stdout", "line": "Skipped: execution agent runs only act."}],
+                "logs": [{"stream": "stdout", "line": "Skipped: execution failed before Docker/Act stages."}],
                 "success": True,
                 "skipped": True,
             },
@@ -392,7 +557,8 @@ class ExecutionPipeline:
         command: List[str],
         cwd: str,
         timeout_seconds: int,
-        step_name: str
+        step_name: str,
+        env: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Run a command with real-time output streaming and hard timeout.
@@ -418,6 +584,7 @@ class ExecutionPipeline:
         process = subprocess.Popen(
             command,
             cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -513,7 +680,9 @@ def run_execution(
     repository_path: str,
     github_url: str = "",
     docker_timeout: int = 600,
-    act_timeout: int = 1800
+    act_timeout: int = 1800,
+    secrets: Optional[Dict[str, str]] = None,
+    prebuilt_image_name: str = "",
 ) -> Dict[str, Any]:
     """
     Convenience function to run execution pipeline.
@@ -523,6 +692,7 @@ def run_execution(
         cicd_workflow_content: Generated CI/CD workflow content
         repository_path: Path to source repository
         github_url: Optional GitHub URL
+        prebuilt_image_name: Existing local Docker image tag/name to use instead of building from Dockerfile
         docker_timeout: Kept for backward compatibility (unused)
         act_timeout: Act execution timeout in seconds
     
@@ -536,7 +706,9 @@ def run_execution(
         repository_path=repository_path,
         github_url=github_url,
         docker_timeout=docker_timeout,
-        act_timeout=act_timeout
+        act_timeout=act_timeout,
+        secrets=secrets,
+        prebuilt_image_name=prebuilt_image_name,
     )
 
 

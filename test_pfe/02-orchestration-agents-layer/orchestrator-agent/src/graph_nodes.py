@@ -16,7 +16,7 @@ import tempfile
 import threading
 import time
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Mapping, cast
 from pathlib import Path
 
 from .graph_state import OrchestratorState, RepoContextDict
@@ -27,10 +27,10 @@ from .repo_analyzer import RepoAnalyzer, RepoContext
 
 
 # Initialize shared components (will be set up by the graph builder)
-_config: OrchestratorConfig = None
-_guardrails: Guardrails = None
-_router: IntentRouter = None
-_repo_analyzer: RepoAnalyzer = None
+_config: Optional[OrchestratorConfig] = None
+_guardrails: Optional[Guardrails] = None
+_router: Optional[IntentRouter] = None
+_repo_analyzer: Optional[RepoAnalyzer] = None
 
 
 def initialize_components():
@@ -53,6 +53,7 @@ def get_config() -> OrchestratorConfig:
     global _config
     if _config is None:
         initialize_components()
+    assert _config is not None
     return _config
 
 
@@ -63,7 +64,7 @@ def cleanup_repo_analyzer():
         _repo_analyzer.cleanup()
 
 
-def _calculate_complexity(user_prompt: str, repo_context: Dict[str, Any] = None) -> int:
+def _calculate_complexity(user_prompt: str, repo_context: Optional[Mapping[str, Any]] = None) -> int:
     """Calculate complexity score for planner gating."""
     score = 0
     prompt_lower = (user_prompt or "").lower()
@@ -138,7 +139,13 @@ def _requested_agent_count(user_prompt: str) -> int:
     return len(requested_agents)
 
 
-def _should_use_planner(user_prompt: str, repo_context: Dict[str, Any], enabled: bool, threshold: int, skip_planner: bool) -> bool:
+def _should_use_planner(
+    user_prompt: str,
+    repo_context: Optional[Mapping[str, Any]],
+    enabled: bool,
+    threshold: int,
+    skip_planner: bool,
+) -> bool:
     """Determine planner usage."""
     if skip_planner or not enabled:
         return False
@@ -159,7 +166,11 @@ def _should_use_planner(user_prompt: str, repo_context: Dict[str, Any], enabled:
     return _calculate_complexity(user_prompt, repo_context) >= threshold
 
 
-def _invoke_planner(user_prompt: str, repo_context: Dict[str, Any], max_retries: int = 2) -> Dict[str, Any]:
+def _invoke_planner(
+    user_prompt: str,
+    repo_context: Optional[Mapping[str, Any]],
+    max_retries: int = 2,
+) -> Dict[str, Any]:
     """Invoke planner-agent subprocess."""
     print("[Orchestrator] 🧠 Complex request detected - Invoking Planner Agent...")
     planner_root = Path(__file__).parent.parent.parent / "planner-agent"
@@ -501,7 +512,7 @@ def routing_direct_node(state: OrchestratorState) -> Dict[str, Any]:
     route_updates = routing_node(state)
     merged_state = dict(state)
     merged_state.update(route_updates)
-    exec_updates = agent_execution_node(merged_state)
+    exec_updates = agent_execution_node(cast(OrchestratorState, merged_state))
     route_updates.update(exec_updates)
     return route_updates
 
@@ -610,11 +621,30 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
         for step_idx, step in enumerate(execution_order, 1):
             if isinstance(step, list):
                 # Parallel execution group
-                print(f"[Orchestrator] Step {step_idx}: Parallel execution of {len(step)} agents")
+                parallel_agents = [agent for agent in step if isinstance(agent, str)]
+
+                # If IaC and CI/CD are grouped in parallel, run IaC first so CI/CD can
+                # honor the no-Terraform-runtime rule when IaC artifacts already exist.
+                if "iac-agent" in parallel_agents and "cicd-agent" in parallel_agents and not enhanced_repo_context.get("iac_output_available"):
+                    print(f"[Orchestrator] Step {step_idx}: Running iac-agent before parallel group to enrich cicd-agent context")
+                    iac_result = _execute_single_agent("iac-agent", user_prompt, agent_repo_path, enhanced_repo_context)
+                    agent_outputs["iac-agent"] = iac_result
+                    if iac_result.get("status") == "error":
+                        errors.append(f"iac-agent failed: {iac_result.get('message', 'Unknown error')}")
+                    else:
+                        print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
+                        enhanced_repo_context["iac_output_available"] = True
+
+                    parallel_agents = [agent for agent in parallel_agents if agent != "iac-agent"]
+
+                if not parallel_agents:
+                    continue
+
+                print(f"[Orchestrator] Step {step_idx}: Parallel execution of {len(parallel_agents)} agents")
                 import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=len(step)) as executor:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(parallel_agents)) as executor:
                     futures = {}
-                    for agent in step:
+                    for agent in parallel_agents:
                         future = executor.submit(_execute_single_agent, agent, user_prompt, agent_repo_path, enhanced_repo_context)
                         futures[future] = agent
                     
@@ -625,6 +655,9 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                             agent_outputs[agent] = result
                             if result.get("status") == "error":
                                 errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
+                            if agent == "iac-agent" and result.get("status") == "success":
+                                print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
+                                enhanced_repo_context["iac_output_available"] = True
                         except Exception as e:
                             errors.append(f"{agent} execution error: {str(e)}")
             else:
@@ -634,6 +667,14 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                 agent_outputs[step] = result
                 if result.get("status") == "error":
                     errors.append(f"{step} failed: {result.get('message', 'Unknown error')}")
+                
+                # FIXED: Set flag if docker-agent succeeds, so cicd-agent knows to build image in workflow
+                if step == "docker-agent" and result.get("status") == "success":
+                    print(f"[Orchestrator] Docker agent succeeded - workflow will build image during execution")
+                    enhanced_repo_context["dockerfile_built_successfully"] = True
+                if step == "iac-agent" and result.get("status") == "success":
+                    print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
+                    enhanced_repo_context["iac_output_available"] = True
     else:
         # Default execution (no plan) - execute in deterministic order
         ordered_agents = sorted(target_agents, key=_execution_priority)
@@ -642,6 +683,14 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
             agent_outputs[agent] = result
             if result.get("status") == "error":
                 errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
+            
+            # FIXED: Set flag if docker-agent succeeds, so cicd-agent knows to build image in workflow
+            if agent == "docker-agent" and result.get("status") == "success":
+                print(f"[Orchestrator] Docker agent succeeded - workflow will build image during execution")
+                enhanced_repo_context["dockerfile_built_successfully"] = True
+            if agent == "iac-agent" and result.get("status") == "success":
+                print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
+                enhanced_repo_context["iac_output_available"] = True
 
     # DISABLED: Automatic pipeline execution moved to separate execution agent
     # Users must explicitly trigger validation via UI after reviewing artifacts
@@ -694,6 +743,119 @@ def _execution_priority(agent: str) -> int:
     return priorities.get(agent, 99)
 
 
+def _infer_workflow_filename_for_pr(agent_outputs: Dict[str, Any]) -> str:
+    cicd_output = (agent_outputs.get("cicd-agent") or {}).get("data") or {}
+    lock_file = cicd_output.get("lock_file") if isinstance(cicd_output, dict) else None
+
+    candidate = ""
+    if isinstance(lock_file, dict):
+        candidate = str(lock_file.get("workflow_name") or "").strip()
+
+    if not candidate:
+        candidate = "ci-cd"
+
+    candidate = os.path.basename(candidate.replace("\\", "/"))
+    candidate = re.sub(r"[^A-Za-z0-9._-]", "-", candidate).strip("-._")
+    if not candidate:
+        candidate = "ci-cd"
+    if not candidate.endswith((".yml", ".yaml")):
+        candidate = f"{candidate}.yml"
+    return candidate
+
+
+def _collect_artifacts_for_pr(agent_outputs: Dict[str, Any]) -> List[Dict[str, str]]:
+    files: List[Dict[str, str]] = []
+
+    dockerfile_content = _extract_generated_dockerfile(agent_outputs).strip()
+    if dockerfile_content:
+        files.append({"path": "Dockerfile", "content": dockerfile_content + "\n"})
+
+    workflow_yaml = _extract_generated_cicd_workflow(agent_outputs).strip()
+    if workflow_yaml:
+        workflow_name = _infer_workflow_filename_for_pr(agent_outputs)
+        files.append({"path": f".github/workflows/{workflow_name}", "content": workflow_yaml + "\n"})
+
+    iac_data = (agent_outputs.get("iac-agent") or {}).get("data") or {}
+    terraform_config = iac_data.get("terraform_config") if isinstance(iac_data, dict) else {}
+    if isinstance(terraform_config, dict):
+        terraform_mapping = {
+            "main_tf": "terraform/main.tf",
+            "variables_tf": "terraform/variables.tf",
+            "outputs_tf": "terraform/outputs.tf",
+            "providers_tf": "terraform/providers.tf",
+        }
+        for key, path in terraform_mapping.items():
+            content = terraform_config.get(key)
+            if content is None:
+                continue
+            text = str(content).strip()
+            if not text:
+                continue
+            files.append({"path": path, "content": text + "\n"})
+
+    return files
+
+
+def _build_pr_body_with_artifacts(pr_body: str, artifact_files: List[Dict[str, str]]) -> str:
+    artifact_paths = [file_entry.get("path", "") for file_entry in artifact_files if file_entry.get("path")]
+    if not artifact_paths:
+        return pr_body
+
+    lines = [pr_body.strip(), "", "### Generated Artifacts", ""]
+    for path in artifact_paths:
+        lines.append(f"- {path}")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _scan_artifacts_for_hardcoded_secrets(artifact_files: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    """Best-effort scan for hardcoded credentials before publishing artifacts."""
+    secret_patterns = [
+        (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), "GitHub personal access token"),
+        (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS access key ID"),
+        (re.compile(r"\bASIA[0-9A-Z]{16}\b"), "AWS temporary access key ID"),
+        (re.compile(r"\bxox[pboa]-[A-Za-z0-9-]{10,}\b"), "Slack token"),
+        (
+            re.compile(
+                r"(?i)\b(?:api[_-]?key|token|secret|password|private[_-]?key)\b\s*[:=]\s*[\"']?[A-Za-z0-9_\-]{12,}[\"']?"
+            ),
+            "hardcoded credential assignment",
+        ),
+    ]
+
+    findings: List[Dict[str, Any]] = []
+    safe_markers = ["your_token", "example", "changeme", "<token>", "<secret>"]
+
+    for artifact in artifact_files:
+        path = str(artifact.get("path", "") or "")
+        content = str(artifact.get("content", "") or "")
+        if not path or not content:
+            continue
+
+        for line_number, raw_line in enumerate(content.splitlines(), 1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            lowered = line.lower()
+            if "${{ secrets." in lowered or "${{ github.token" in lowered:
+                continue
+            if any(marker in lowered for marker in safe_markers):
+                continue
+
+            for pattern, label in secret_patterns:
+                if pattern.search(line):
+                    findings.append(
+                        {
+                            "path": path,
+                            "line": line_number,
+                            "severity": "critical",
+                            "description": f"Potential {label} detected. Use secure secret references instead.",
+                        }
+                    )
+
+    return findings
+
+
 def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
     """
     Create a pull request with generated artifacts (optional, user-triggered).
@@ -701,7 +863,7 @@ def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
     This node creates a PR if the user requested it via --create-pr flag.
     It uses the GitHub MCP client for PR creation with fallback to PyGithub.
     """
-    from .github_manager import GitHubMCPClient
+    from .github_manager import GitHubMCPClient, GitHubURLParser
 
     # Check if PR creation was requested
     create_pr = state.get("create_pr", False)
@@ -711,12 +873,19 @@ def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
 
     # Extract PR parameters
     github_url = state.get("github_url", "")
-    branch_name = state.get("branch_name", "")
+    repo_context = state.get("repo_context") or {}
+    if not github_url and isinstance(repo_context, dict):
+        ctx_url = repo_context.get("github_url") or repo_context.get("path")
+        if isinstance(ctx_url, str):
+            github_url = ctx_url
+
+    requested_branch = (state.get("branch_name", "") or "devops/auto-generated").replace("refs/heads/", "").strip()
+    branch_name = re.sub(r"[^A-Za-z0-9._/\-]", "-", requested_branch).strip("/.-") or "devops/auto-generated"
     pr_title = state.get("pr_title", "Auto-generated PR from Orchestrator")
     pr_body = state.get("pr_body", "Generated by Orchestrator Agent")
 
-    if not github_url or not branch_name:
-        error_msg = "Missing github_url or branch_name for PR creation"
+    if not github_url:
+        error_msg = "Missing github_url for PR creation"
         print(f"[Orchestrator] ERROR: {error_msg}")
         return {
             "pr_details": {
@@ -725,49 +894,125 @@ def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
             }
         }
 
-    print("[Orchestrator] Creating Pull Request...")
+    artifact_files = _collect_artifacts_for_pr(state.get("agent_outputs", {}))
+    if not artifact_files:
+        error_msg = "No generated artifacts found to publish before PR creation"
+        print(f"[Orchestrator] ERROR: {error_msg}")
+        return {
+            "pr_details": {
+                "success": False,
+                "error": error_msg,
+            }
+        }
+
+    secret_findings = _scan_artifacts_for_hardcoded_secrets(artifact_files)
+    if secret_findings:
+        error_msg = "Potential hardcoded secrets detected in generated artifacts. Aborting publish/PR creation."
+        print(f"[Orchestrator] ERROR: {error_msg}")
+        return {
+            "pr_details": {
+                "success": False,
+                "error": error_msg,
+                "security_findings": secret_findings,
+            }
+        }
+
+    print(f"[Orchestrator] Publishing {len(artifact_files)} artifact(s) and creating Pull Request...")
 
     try:
-        # Parse GitHub URL
-        from .github_manager import GitHubURLParser
+        repo_info = GitHubURLParser.parse(github_url)
+        owner = repo_info.owner
+        repo = repo_info.repo
 
-        parser = GitHubURLParser(github_url)
-        if not parser.is_valid():
-            raise ValueError(f"Invalid GitHub URL: {github_url}")
-
-        owner = parser.owner
-        repo = parser.repo
-
-        # Initialize MCP client and create PR
         config = get_config()
         token = config.GITHUB_TOKEN
         if not token:
             raise ValueError("GITHUB_TOKEN not configured")
 
-        mcp_config = {
-            "mcp_enabled": config.GITHUB_MCP_ENABLED,
-            "strict_mode": config.MCP_GITHUB_STRICT,
-            "timeout": config.MCP_GITHUB_CALL_TIMEOUT,
-            "server_command": config.MCP_GITHUB_SERVER_COMMAND,
-            "server_args": config.MCP_GITHUB_SERVER_ARGS.split(),
-        }
-
-        client = GitHubMCPClient(token=token, mcp_config=mcp_config)
-
-        pr_result = client.create_pull_request(
-            owner=owner,
-            repo=repo,
-            title=pr_title,
-            body=pr_body,
-            head=branch_name,
-            base="main",  # Default to main, could be parameterized
+        client = GitHubMCPClient(
+            token=token,
+            server_command=config.MCP_GITHUB_SERVER_COMMAND,
+            server_args=config.MCP_GITHUB_SERVER_ARGS,
+            call_timeout=config.MCP_GITHUB_CALL_TIMEOUT,
         )
 
+        with client:
+            base_branch = client.get_default_branch(owner=owner, repo=repo, fallback=repo_info.branch or "main")
+
+            branch_result = client.ensure_branch(
+                owner=owner,
+                repo=repo,
+                branch=branch_name,
+                base_branch=base_branch,
+            )
+            if not branch_result.get("success"):
+                return {
+                    "pr_details": {
+                        "success": False,
+                        "error": f"Failed to ensure branch '{branch_name}': {branch_result.get('error', 'Unknown error')}",
+                        "branch_result": branch_result,
+                    }
+                }
+
+            publish_result = client.upsert_files(
+                owner=owner,
+                repo=repo,
+                branch=branch_name,
+                files=artifact_files,
+                commit_message="chore(devops): apply orchestrator-generated artifacts",
+            )
+            if not publish_result.get("success"):
+                return {
+                    "pr_details": {
+                        "success": False,
+                        "error": f"Failed to publish artifacts to '{branch_name}': {publish_result.get('error', 'Unknown error')}",
+                        "publish_result": publish_result,
+                    }
+                }
+
+            no_artifact_changes = not publish_result.get("has_changes", True)
+            if no_artifact_changes:
+                print(
+                    "[Orchestrator] No new artifact file changes detected on target branch; "
+                    "attempting PR creation in case an existing branch PR already exists."
+                )
+
+            pr_body_with_artifacts = _build_pr_body_with_artifacts(pr_body, artifact_files)
+            pr_result = client.create_pull_request(
+                owner=owner,
+                repo=repo,
+                title=pr_title,
+                body=pr_body_with_artifacts,
+                head=branch_name,
+                base=base_branch,
+            )
+
+        pr_error_text = str(pr_result.get("error", ""))
+        if (not pr_result.get("success")) and "already exists" in pr_error_text.lower():
+            pr_result = {
+                "success": True,
+                "message": pr_error_text,
+                "head": branch_name,
+                "base": base_branch,
+                "existing_pr": True,
+            }
+        elif (not pr_result.get("success")) and no_artifact_changes:
+            pr_result["error"] = (
+                pr_result.get("error")
+                or "No artifact changes were published and PR creation did not succeed."
+            )
+
         if pr_result.get("success"):
-            print(f"[Orchestrator] PR Created: {pr_result.get('pr_url')}")
+            print(f"[Orchestrator] PR Ready: {pr_result.get('pr_url') or pr_result.get('message', 'created/updated')}")
         else:
             print(f"[Orchestrator] PR Creation Failed: {pr_result.get('error')}")
 
+        pr_result["published_files"] = [file_entry.get("path", "") for file_entry in artifact_files]
+        pr_result["published_file_count"] = len(artifact_files)
+        pr_result["branch_name"] = branch_name
+        pr_result["base_branch"] = base_branch
+        pr_result["branch_result"] = branch_result
+        pr_result["publish_result"] = publish_result
         return {"pr_details": pr_result}
 
     except Exception as e:
@@ -1003,7 +1248,7 @@ def _execute_cicd_agent(
     print(f"[Orchestrator] -> Invoking {agent} locally (timeout: 120s)")
 
     try:
-        repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
+        repo_context_json = json.dumps(repo_context) if isinstance(repo_context, dict) and repo_context else "{}"
 
         # Simplified run_code - args are now injected via JSON
         run_code = (
@@ -1171,6 +1416,8 @@ def _extract_dockerfile_from_agent_result(docker_agent_result: Dict[str, Any]) -
 
 
 def _validate_generated_docker_image(docker_agent_result: Dict[str, Any], repository_path: str) -> Dict[str, Any]:
+    build_validation_timeout = _get_int_env("DOCKER_BUILD_VALIDATION_TIMEOUT_SEC", default=600, minimum=60)
+
     dockerfile_content = _extract_dockerfile_from_agent_result(docker_agent_result)
     if not dockerfile_content:
         return {
@@ -1199,7 +1446,7 @@ def _validate_generated_docker_image(docker_agent_result: Dict[str, Any], reposi
     docker_build = _stream_command_with_timeout(
         command=["docker", "build", "-t", f"{image_name}:latest", "."],
         cwd=str(workspace_path),
-        timeout_seconds=600,
+        timeout_seconds=build_validation_timeout,
         step_name="docker-react-build",
     )
 
@@ -1532,13 +1779,20 @@ def _copy_repo_source_to_workspace(repository_path: str, workspace_path: Path, g
     }
 
 
-def _stream_command_with_timeout(command: list[str], cwd: str, timeout_seconds: int, step_name: str) -> Dict[str, Any]:
+def _stream_command_with_timeout(
+    command: list[str],
+    cwd: str,
+    timeout_seconds: int,
+    step_name: str,
+    env: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """Run a command with real-time stdout/stderr streaming and hard timeout."""
     print(f"[Orchestrator] [{step_name}] Running: {' '.join(command)}")
 
     process = subprocess.Popen(
         command,
         cwd=cwd,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -1693,11 +1947,27 @@ def _execute_generated_pipeline(agent_outputs: Dict[str, Any], repository_path: 
         step_name="docker-build",
     )
 
+    act_temp_dir = workspace_path / ".act-temp"
+    act_temp_dir.mkdir(parents=True, exist_ok=True)
+    act_env = os.environ.copy()
+    act_env["TEMP"] = str(act_temp_dir)
+    act_env["TMP"] = str(act_temp_dir)
+    act_env["TMPDIR"] = str(act_temp_dir)
+    act_env["RUNNER_TEMP"] = str(act_temp_dir)
+
+    act_command = ["act", "-W", ".github/workflows/ci.yml"]
+    act_use_bind = os.getenv("ACT_USE_BIND")
+    if (act_use_bind is None and os.name == "nt") or (
+        act_use_bind is not None and act_use_bind.strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        act_command.append("--bind")
+
     act_result = _stream_command_with_timeout(
-        command=["act", "-W", ".github/workflows/ci.yml"],
+        command=act_command,
         cwd=str(workspace_path),
         timeout_seconds=600,
         step_name="act-run",
+        env=act_env,
     )
 
     pipeline_success = docker_build_result.get("success") and act_result.get("success")

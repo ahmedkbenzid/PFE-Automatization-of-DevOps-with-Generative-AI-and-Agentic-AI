@@ -105,16 +105,48 @@ class GitHubMCPClient:
     def __exit__(self, exc_type, exc, tb):
         self.close()
 
+    def _build_server_env(self) -> Dict[str, str]:
+        """Build a minimal MCP server environment to avoid leaking unrelated secrets."""
+        allowed_keys = [
+            "PATH",
+            "SYSTEMROOT",
+            "WINDIR",
+            "COMSPEC",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+            "HOME",
+            "USERPROFILE",
+            "HOMEDRIVE",
+            "HOMEPATH",
+            "LANG",
+            "LC_ALL",
+            "TERM",
+            "DOCKER_HOST",
+            "DOCKER_CONTEXT",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "NO_PROXY",
+        ]
+
+        env: Dict[str, str] = {}
+        for key in allowed_keys:
+            value = os.getenv(key)
+            if value:
+                env[key] = value
+
+        # Different servers use different variable names for GitHub PAT.
+        env["GITHUB_TOKEN"] = self.token
+        env["GITHUB_PERSONAL_ACCESS_TOKEN"] = self.token
+        env["GITHUB_HOST"] = self.github_host
+        return env
+
     def connect(self) -> None:
         """Start MCP process and initialize session."""
         if self._proc is not None:
             return
 
-        env = os.environ.copy()
-        # Different servers use different variable names for GitHub PAT.
-        env.setdefault("GITHUB_TOKEN", self.token)
-        env.setdefault("GITHUB_PERSONAL_ACCESS_TOKEN", self.token)
-        env.setdefault("GITHUB_HOST", self.github_host)
+        env = self._build_server_env()
 
         cmd = [self.server_command] + self.server_args
         try:
@@ -725,7 +757,7 @@ class GitHubMCPClient:
             from github import Github
 
             client = Github(self.token)
-            repo_obj = client.get_user(owner).get_repo(repo)
+            repo_obj = client.get_repo(f"{owner}/{repo}")
 
             pr = repo_obj.create_pull(
                 title=title,
@@ -753,6 +785,194 @@ class GitHubMCPClient:
                 "repo": repo,
                 "requested_head": head,
                 "requested_base": base,
+            }
+
+    def get_default_branch(self, owner: str, repo: str, fallback: str = "main") -> str:
+        """Get repository default branch with MCP first, then PyGithub fallback."""
+        try:
+            payload = self.get_repo_metadata(owner=owner, repo=repo)
+            if isinstance(payload, dict):
+                default_branch = payload.get("default_branch")
+                if isinstance(default_branch, str) and default_branch.strip():
+                    return default_branch.strip()
+        except Exception:
+            pass
+
+        try:
+            from github import Github
+
+            client = Github(self.token)
+            repo_obj = client.get_repo(f"{owner}/{repo}")
+            default_branch = getattr(repo_obj, "default_branch", None)
+            if isinstance(default_branch, str) and default_branch.strip():
+                return default_branch.strip()
+        except Exception:
+            pass
+
+        return fallback
+
+    def ensure_branch(self, owner: str, repo: str, branch: str, base_branch: str) -> Dict[str, Any]:
+        """Ensure the target branch exists by creating it from base when needed."""
+        cleaned_branch = (branch or "").replace("refs/heads/", "").strip()
+        cleaned_base = (base_branch or "main").replace("refs/heads/", "").strip() or "main"
+        if not cleaned_branch:
+            return {
+                "success": False,
+                "error": "Branch name is empty",
+                "branch": cleaned_branch,
+                "base_branch": cleaned_base,
+            }
+
+        try:
+            from github import Github, GithubException
+
+            client = Github(self.token)
+            repo_obj = client.get_repo(f"{owner}/{repo}")
+
+            try:
+                repo_obj.get_git_ref(f"heads/{cleaned_branch}")
+                return {
+                    "success": True,
+                    "created": False,
+                    "branch": cleaned_branch,
+                    "base_branch": cleaned_base,
+                }
+            except GithubException as exc:
+                if getattr(exc, "status", None) != 404:
+                    raise
+
+            base_ref = repo_obj.get_git_ref(f"heads/{cleaned_base}")
+            repo_obj.create_git_ref(ref=f"refs/heads/{cleaned_branch}", sha=base_ref.object.sha)
+            return {
+                "success": True,
+                "created": True,
+                "branch": cleaned_branch,
+                "base_branch": cleaned_base,
+                "base_sha": base_ref.object.sha,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "branch": cleaned_branch,
+                "base_branch": cleaned_base,
+            }
+
+    def upsert_files(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        files: List[Dict[str, str]],
+        commit_message: str,
+    ) -> Dict[str, Any]:
+        """Create/update multiple files on a branch with MCP first, then PyGithub fallback."""
+        normalized_files: List[Dict[str, str]] = []
+        for file_entry in files:
+            path = str(file_entry.get("path", "")).lstrip("/").strip()
+            content = file_entry.get("content")
+            if not path:
+                continue
+            if content is None:
+                continue
+            normalized_files.append({"path": path, "content": str(content)})
+
+        if not normalized_files:
+            return {
+                "success": False,
+                "error": "No artifact files to publish",
+                "files": [],
+            }
+
+        mcp_error: Optional[str] = None
+        try:
+            payload = self.call_tool(
+                candidates=(
+                    "push_files",
+                    "mcp_io_github_git_push_files",
+                ),
+                arguments={
+                    "owner": owner,
+                    "repo": repo,
+                    "branch": branch,
+                    "message": commit_message,
+                    "files": normalized_files,
+                },
+            )
+            return {
+                "success": True,
+                "source": "mcp",
+                "branch": branch,
+                "files": [{"path": f["path"], "action": "updated"} for f in normalized_files],
+                "has_changes": True,
+                "raw_response": payload,
+            }
+        except Exception as exc:
+            mcp_error = str(exc)
+
+        try:
+            from github import Github, GithubException
+
+            client = Github(self.token)
+            repo_obj = client.get_repo(f"{owner}/{repo}")
+
+            file_results: List[Dict[str, str]] = []
+            has_changes = False
+
+            for file_entry in normalized_files:
+                path = file_entry["path"]
+                content = file_entry["content"]
+
+                try:
+                    existing = repo_obj.get_contents(path, ref=branch)
+                    if isinstance(existing, list):
+                        raise RuntimeError(f"Path '{path}' resolves to a directory, expected a file")
+
+                    existing_content = existing.decoded_content.decode("utf-8", errors="replace")
+                    if existing_content == content:
+                        file_results.append({"path": path, "action": "unchanged"})
+                        continue
+
+                    repo_obj.update_file(
+                        path=path,
+                        message=commit_message,
+                        content=content,
+                        sha=existing.sha,
+                        branch=branch,
+                    )
+                    file_results.append({"path": path, "action": "updated"})
+                    has_changes = True
+                except GithubException as exc:
+                    if getattr(exc, "status", None) != 404:
+                        raise
+                    repo_obj.create_file(
+                        path=path,
+                        message=commit_message,
+                        content=content,
+                        branch=branch,
+                    )
+                    file_results.append({"path": path, "action": "created"})
+                    has_changes = True
+
+            return {
+                "success": True,
+                "source": "pygithub",
+                "branch": branch,
+                "files": file_results,
+                "has_changes": has_changes,
+                "mcp_error": mcp_error,
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "owner": owner,
+                "repo": repo,
+                "branch": branch,
+                "files": normalized_files,
+                "mcp_error": mcp_error,
             }
 
 

@@ -290,6 +290,10 @@ if 'orchestrator_task' not in st.session_state:
     st.session_state.orchestrator_task = None
 if 'orchestrator_task_error' not in st.session_state:
     st.session_state.orchestrator_task_error = None
+if 'runtime_secrets' not in st.session_state:
+    st.session_state.runtime_secrets = {}
+if 'runtime_secret_lines' not in st.session_state:
+    st.session_state.runtime_secret_lines = ""
 
 
 @st.cache_data(ttl=45, show_spinner=False)
@@ -322,6 +326,83 @@ def check_environment() -> Dict[str, bool]:
     }
     checks.update(_agent_paths_exist())
     return checks
+
+
+def _parse_runtime_secret_lines(raw_lines: str) -> tuple[Dict[str, str], List[str]]:
+    """Parse KEY=VALUE lines used for additional runtime secrets."""
+    parsed: Dict[str, str] = {}
+    errors: List[str] = []
+    key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+    for line_number, raw_line in enumerate((raw_lines or "").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            errors.append(f"Line {line_number}: missing '=' separator")
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if not key_pattern.match(key):
+            errors.append(f"Line {line_number}: invalid secret key '{key}'")
+            continue
+        if value == "":
+            errors.append(f"Line {line_number}: empty value for '{key}'")
+            continue
+
+        parsed[key] = value
+
+    return parsed, errors
+
+
+def _collect_runtime_secrets() -> Dict[str, str]:
+    """Return sanitized session runtime secrets with common Docker Hub aliases."""
+    raw_secrets = st.session_state.get("runtime_secrets", {})
+    if not isinstance(raw_secrets, dict):
+        return {}
+
+    key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    cleaned: Dict[str, str] = {}
+    for raw_key, raw_value in raw_secrets.items():
+        key = str(raw_key).strip()
+        value = str(raw_value)
+        if not key or value == "":
+            continue
+        if not key_pattern.match(key):
+            continue
+        cleaned[key] = value
+
+    if cleaned.get("DOCKERHUB_USERNAME") and not cleaned.get("DOCKER_USERNAME"):
+        cleaned["DOCKER_USERNAME"] = cleaned["DOCKERHUB_USERNAME"]
+
+    dockerhub_token = cleaned.get("DOCKERHUB_TOKEN") or cleaned.get("DOCKERHUB_PASSWORD")
+    if dockerhub_token:
+        cleaned.setdefault("DOCKERHUB_TOKEN", dockerhub_token)
+        cleaned.setdefault("DOCKERHUB_PASSWORD", dockerhub_token)
+        cleaned.setdefault("DOCKER_PASSWORD", dockerhub_token)
+
+    return cleaned
+
+
+def _apply_runtime_env_overrides(base_env: Dict[str, str]) -> Dict[str, str]:
+    """Apply session runtime secrets and compatibility env aliases before process launch."""
+    launch_env = dict(base_env)
+    launch_env["PYTHONIOENCODING"] = "utf-8"
+
+    runtime_secrets = _collect_runtime_secrets()
+    for key, value in runtime_secrets.items():
+        launch_env[key] = value
+        launch_env.setdefault(f"ACT_SECRET_{key}", value)
+
+    # Backward-compat env alias used by previous configs.
+    fallback_single = str(launch_env.get("GROQ_FALLBACK_MODEL", "") or "").strip()
+    if fallback_single and not str(launch_env.get("GROQ_FALLBACK_MODELS", "") or "").strip():
+        launch_env["GROQ_FALLBACK_MODELS"] = fallback_single
+
+    return launch_env
 
 
 def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -777,6 +858,10 @@ def _finalize_orchestrator_task_if_done() -> bool:
                     "execution_plan": result_data.get("execution_plan"),
                     "planner_reasoning": result_data.get("planner_reasoning"),
                     "complexity_score": result_data.get("complexity_score", 0),
+                    "create_pr": bool(payload.get("create_pr", False)),
+                    "branch_name": str(payload.get("branch_name", "") or "").strip(),
+                    "pr_title": str(payload.get("pr_title", "") or "").strip(),
+                    "pr_body": str(payload.get("pr_body", "") or "").strip(),
                 }
                 st.session_state.plan_approved = False
             else:
@@ -983,6 +1068,17 @@ def _extract_act_failure_summary(act_logs: List[Dict[str, Any]]) -> str:
         if isinstance(item, dict) and item.get("line")
     ]
     for line in reversed(plain_lines):
+        lower = line.lower()
+        if "input required and not supplied: username" in lower or "input required and not supplied: password" in lower:
+            return (
+                "Required registry secrets are missing for docker/login-action. "
+                "Add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in the app Runtime Secrets panel."
+            )
+        if ("version 21" in lower or "jdk 21" in lower) and ("not found" in lower or "unable to find" in lower):
+            return (
+                "Local Act run failed to provision JDK 21. "
+                "Preserve Java 21 in the workflow and fix setup-java configuration or runner/network constraints."
+            )
         if "No such image: catthehacker/ubuntu:act-latest" in line:
             return "Act default runner image is unavailable on your Docker host. The execution agent now retries with fallback runner images automatically."
         if "TLS handshake timeout" in line:
@@ -1087,19 +1183,107 @@ def _default_pipeline_jobs() -> Dict[str, Dict[str, Any]]:
     }
 
 
+def _extract_workflow_jobs_text_fallback(workflow_yaml: Optional[str]) -> Dict[str, Dict[str, Any]]:
+    """Fallback parser for common workflow text when YAML parsing fails."""
+    text = _sanitize_workflow_yaml_text(workflow_yaml or "")
+    if not text.strip():
+        return {}
+
+    lines = text.splitlines()
+    in_jobs = False
+    current_job: Optional[str] = None
+    reading_needs_block = False
+    jobs: Dict[str, Dict[str, Any]] = {}
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        if re.match(r"^jobs\s*:\s*$", stripped, flags=re.IGNORECASE):
+            in_jobs = True
+            current_job = None
+            reading_needs_block = False
+            continue
+
+        if not in_jobs:
+            continue
+
+        top_level_match = re.match(r"^[A-Za-z0-9_.-]+\s*:\s*$", stripped)
+        if top_level_match and not line.startswith(" "):
+            break
+
+        job_match = re.match(r"^\s{2}([A-Za-z0-9_.-]+)\s*:\s*$", line)
+        if job_match:
+            job_id = job_match.group(1)
+            current_job = job_id
+            reading_needs_block = False
+            jobs[job_id] = {
+                "id": job_id,
+                "name": _prettify_job_name(job_id),
+                "needs": [],
+                "order": len(jobs),
+            }
+            continue
+
+        if not current_job:
+            continue
+
+        needs_inline = re.match(r"^\s{4}needs\s*:\s*(.+)\s*$", line)
+        if needs_inline:
+            raw = needs_inline.group(1).strip()
+            reading_needs_block = False
+            if raw.startswith("[") and raw.endswith("]"):
+                values = [item.strip().strip("'\"") for item in raw[1:-1].split(",") if item.strip()]
+                jobs[current_job]["needs"] = values
+            elif raw and raw not in {"[]", "null", "None"}:
+                jobs[current_job]["needs"] = [raw.strip("'\"")]
+            else:
+                jobs[current_job]["needs"] = []
+            continue
+
+        if re.match(r"^\s{4}needs\s*:\s*$", line):
+            reading_needs_block = True
+            jobs[current_job]["needs"] = []
+            continue
+
+        if reading_needs_block:
+            dep_match = re.match(r"^\s{6}-\s*([A-Za-z0-9_.-]+)\s*$", line)
+            if dep_match:
+                jobs[current_job]["needs"].append(dep_match.group(1))
+                continue
+            reading_needs_block = False
+
+    known_ids = set(jobs.keys())
+    for job in jobs.values():
+        deps = job.get("needs", [])
+        job["needs"] = [dep for dep in deps if dep in known_ids]
+
+    return jobs
+
+
 def _extract_workflow_jobs(workflow_yaml: Optional[str]) -> Dict[str, Dict[str, Any]]:
     """Parse GitHub Actions jobs and dependencies from workflow YAML."""
-    if not workflow_yaml or not workflow_yaml.strip() or yaml is None:
+    if not workflow_yaml or not workflow_yaml.strip():
         return _default_pipeline_jobs()
 
+    if yaml is None:
+        fallback_jobs = _extract_workflow_jobs_text_fallback(workflow_yaml)
+        return fallback_jobs or _default_pipeline_jobs()
+
     try:
-        payload = yaml.safe_load(workflow_yaml) or {}
+        cleaned_yaml = _sanitize_workflow_yaml_text(workflow_yaml).strip() or workflow_yaml
+        payload = yaml.safe_load(cleaned_yaml) or {}
+        if isinstance(payload, dict) and True in payload and "on" not in payload:
+            payload["on"] = payload.pop(True)
     except Exception:
-        return _default_pipeline_jobs()
+        fallback_jobs = _extract_workflow_jobs_text_fallback(workflow_yaml)
+        return fallback_jobs or _default_pipeline_jobs()
 
     jobs_raw = payload.get("jobs", {}) if isinstance(payload, dict) else {}
     if not isinstance(jobs_raw, dict) or not jobs_raw:
-        return _default_pipeline_jobs()
+        fallback_jobs = _extract_workflow_jobs_text_fallback(workflow_yaml)
+        return fallback_jobs or _default_pipeline_jobs()
 
     jobs: Dict[str, Dict[str, Any]] = {}
     known_ids = set(jobs_raw.keys())
@@ -1124,6 +1308,29 @@ def _extract_workflow_jobs(workflow_yaml: Optional[str]) -> Dict[str, Dict[str, 
         }
 
     return jobs or _default_pipeline_jobs()
+
+
+def _resolve_pipeline_workflow_yaml(
+    artifacts: Optional[Dict[str, Any]],
+    orchestration_result: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """Resolve workflow YAML for pipeline rendering with robust fallback sources."""
+    candidate = ""
+    if isinstance(orchestration_result, dict):
+        state = orchestration_result.get("state", {})
+        if isinstance(state, dict):
+            agent_outputs = state.get("agent_outputs", {})
+            if isinstance(agent_outputs, dict):
+                cicd_output = agent_outputs.get("cicd-agent", {})
+                cicd_data = cicd_output.get("data", {}) if isinstance(cicd_output, dict) else {}
+                if isinstance(cicd_data, dict):
+                    candidate = str(cicd_data.get("workflow_yaml") or "")
+
+    if not candidate.strip() and isinstance(artifacts, dict):
+        candidate = str(artifacts.get("yaml") or "")
+
+    cleaned = _sanitize_workflow_yaml_text(candidate)
+    return cleaned if cleaned.strip() else None
 
 
 def _extract_act_status_map(execution_result: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -1885,9 +2092,8 @@ def _invoke_docker_agent_generation(
         f"{run_code}"
     )
 
-    run_env = os.environ.copy()
+    run_env = _apply_runtime_env_overrides(os.environ.copy())
     run_env["PYTHONPATH"] = str(docker_agent_root) + os.pathsep + run_env.get("PYTHONPATH", "")
-    run_env["PYTHONIOENCODING"] = "utf-8"
 
     completed = subprocess.run(
         [sys.executable, "-c", safe_run_code],
@@ -2135,9 +2341,8 @@ def _invoke_cicd_agent_generation(
         f"{run_code}"
     )
 
-    run_env = os.environ.copy()
+    run_env = _apply_runtime_env_overrides(os.environ.copy())
     run_env["PYTHONPATH"] = str(cicd_agent_root) + os.pathsep + run_env.get("PYTHONPATH", "")
-    run_env["PYTHONIOENCODING"] = "utf-8"
 
     completed = subprocess.run(
         [sys.executable, "-c", safe_run_code],
@@ -2187,11 +2392,15 @@ def _summarize_act_failure(execution_result: Dict[str, Any]) -> str:
 
 def _ensure_executable_cicd_workflow_via_agent(
     initial_workflow: str,
+    dockerfile_content: str,
+    prebuilt_image_name: Optional[str],
     user_prompt: str,
     repository_path: str,
     run_execution_fn,
     max_attempts: int = 4,
     act_timeout: int = 600,
+    runtime_secrets: Optional[Dict[str, str]] = None,
+    required_java_version: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Keep sending Act failures back to cicd-agent until workflow executes successfully
@@ -2206,20 +2415,44 @@ def _ensure_executable_cicd_workflow_via_agent(
             "workflow_yaml": "",
         }
 
+    def _normalize_java_major(version_text: Optional[str]) -> Optional[str]:
+        match = re.search(r"\d+", str(version_text or ""))
+        return match.group(0) if match else None
+
+    def _extract_workflow_java_major(workflow_yaml: str) -> Optional[str]:
+        match = re.search(
+            r"java-version\s*:\s*['\"]?([0-9]+(?:\.[0-9]+)?)['\"]?",
+            workflow_yaml or "",
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        return _normalize_java_major(match.group(1))
+
+    locked_java_major = _normalize_java_major(required_java_version) or _extract_workflow_java_major(current_workflow)
+
     attempts: List[Dict[str, Any]] = []
     prompt_seed = (user_prompt or "Generate a valid GitHub Actions workflow").strip()
+    current_dockerfile = _sanitize_dockerfile_text(dockerfile_content)
+    prebuilt_image = str(prebuilt_image_name or "").strip()
     repo_context = {
         "is_available": True,
         "source": "local",
         "path": repository_path,
     }
+    if locked_java_major:
+        repo_context["java_version"] = locked_java_major
+        repo_context["languages"] = ["java"]
+        repo_context["build_system"] = "maven"
 
     for attempt in range(1, max_attempts + 1):
         execution_result = run_execution_fn(
-            dockerfile_content="",
+            dockerfile_content=current_dockerfile,
             cicd_workflow_content=current_workflow,
             repository_path=repository_path,
             act_timeout=act_timeout,
+            secrets=runtime_secrets,
+            prebuilt_image_name=prebuilt_image,
         )
         attempts.append({
             "attempt": attempt,
@@ -2240,11 +2473,20 @@ def _ensure_executable_cicd_workflow_via_agent(
             break
 
         failure_summary = _summarize_act_failure(execution_result)
+        java_lock_requirement = ""
+        if locked_java_major:
+            java_lock_requirement = (
+                f"IMPORTANT: Keep Java version pinned to {locked_java_major}. "
+                "Do NOT downgrade java-version to 17 or any other value. "
+                "Use actions/setup-java@v4 with distribution: temurin.\n\n"
+            )
+
         repair_prompt = (
             f"{prompt_seed}\n\n"
             "The GitHub Actions workflow below fails when executed with `act`.\n"
             "Regenerate a corrected workflow YAML so Act passes successfully.\n"
             "Keep it production-ready and executable.\n\n"
+            f"{java_lock_requirement}"
             "Current workflow:\n"
             "```yaml\n"
             f"{current_workflow}"
@@ -2285,6 +2527,19 @@ def _ensure_executable_cicd_workflow_via_agent(
                 "attempts": attempts,
                 "workflow_yaml": current_workflow,
             }
+
+        if locked_java_major:
+            regenerated_java_major = _extract_workflow_java_major(regenerated_workflow)
+            if regenerated_java_major != locked_java_major:
+                return {
+                    "status": "error",
+                    "message": (
+                        "cicd-agent changed required Java version during repair "
+                        f"(expected {locked_java_major}, got {regenerated_java_major or 'missing'})."
+                    ),
+                    "attempts": attempts,
+                    "workflow_yaml": current_workflow,
+                }
 
         current_workflow = regenerated_workflow
 
@@ -2485,6 +2740,67 @@ def main():
                 ["asked", "all"],
                 help="Show only requested artifacts or all generated artifacts"
             )
+
+            with st.expander("🔐 Runtime Secrets (Session Only)", expanded=False):
+                st.caption(
+                    "Used for validation/deploy steps (for example Docker Hub login in Act). "
+                    "Secrets stay in this Streamlit session and are not written to files."
+                )
+
+                runtime_secret_values = st.session_state.get("runtime_secrets", {})
+                if not isinstance(runtime_secret_values, dict):
+                    runtime_secret_values = {}
+
+                dockerhub_username_input = st.text_input(
+                    "Docker Hub Username",
+                    value=str(runtime_secret_values.get("DOCKERHUB_USERNAME", "") or ""),
+                    key="secret_dockerhub_username",
+                )
+                dockerhub_token_input = st.text_input(
+                    "Docker Hub Token",
+                    value=str(runtime_secret_values.get("DOCKERHUB_TOKEN", "") or ""),
+                    type="password",
+                    key="secret_dockerhub_token",
+                )
+                sonar_token_input = st.text_input(
+                    "Sonar Token",
+                    value=str(runtime_secret_values.get("SONAR_TOKEN", "") or ""),
+                    type="password",
+                    key="secret_sonar_token",
+                )
+                sonar_host_input = st.text_input(
+                    "Sonar Host URL",
+                    value=str(runtime_secret_values.get("SONAR_HOST_URL", "") or ""),
+                    key="secret_sonar_host_url",
+                )
+                additional_secret_lines = st.text_area(
+                    "Additional Secrets (KEY=VALUE per line)",
+                    key="runtime_secret_lines",
+                    height=130,
+                    placeholder="DOCKERHUB_USERNAME=my-user\nDOCKERHUB_TOKEN=your-token\nGHCR_TOKEN=...",
+                )
+
+                parsed_additional_secrets, secret_line_errors = _parse_runtime_secret_lines(additional_secret_lines)
+
+                runtime_secrets: Dict[str, str] = {}
+                if dockerhub_username_input.strip():
+                    runtime_secrets["DOCKERHUB_USERNAME"] = dockerhub_username_input.strip()
+                if dockerhub_token_input.strip():
+                    runtime_secrets["DOCKERHUB_TOKEN"] = dockerhub_token_input.strip()
+                if sonar_token_input.strip():
+                    runtime_secrets["SONAR_TOKEN"] = sonar_token_input.strip()
+                if sonar_host_input.strip():
+                    runtime_secrets["SONAR_HOST_URL"] = sonar_host_input.strip()
+                runtime_secrets.update(parsed_additional_secrets)
+
+                st.session_state.runtime_secrets = runtime_secrets
+
+                if secret_line_errors:
+                    st.warning("Ignored invalid additional secret lines:\n- " + "\n- ".join(secret_line_errors[:4]))
+                if runtime_secrets:
+                    st.success(f"{len(runtime_secrets)} secret(s) configured for this session.")
+                else:
+                    st.info("No runtime secrets configured.")
 
             if ui_menu == "Logs":
                 st.markdown("---")
@@ -2697,20 +3013,21 @@ def main():
                 cmd.extend(["--repo-path", plan_data["repo_path"]])
             if plan_data.get("github_url"):
                 cmd.extend(["--github-url", plan_data["github_url"]])
-            cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
 
-            run_env = os.environ.copy()
-            run_env["PYTHONIOENCODING"] = "utf-8"
+            create_pr_requested = bool(plan_data.get("create_pr", False))
+            if create_pr_requested:
+                branch_name = str(plan_data.get("branch_name", "") or "").strip() or "devops/auto-generated"
+                pr_title = str(plan_data.get("pr_title", "") or "").strip() or "Auto-generated DevOps configurations"
+                pr_body = str(plan_data.get("pr_body", "") or "").strip() or "Generated by Multi-Agent DevOps Orchestrator"
+                cmd.append("--create-pr")
+                cmd.extend(["--branch-name", branch_name])
+                cmd.extend(["--pr-title", pr_title])
+                cmd.extend(["--pr-body", pr_body])
 
-            llm_env_vars = [
-                "LLM_PROVIDER", "USE_LLM",
-                "OLLAMA_MODEL",
-                "GROQ_API_KEY", "GROQ_MODEL", "GROQ_FALLBACK_MODEL",
-            ]
-            for var in llm_env_vars:
-                env_value = os.getenv(var)
-                if var not in run_env and env_value is not None:
-                    run_env[var] = env_value
+            user_feedback_for_execution = "accept" if create_pr_requested else st.session_state.user_feedback_choice
+            cmd.extend(["--user-feedback", user_feedback_for_execution])
+
+            run_env = _apply_runtime_env_overrides(os.environ.copy())
 
             _start_orchestrator_background_task(
                 cmd=cmd,
@@ -2840,6 +3157,7 @@ def main():
         
         repo_path_to_use = st.session_state.current_repo_path
         github_url_from_result = None
+        required_java_version = None
         
         # Check if we have a GitHub URL in the result
         result_data = st.session_state.pending_feedback_result
@@ -2849,6 +3167,25 @@ def main():
                 repo_context = state_data.get("repo_context", {})
                 if isinstance(repo_context, dict):
                     github_url_from_result = repo_context.get("github_url") or repo_context.get("path")
+                    java_version_candidate = str(repo_context.get("java_version") or "").strip()
+                    if java_version_candidate:
+                        required_java_version = java_version_candidate
+
+        # Prefer prebuilt image from orchestrator docker ReAct validation when available.
+        prebuilt_image_name = ""
+        if result_data and isinstance(result_data, dict):
+            state_data = result_data.get("state", {})
+            if isinstance(state_data, dict):
+                agent_outputs = state_data.get("agent_outputs", {})
+                if isinstance(agent_outputs, dict):
+                    docker_output = agent_outputs.get("docker-agent", {})
+                    docker_data = docker_output.get("data", {}) if isinstance(docker_output, dict) else {}
+                    if isinstance(docker_data, dict):
+                        react_validation = docker_data.get("react_validation", {})
+                        if isinstance(react_validation, dict):
+                            prebuilt_image_name = str(react_validation.get("final_image_name") or "").strip()
+        if prebuilt_image_name:
+            st.info(f"🐳 Using prebuilt Docker image from orchestrator validation: `{prebuilt_image_name}`")
         
         # Determine if validation is possible
         has_local_path = repo_path_to_use and Path(repo_path_to_use).exists()
@@ -2964,7 +3301,7 @@ def main():
                         if str(exec_agent_path) not in sys.path:
                             sys.path.insert(0, str(exec_agent_path))
                         
-                        from pipeline import run_execution
+                        from pipeline import run_execution  # pyright: ignore[reportMissingImports]
 
                         effective_yaml = edited_yaml.strip() or ""
                         cicd_repair_result = {
@@ -2990,11 +3327,15 @@ def main():
                             st.info("⚡ Verifying CI/CD workflow with Act and repairing through cicd-agent if needed...")
                             cicd_repair_result = _ensure_executable_cicd_workflow_via_agent(
                                 initial_workflow=effective_yaml,
+                                dockerfile_content=edited_dockerfile.strip() or "",
+                                prebuilt_image_name=prebuilt_image_name,
                                 user_prompt=st.session_state.get("last_user_prompt", ""),
                                 repository_path=repo_path_to_use,
                                 run_execution_fn=run_execution,
                                 max_attempts=4,
                                 act_timeout=int(os.environ.get("EXECUTION_ACT_TIMEOUT", 1800)),
+                                runtime_secrets=_collect_runtime_secrets(),
+                                required_java_version=required_java_version,
                             )
 
                             if cicd_repair_result.get("status") != "success":
@@ -3283,8 +3624,7 @@ def main():
                 cmd.extend(["--output-scope", output_scope])
             cmd.extend(["--user-feedback", st.session_state.user_feedback_choice])
 
-            run_env = os.environ.copy()
-            run_env["PYTHONIOENCODING"] = "utf-8"
+            run_env = _apply_runtime_env_overrides(os.environ.copy())
 
             _start_orchestrator_background_task(
                 cmd=cmd,
@@ -3296,6 +3636,10 @@ def main():
                     "user_prompt": user_prompt,
                     "repo_path": repo_path,
                     "github_url": github_url,
+                    "create_pr": bool(create_pr),
+                    "branch_name": str(branch_name or "").strip(),
+                    "pr_title": str(pr_title or "").strip(),
+                    "pr_body": str(pr_body or "").strip(),
                 },
             )
 
@@ -3475,7 +3819,7 @@ def main():
             st.markdown("")
 
             # CI/CD pipeline board (GitHub Actions style)
-            workflow_yaml = artifacts.get("yaml") if isinstance(artifacts, dict) else None
+            workflow_yaml = _resolve_pipeline_workflow_yaml(artifacts, result)
             if ui_menu == "Pipeline":
                 display_workflow_pipeline(
                     workflow_yaml=workflow_yaml,

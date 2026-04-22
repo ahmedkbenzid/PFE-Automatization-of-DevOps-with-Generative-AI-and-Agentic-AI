@@ -64,6 +64,8 @@ class IntentLayer:
         dockerfile_being_generated = repo_context.get('dockerfile_being_generated', False)
         dockerfile_path = repo_context.get('dockerfile_path', 'Dockerfile')
         docker_context_path = repo_context.get('docker_context_path', '.')
+        dockerfile_built_successfully = repo_context.get('dockerfile_built_successfully', False)  # NEW: Docker agent succeeded flag
+        iac_output_available = bool(repo_context.get('iac_output_available', False))
 
         dynamic_goals = [
             f"Primary goal: {intent.intent}",
@@ -84,9 +86,12 @@ class IntentLayer:
         request_blob = user_request.text.lower()
         combined = f"{keywords_blob} {request_blob}"
 
-        requests_java = any(token in combined for token in ["java", "spring", "spring boot", "springboot", "maven", "gradle"])
-        requests_python = any(token in combined for token in ["python", "pytest", "pip"])
-        requests_node = any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript"])
+        explicit_java_requested = any(token in combined for token in ["java", "spring", "spring boot", "springboot", "maven", "gradle"])
+        explicit_python_requested = any(token in combined for token in ["python", "pytest", "pip", "poetry", "tox"])
+        explicit_node_requested = any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript"])
+        requests_java = explicit_java_requested
+        requests_python = explicit_python_requested
+        requests_node = explicit_node_requested
         requests_sonar = any(token in combined for token in ["sonarqube", "sonar", "quality gate"])
         requests_maven = any(token in combined for token in ["maven", "mvn", "pom.xml"])
         requests_dockerhub = any(token in combined for token in ["dockerhub", "docker hub", "docker"])
@@ -105,12 +110,17 @@ class IntentLayer:
         detected_flask = flask_version is not None or "flask" in frameworks_str
         detected_spring_boot = spring_boot_version is not None or "spring" in frameworks_str.lower()
         
-        # Merge explicit requests with detected frameworks
-        requests_python = requests_python or detected_python
-        requests_java = requests_java or detected_java
-        requests_node = requests_node or detected_nodejs
+        is_java_primary = bool(
+            build_system_str in {"maven", "gradle"}
+            or "java" in frameworks_str
+            or "spring" in frameworks_str
+            or java_version
+        )
+        python_allowed_by_context = bool(explicit_python_requested or (detected_python and not is_java_primary and not explicit_java_requested))
+        node_allowed_by_context = bool(explicit_node_requested or (detected_nodejs and not is_java_primary and not explicit_java_requested))
+        java_allowed_by_context = bool(explicit_java_requested or detected_java)
 
-        if requests_python and detected_python:  # Only if Python is actually in the project
+        if python_allowed_by_context and detected_python:  # Only if Python is actually in the project
             if python_version:
                 requirement_lines.append(f"Include Python setup with version {python_version} (detected from dependencies) and test execution steps.")
                 # Add framework-specific guidance ONLY if framework is detected
@@ -123,13 +133,13 @@ class IntentLayer:
             else:
                 requirement_lines.append("Include Python setup and test execution steps.")
         
-        if requests_node and detected_nodejs:  # Only if Node.js is actually in the project
+        if node_allowed_by_context and detected_nodejs:  # Only if Node.js is actually in the project
             if node_version:
                 requirement_lines.append(f"Include Node.js setup with version {node_version} (detected from package.json) and package install/test steps.")
             else:
                 requirement_lines.append("Include Node.js setup and package install/test steps.")
         
-        if requests_java and detected_java:  # Only if Java is actually in the project
+        if java_allowed_by_context and detected_java:  # Only if Java is actually in the project
             if java_version:
                 requirement_lines.append(f"Use Java {java_version} (detected from pom.xml/build.gradle) with actions/setup-java. Use Maven or Gradle for build/test steps.")
                 if detected_spring_boot:
@@ -158,6 +168,15 @@ class IntentLayer:
                 # No Dockerfile detected - use generic guidance
                 requirement_lines.append("Include Docker build workflow steps with safe defaults.")
         
+        # NEW: If Dockerfile is being generated, create a workflow that builds and uses it
+        if dockerfile_built_successfully or dockerfile_being_generated:
+            requirement_lines.append(
+                "CRITICAL: The workflow MUST include a 'build-image' job that builds the Docker image from the Dockerfile. "
+                "Use 'docker build -f Dockerfile -t build-image:latest .' as the build step. "
+                "Subsequent jobs that need the build environment must add 'container: build-image:latest' and depend on the build-image job. "
+                "This ensures all build tools (Maven, Python, Node, etc.) from the Dockerfile are available during testing and building."
+            )
+        
         if requests_dockerhub:
             requirement_lines.append("Login to Docker Hub with docker/login-action and push image with docker/build-push-action.")
         
@@ -172,6 +191,16 @@ class IntentLayer:
         
         if any(token in combined for token in ["deploy", "production", "release"]):
             requirement_lines.append("Separate build/test and deploy phases with gating conditions.")
+
+        if iac_output_available:
+            requirement_lines.append(
+                "IaC agent already produced Terraform artifacts. Do NOT run terraform init/plan/apply/fmt/validate in this workflow unless the user explicitly asks for Terraform execution."
+            )
+
+        if is_java_primary and not explicit_python_requested:
+            requirement_lines.append(
+                "CRITICAL: This is a Java-primary project. Use actions/setup-java for toolchain setup and do NOT use actions/setup-python@v5 (or any setup-python) or Python package/test commands unless explicitly requested."
+            )
 
         if requests_java and not requests_python:
             requirement_lines.append("Do not include Python-specific steps (setup-python, pip, pytest) unless explicitly requested.")
@@ -227,6 +256,12 @@ class IntentLayer:
         
         if dockerfile_being_generated or has_dockerfile:
             repo_context_block.append(f"Docker build context: '{docker_context_path}'")
+        
+        # NEW: Add Docker image build guidance (workflow should build from Dockerfile)
+        if dockerfile_built_successfully or dockerfile_being_generated:
+            repo_context_block.append(f"Docker workflow strategy: Build image during workflow execution")
+            repo_context_block.append(f"Build command: docker build -f Dockerfile -t build-image:latest .")
+            repo_context_block.append(f"Container usage: Add 'container: build-image:latest' to jobs that need the Docker environment")
 
         knowledge_block = []
         for index, page in enumerate(knowledge_pages or [], start=1):
