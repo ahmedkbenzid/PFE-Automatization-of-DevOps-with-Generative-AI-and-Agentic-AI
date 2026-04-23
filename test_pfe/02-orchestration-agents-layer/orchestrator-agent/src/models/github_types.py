@@ -8,6 +8,7 @@ class AgentType(Enum):
     """Supported agent types for artifact generation."""
     CICD = "cicd-agent"
     DOCKER = "docker-agent"
+    K8S = "k8s-agent"
     IAC = "iac-agent"
 
 

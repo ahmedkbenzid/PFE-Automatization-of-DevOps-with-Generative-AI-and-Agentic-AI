@@ -1,0 +1,19 @@
+{
+  "page_id": "example-deployment-service-baseline",
+  "page_type": "k8s_example",
+  "title": "Deployment and Service Baseline",
+  "source": "k8s-agent-seed",
+  "tags": [
+    "deployment",
+    "service",
+    "clusterip",
+    "nodeport",
+    "loadbalancer",
+    "resources"
+  ],
+  "content": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\nspec:\n  replicas: 1\n  template:\n    spec:\n      containers:\n      - name: app\n        image: app:latest\n        resources:\n          requests:\n            cpu: 100m\n            memory: 128Mi\n          limits:\n            cpu: 500m\n            memory: 512Mi\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: app-svc\nspec:\n  selector:\n    app: app\n  type: ClusterIP\n  ports:\n  - port: 80\n    targetPort: 8000",
+  "metadata": {
+    "default_service_type": "ClusterIP",
+    "supported_service_types": ["ClusterIP", "NodePort", "LoadBalancer"]
+  }
+}

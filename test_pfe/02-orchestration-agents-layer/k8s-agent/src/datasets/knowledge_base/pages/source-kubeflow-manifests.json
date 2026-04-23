@@ -1,0 +1,20 @@
+{
+  "page_id": "source-kubeflow-manifests",
+  "page_type": "dataset_source",
+  "title": "Kubeflow Manifests Repository",
+  "source": "https://github.com/kubeflow/manifests",
+  "tags": [
+    "kubernetes",
+    "kubeflow",
+    "manifests",
+    "kustomize",
+    "security",
+    "multi-namespace",
+    "pipelines"
+  ],
+  "content": "Reference source for large-scale Kubernetes manifest composition with namespace layering, security-aware defaults, and production-oriented service topology.",
+  "metadata": {
+    "repository": "kubeflow/manifests",
+    "type": "platform_manifests"
+  }
+}

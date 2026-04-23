@@ -1,0 +1,19 @@
+{
+  "page_id": "example-ingress-traefik",
+  "page_type": "k8s_example",
+  "title": "Ingress with Traefik",
+  "source": "k8s-agent-seed",
+  "tags": [
+    "ingress",
+    "traefik",
+    "routing",
+    "k3d",
+    "host",
+    "path"
+  ],
+  "content": "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: app-ingress\nspec:\n  ingressClassName: traefik\n  rules:\n  - host: app.local\n    http:\n      paths:\n      - path: /\n        pathType: Prefix\n        backend:\n          service:\n            name: app-svc\n            port:\n              number: 80",
+  "metadata": {
+    "ingress_class": "traefik",
+    "host_suffix": ".local"
+  }
+}

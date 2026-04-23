@@ -1,0 +1,69 @@
+{
+  "doc_name": "k8s-agent-knowledge-base",
+  "doc_description": "PageIndex tree for Kubernetes manifest generation with sources from kubernetes/examples and kubeflow/manifests.",
+  "structure": [
+    {
+      "title": "Kubernetes Agent Knowledge Base",
+      "node_id": "0000",
+      "start_index": 1,
+      "end_index": 6,
+      "summary": "Curated Kubernetes and Kubeflow manifest examples for deployment, service, ingress, config, and security guidance.",
+      "nodes": [
+        {
+          "title": "Kubernetes Examples Source",
+          "node_id": "0001",
+          "start_index": 1,
+          "end_index": 1,
+          "summary": "Source metadata and conventions from kubernetes/examples repository.",
+          "source": "github-kubernetes-examples",
+          "page_ref": "pages/source-kubernetes-examples.json"
+        },
+        {
+          "title": "Kubeflow Manifests Source",
+          "node_id": "0002",
+          "start_index": 2,
+          "end_index": 2,
+          "summary": "Source metadata and conventions from kubeflow/manifests repository.",
+          "source": "github-kubeflow-manifests",
+          "page_ref": "pages/source-kubeflow-manifests.json"
+        },
+        {
+          "title": "Deployment and Service Baseline",
+          "node_id": "0003",
+          "start_index": 3,
+          "end_index": 3,
+          "summary": "Generic deployment and service patterns (ClusterIP/NodePort/LoadBalancer).",
+          "source": "k8s-agent-seed",
+          "page_ref": "pages/example-deployment-service-baseline.json"
+        },
+        {
+          "title": "Ingress with Traefik",
+          "node_id": "0004",
+          "start_index": 4,
+          "end_index": 4,
+          "summary": "Ingress conventions suitable for k3d with Traefik ingress class.",
+          "source": "k8s-agent-seed",
+          "page_ref": "pages/example-ingress-traefik.json"
+        },
+        {
+          "title": "Config and Secret Injection",
+          "node_id": "0005",
+          "start_index": 5,
+          "end_index": 5,
+          "summary": "ConfigMap/Secret env injection with valueFrom references.",
+          "source": "k8s-agent-seed",
+          "page_ref": "pages/example-config-secret-env.json"
+        },
+        {
+          "title": "RBAC and NetworkPolicy",
+          "node_id": "0006",
+          "start_index": 6,
+          "end_index": 6,
+          "summary": "Security baseline with ServiceAccount, Role, RoleBinding, and NetworkPolicy.",
+          "source": "k8s-agent-seed",
+          "page_ref": "pages/example-rbac-networkpolicy.json"
+        }
+      ]
+    }
+  ]
+}

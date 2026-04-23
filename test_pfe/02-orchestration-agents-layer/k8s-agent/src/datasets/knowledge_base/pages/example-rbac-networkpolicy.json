@@ -1,0 +1,20 @@
+{
+  "page_id": "example-rbac-networkpolicy",
+  "page_type": "k8s_example",
+  "title": "RBAC and NetworkPolicy Security Baseline",
+  "source": "k8s-agent-seed",
+  "tags": [
+    "rbac",
+    "serviceaccount",
+    "role",
+    "rolebinding",
+    "networkpolicy",
+    "security",
+    "authorization"
+  ],
+  "content": "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: app-sa\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: app-reader\nrules:\n- apiGroups: [\"\"]\n  resources: [\"configmaps\", \"secrets\"]\n  verbs: [\"get\", \"list\"]\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: app-reader-binding\nsubjects:\n- kind: ServiceAccount\n  name: app-sa\nroleRef:\n  kind: Role\n  name: app-reader\n  apiGroup: rbac.authorization.k8s.io\n---\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: app-default-deny\nspec:\n  podSelector: {}\n  policyTypes: [\"Ingress\", \"Egress\"]",
+  "metadata": {
+    "rbac_enabled": true,
+    "network_policy_enabled": true
+  }
+}

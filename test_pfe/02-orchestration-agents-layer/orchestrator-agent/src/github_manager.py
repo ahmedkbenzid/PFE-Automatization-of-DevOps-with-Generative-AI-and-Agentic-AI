@@ -1054,6 +1054,7 @@ class ChangeDetector:
                 affected_agents.add("docker-agent")
             if category == ChangeCategory.INFRASTRUCTURE:
                 affected_agents.add("iac-agent")
+                affected_agents.add("k8s-agent")
 
         # If source code changed but no specific trigger, enable CICD agent
         if (ChangeCategory.SOURCE_CODE in categories and

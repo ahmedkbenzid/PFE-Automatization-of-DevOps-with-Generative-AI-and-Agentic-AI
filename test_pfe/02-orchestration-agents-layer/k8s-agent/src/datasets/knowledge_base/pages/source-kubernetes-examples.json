@@ -1,0 +1,22 @@
+{
+  "page_id": "source-kubernetes-examples",
+  "page_type": "dataset_source",
+  "title": "Kubernetes Examples Repository",
+  "source": "https://github.com/kubernetes/examples",
+  "tags": [
+    "kubernetes",
+    "examples",
+    "deployment",
+    "service",
+    "ingress",
+    "configmap",
+    "secret",
+    "rbac",
+    "networkpolicy"
+  ],
+  "content": "Reference source for Kubernetes manifest examples across workload, networking, and configuration primitives. Use these conventions for resource naming, labels, and namespace-scoped objects.",
+  "metadata": {
+    "repository": "kubernetes/examples",
+    "type": "manifest_examples"
+  }
+}

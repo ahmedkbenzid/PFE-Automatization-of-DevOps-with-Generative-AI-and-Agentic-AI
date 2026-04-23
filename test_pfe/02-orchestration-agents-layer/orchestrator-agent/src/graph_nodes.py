@@ -726,6 +726,8 @@ def _execute_single_agent(agent: str, user_prompt: str, repository_path: str, re
         return _execute_cicd_agent(user_prompt, repository_path, repo_context)
     elif agent == "docker-agent":
         return _execute_docker_agent(user_prompt, repository_path, repo_context)
+    elif agent == "k8s-agent":
+        return _execute_k8s_agent(user_prompt, repository_path, repo_context)
     elif agent == "iac-agent":
         return _execute_iac_agent(user_prompt, repository_path, repo_context)
     else:
@@ -737,8 +739,9 @@ def _execution_priority(agent: str) -> int:
     """Execution priority for direct-path agent orchestration."""
     priorities = {
         "docker-agent": 1,
-        "iac-agent": 2,
-        "cicd-agent": 3,
+        "k8s-agent": 2,
+        "iac-agent": 3,
+        "cicd-agent": 4,
     }
     return priorities.get(agent, 99)
 
@@ -786,6 +789,27 @@ def _collect_artifacts_for_pr(agent_outputs: Dict[str, Any]) -> List[Dict[str, s
         }
         for key, path in terraform_mapping.items():
             content = terraform_config.get(key)
+            if content is None:
+                continue
+            text = str(content).strip()
+            if not text:
+                continue
+            files.append({"path": path, "content": text + "\n"})
+
+    k8s_data = (agent_outputs.get("k8s-agent") or {}).get("data") or {}
+    k8s_manifests = k8s_data.get("k8s_manifests") if isinstance(k8s_data, dict) else {}
+    if isinstance(k8s_manifests, dict):
+        k8s_mapping = {
+            "namespace_yaml": "kubernetes/namespace.yaml",
+            "configmap_yaml": "kubernetes/configmap.yaml",
+            "secret_yaml": "kubernetes/secret.yaml",
+            "deployment_yaml": "kubernetes/deployment.yaml",
+            "service_yaml": "kubernetes/service.yaml",
+            "ingress_yaml": "kubernetes/ingress.yaml",
+            "hpa_yaml": "kubernetes/hpa.yaml",
+        }
+        for key, path in k8s_mapping.items():
+            content = k8s_manifests.get(key)
             if content is None:
                 continue
             text = str(content).strip()
@@ -1523,6 +1547,53 @@ def _execute_iac_agent(
 
         print(f"[Orchestrator] <- Result received from {agent}")
         return {"status": "success", "data": iac_result}
+
+    except Exception as e:
+        print(f"[Orchestrator] Error executing {agent}: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+def _execute_k8s_agent(
+    user_prompt: str,
+    repo_path: str,
+    repo_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Execute the Kubernetes manifest agent."""
+    agent = "k8s-agent"
+
+    k8s_timeout_base = _get_int_env("ORCHESTRATOR_K8S_AGENT_TIMEOUT_SEC", default=180, minimum=60)
+    k8s_timeout_retries = _get_int_env("ORCHESTRATOR_K8S_AGENT_MAX_RETRIES", default=1, minimum=0)
+
+    print(
+        f"[Orchestrator] -> Invoking {agent} locally "
+        f"(timeout: {k8s_timeout_base}s base, retries: {k8s_timeout_retries})"
+    )
+
+    try:
+        repo_context_json = json.dumps(repo_context) if repo_context.get("is_available") else "{}"
+
+        run_code = (
+            "from dataclasses import asdict; "
+            "from src.pipeline import run_pipeline; "
+            "user_prompt = args[0]; "
+            "repo_path = args[1]; "
+            "repo_ctx = __import__('json').loads(args[2]) if args[2] != '{}' else None; "
+            "result = run_pipeline(user_prompt, repo_path, False, repo_ctx); "
+            "print('K8S_RESULT_JSON=' + __import__('json').dumps(asdict(result), default=str))"
+        )
+
+        k8s_result = _invoke_python_agent(
+            agent_name="k8s-agent",
+            agent_folder_name="k8s-agent",
+            run_code=run_code,
+            args=[user_prompt, repo_path or "", repo_context_json],
+            result_prefix="K8S_RESULT_JSON=",
+            timeout=k8s_timeout_base,
+            max_retries=k8s_timeout_retries,
+        )
+
+        print(f"[Orchestrator] <- Result received from {agent}")
+        return {"status": "success", "data": k8s_result}
 
     except Exception as e:
         print(f"[Orchestrator] Error executing {agent}: {str(e)}")

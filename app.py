@@ -2823,12 +2823,17 @@ def main():
             
             **Infrastructure Examples:**
             - "Create Terraform configuration for AWS EC2 deployment"
-            - "Generate IaC for a Kubernetes cluster"
+            - "Generate Kubernetes manifests for my FastAPI app with ConfigMap, Secret, Ingress, and HPA"
+            - "Create k8s deployment + service with service type NodePort and Traefik ingress"
+            - "Use kubernetes/examples style baseline for a production-ready web API deployment"
+            - "Apply kubeflow/manifests-inspired defaults for an ML inference service"
             - "Set up cloud infrastructure on Azure"
             
             **Combined:**
             - "Generate everything I need to deploy my Python project"
             - "Create complete DevOps setup for my microservice"
+            - "Create Dockerfile, CI/CD workflow, and Kubernetes manifests for my Node.js API"
+            - "I need k8s manifests with secure env handling, ingress host routing, and autoscaling"
             - "I need to set up automated deployment for my Streamlit application. I want the deployment process to be containerized and automatically triggered whenever I push changes to the main branch."            
             """)
 
