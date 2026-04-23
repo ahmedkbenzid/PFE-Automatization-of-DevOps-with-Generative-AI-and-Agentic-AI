@@ -14,6 +14,16 @@ from ..models.types import KubernetesManifests, ValidationResult
 
 
 class Validate:
+    _CLUSTER_UNAVAILABLE_MARKERS = (
+        "couldn't get current server api group list",
+        "unable to recognize",
+        "connectex",
+        "connection refused",
+        "dial tcp",
+        "no connection could be made",
+        "the server could not find the requested resource",
+    )
+
     def run(self, manifests: KubernetesManifests) -> ValidationResult:
         errors = []
         warnings = []
@@ -177,21 +187,25 @@ class Validate:
             stderr = (result.stderr or "").strip()
             if result.returncode != 0:
                 payload = stderr or stdout or "kubectl dry-run failed"
-                cluster_unreachable = any(
-                    marker in payload.lower()
-                    for marker in [
-                        "couldn't get current server api group list",
-                        "unable to recognize",
-                        "connectex",
-                        "connection refused",
-                        "dial tcp",
-                    ]
-                )
+                cluster_unreachable = self._is_cluster_unavailable(payload)
                 if cluster_unreachable and K8S_CONFIG.get("kubectl_dry_run_skip_if_missing", True):
-                    warnings.append(f"kubectl dry-run skipped (cluster unavailable): {payload}")
+                    warnings.append("kubectl dry-run skipped: no reachable Kubernetes cluster/context configured")
                 else:
-                    errors.append(f"kubectl dry-run validation failed: {payload}")
+                    errors.append(f"kubectl dry-run validation failed: {self._summarize_error(payload)}")
             elif stdout:
                 warnings.append(f"kubectl dry-run: {stdout}")
 
         return errors, warnings
+
+    def _is_cluster_unavailable(self, payload: str) -> bool:
+        lowered = (payload or "").lower()
+        return any(marker in lowered for marker in self._CLUSTER_UNAVAILABLE_MARKERS)
+
+    def _summarize_error(self, payload: str, max_lines: int = 3) -> str:
+        lines = [line.strip() for line in (payload or "").splitlines() if line.strip()]
+        if not lines:
+            return "unknown error"
+        summary = " | ".join(lines[:max_lines])
+        if len(lines) > max_lines:
+            summary += " | ..."
+        return summary

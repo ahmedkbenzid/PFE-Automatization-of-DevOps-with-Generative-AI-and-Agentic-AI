@@ -414,15 +414,63 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
         "yaml": None,
         "dockerfile": None,
         "terraform": None,
+        "kubernetes": None,
         "metadata": {}
     }
     
     if not result or not isinstance(result, dict):
         return artifacts
     
+    # Check if result has state directly at top level (like from direct agent invocation)
+    if "status" in result and "data" in result:
+        # This is direct agent output format (not wrapped in state)
+        agent_data = result.get("data", {})
+        if agent_data.get("success") and "k8s_manifests" in agent_data:
+            k8s_manifests = agent_data.get("k8s_manifests", {})
+            artifacts["kubernetes"] = {
+                "namespace_yaml": k8s_manifests.get("namespace_yaml"),
+                "configmap_yaml": k8s_manifests.get("configmap_yaml"),
+                "secret_yaml": k8s_manifests.get("secret_yaml"),
+                "deployment_yaml": k8s_manifests.get("deployment_yaml"),
+                "service_yaml": k8s_manifests.get("service_yaml"),
+                "ingress_yaml": k8s_manifests.get("ingress_yaml"),
+                "hpa_yaml": k8s_manifests.get("hpa_yaml"),
+            }
+            processing_time_ms = agent_data.get("processing_time_ms", 0)
+            artifacts["metadata"]["kubernetes"] = {
+                "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
+                "is_valid": agent_data.get("is_valid", False),
+                "validation": agent_data.get("validation", {}),
+                "source": "direct"
+            }
+            return artifacts
+    
     # Case 1: JSON response with state.agent_outputs
     state = result.get("state", {})
     agent_outputs = state.get("agent_outputs", {})
+    
+    if agent_outputs:
+        # Extract Kubernetes manifests
+        k8s_output = agent_outputs.get("k8s-agent", {})
+        if k8s_output.get("status") == "success":
+            k8s_data = k8s_output.get("data", {})
+            if k8s_data.get("success"):
+                k8s_manifests = k8s_data.get("k8s_manifests", {})
+                artifacts["kubernetes"] = {
+                    "namespace_yaml": k8s_manifests.get("namespace_yaml"),
+                    "configmap_yaml": k8s_manifests.get("configmap_yaml"),
+                    "secret_yaml": k8s_manifests.get("secret_yaml"),
+                    "deployment_yaml": k8s_manifests.get("deployment_yaml"),
+                    "service_yaml": k8s_manifests.get("service_yaml"),
+                    "ingress_yaml": k8s_manifests.get("ingress_yaml"),
+                    "hpa_yaml": k8s_manifests.get("hpa_yaml"),
+                }
+                processing_time_ms = k8s_data.get("processing_time_ms", 0)
+                artifacts["metadata"]["kubernetes"] = {
+                    "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
+                    "is_valid": k8s_data.get("is_valid", False),
+                    "validation": k8s_data.get("validation", {})
+                }
     
     def _first_base_image_from_dockerfile(dockerfile_content: Optional[str]) -> Optional[str]:
         if not dockerfile_content:
@@ -533,6 +581,28 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
                     "provider": terraform_config.get("provider"),
                     "resources": terraform_config.get("resources", []),
                     "is_valid": terraform_config.get("is_valid", False)
+                }
+        
+        # Extract Kubernetes manifests
+        k8s_output = agent_outputs.get("k8s-agent", {})
+        if k8s_output.get("status") == "success":
+            k8s_data = k8s_output.get("data", {})
+            if k8s_data.get("success"):
+                k8s_manifests = k8s_data.get("k8s_manifests", {})
+                artifacts["kubernetes"] = {
+                    "namespace_yaml": k8s_manifests.get("namespace_yaml"),
+                    "configmap_yaml": k8s_manifests.get("configmap_yaml"),
+                    "secret_yaml": k8s_manifests.get("secret_yaml"),
+                    "deployment_yaml": k8s_manifests.get("deployment_yaml"),
+                    "service_yaml": k8s_manifests.get("service_yaml"),
+                    "ingress_yaml": k8s_manifests.get("ingress_yaml"),
+                    "hpa_yaml": k8s_manifests.get("hpa_yaml"),
+                }
+                processing_time_ms = k8s_data.get("processing_time_ms", 0)
+                artifacts["metadata"]["kubernetes"] = {
+                    "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
+                    "is_valid": k8s_data.get("is_valid", False),
+                    "validation": k8s_data.get("validation", {})
                 }
     
     # Case 2: Parse console output for artifacts (from subprocess)
@@ -1744,7 +1814,7 @@ def display_artifacts(artifacts: Dict[str, Any]):
     """Display generated artifacts"""
     st.markdown("### 📦 Generated Artifacts")
     
-    tabs = st.tabs(["GitHub Actions Workflow", "Dockerfile", "Terraform/IaC", "Metadata"])
+    tabs = st.tabs(["GitHub Actions Workflow", "Dockerfile", "Terraform/IaC", "Kubernetes", "Metadata"])
     
     # CI/CD Workflow Tab
     with tabs[0]:
@@ -1870,8 +1940,77 @@ def display_artifacts(artifacts: Dict[str, Any]):
         else:
             st.info("No Terraform configuration generated. Try requesting infrastructure as code.")
     
-    # Metadata Tab
+    # Kubernetes Tab
     with tabs[3]:
+        if artifacts.get("kubernetes") and isinstance(artifacts["kubernetes"], dict):
+            k8s_files = artifacts["kubernetes"]
+            has_any_file = any(k8s_files.values())
+            
+            if has_any_file:
+                st.markdown("#### Kubernetes Manifests")
+                
+                file_order = [
+                    ("namespace_yaml", "namespace.yaml", "yaml"),
+                    ("configmap_yaml", "configmap.yaml", "yaml"),
+                    ("secret_yaml", "secret.yaml", "yaml"),
+                    ("deployment_yaml", "deployment.yaml", "yaml"),
+                    ("service_yaml", "service.yaml", "yaml"),
+                    ("ingress_yaml", "ingress.yaml", "yaml"),
+                    ("hpa_yaml", "hpa.yaml", "yaml"),
+                ]
+                
+                for key, filename, language in file_order:
+                    content = k8s_files.get(key)
+                    if content and isinstance(content, str) and content.strip():
+                        st.markdown(f"**{filename}**")
+                        st.code(content, language=language)
+                        
+                        st.download_button(
+                            label=f"📥 Download {filename}",
+                            data=content,
+                            file_name=filename,
+                            mime="text/plain",
+                            key=f"download_k8s_{key}"
+                        )
+                
+                # Download all k8s files as zip
+                if len([v for v in k8s_files.values() if v]) > 1:
+                    st.markdown("---")
+                    import zipfile
+                    import io
+                    
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for key, filename, _ in file_order:
+                            content = k8s_files.get(key)
+                            if content:
+                                zip_file.writestr(filename, content)
+                    
+                    st.download_button(
+                        label="📦 Download All Kubernetes Manifests (.zip)",
+                        data=zip_buffer.getvalue(),
+                        file_name="kubernetes-manifests.zip",
+                        mime="application/zip",
+                        key="download_k8s_zip"
+                    )
+                
+                # Display metadata
+                if "kubernetes" in artifacts.get("metadata", {}):
+                    meta = artifacts["metadata"]["kubernetes"]
+                    st.markdown("---")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Processing Time", f"{meta.get('processing_time_s', 0):.1f}s")
+                    with col2:
+                        is_valid = meta.get('is_valid', False)
+                        st.metric("Validation", "✅ Valid" if is_valid else "⚠️ Check")
+            else:
+                st.info("No Kubernetes manifests generated.")
+        else:
+            st.info("No Kubernetes manifests generated. Try requesting a Kubernetes deployment.")
+    
+    # Metadata Tab
+    with tabs[4]:
         if artifacts.get("metadata"):
             st.json(artifacts["metadata"])
         else:
@@ -3812,6 +3951,11 @@ def main():
 
         artifacts = result.get("edited_artifacts") if isinstance(result.get("edited_artifacts"), dict) else extract_artifacts(result)
 
+        # DEBUG: Show more context
+        k8s_data = artifacts.get("kubernetes")
+        k8s_keys = "None" if not k8s_data else "dict" if isinstance(k8s_data, dict) else type(k8s_data).__name__
+        st.caption(f"DEBUG: status={status}, ui_menu={ui_menu}, k8s={k8s_keys}")
+
         if ui_menu == "Logs":
             display_logs_center(result)
         else:
@@ -3834,6 +3978,7 @@ def main():
                 )
 
             if ui_menu == "Workspace" and status == "completed":
+                st.write("DEBUG: calling display_artifacts with k8s =", "kubernetes" in artifacts)
                 display_artifacts(artifacts)
             elif ui_menu == "Pipeline":
                 st.info("Pipeline view is focused on execution flow. Switch to Workspace from the menu to edit or download artifacts.")

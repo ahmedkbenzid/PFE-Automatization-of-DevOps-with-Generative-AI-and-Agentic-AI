@@ -1,1 +1,6 @@
 pyyaml>=6.0.2
+langchain-groq
+ollama
+groq
+tenacity
+python-dotenv

@@ -181,6 +181,7 @@ def _invoke_planner(
 
     last_error = None
     for attempt in range(max_retries + 1):
+        args_file_path: str | None = None
         try:
             current_timeout = 60 * (attempt + 1)
             env = os.environ.copy()
@@ -603,6 +604,44 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
     agent_outputs = dict(state.get("agent_outputs", {}))
     errors = list(state.get("errors", []))
 
+    # Ensure k8s generation has a Docker image source when possible.
+    repo_has_docker_image = False
+    if isinstance(repo_context, dict):
+        docker_output_ctx = repo_context.get("docker_output")
+        if isinstance(docker_output_ctx, dict) and docker_output_ctx.get("image_name"):
+            repo_has_docker_image = True
+        elif repo_context.get("docker_image"):
+            repo_has_docker_image = True
+
+    existing_docker_success = (
+        isinstance(agent_outputs.get("docker-agent"), dict)
+        and (agent_outputs.get("docker-agent") or {}).get("status") == "success"
+    )
+
+    should_bootstrap_docker_for_k8s = (
+        "k8s-agent" in target_agents
+        and "docker-agent" not in target_agents
+        and not repo_has_docker_image
+        and not existing_docker_success
+    )
+
+    if should_bootstrap_docker_for_k8s:
+        print("[Orchestrator] k8s-agent requested without docker image context; auto-adding docker-agent dependency")
+        target_agents = ["docker-agent", *target_agents]
+
+        if isinstance(approved_plan, dict):
+            execution_order = approved_plan.get("execution_order")
+            if isinstance(execution_order, list):
+                flat_agents = set()
+                for step in execution_order:
+                    if isinstance(step, list):
+                        flat_agents.update(agent for agent in step if isinstance(agent, str))
+                    elif isinstance(step, str):
+                        flat_agents.add(step)
+
+                if "docker-agent" not in flat_agents:
+                    approved_plan["execution_order"] = ["docker-agent", *execution_order]
+
     print("[Orchestrator] Dispatching to Target Agents...")
     
     # Enhance repo_context if Docker agent is being executed
@@ -655,6 +694,9 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                             agent_outputs[agent] = result
                             if result.get("status") == "error":
                                 errors.append(f"{agent} failed: {result.get('message', 'Unknown error')}")
+                            if agent == "docker-agent" and result.get("status") == "success":
+                                enhanced_repo_context["dockerfile_built_successfully"] = True
+                                _inject_docker_output_into_repo_context(enhanced_repo_context, result)
                             if agent == "iac-agent" and result.get("status") == "success":
                                 print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
                                 enhanced_repo_context["iac_output_available"] = True
@@ -672,6 +714,7 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
                 if step == "docker-agent" and result.get("status") == "success":
                     print(f"[Orchestrator] Docker agent succeeded - workflow will build image during execution")
                     enhanced_repo_context["dockerfile_built_successfully"] = True
+                    _inject_docker_output_into_repo_context(enhanced_repo_context, result)
                 if step == "iac-agent" and result.get("status") == "success":
                     print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
                     enhanced_repo_context["iac_output_available"] = True
@@ -688,6 +731,7 @@ def agent_execution_node(state: OrchestratorState) -> Dict[str, Any]:
             if agent == "docker-agent" and result.get("status") == "success":
                 print(f"[Orchestrator] Docker agent succeeded - workflow will build image during execution")
                 enhanced_repo_context["dockerfile_built_successfully"] = True
+                _inject_docker_output_into_repo_context(enhanced_repo_context, result)
             if agent == "iac-agent" and result.get("status") == "success":
                 print("[Orchestrator] IaC agent succeeded - CI/CD workflow will avoid Terraform runtime commands by default")
                 enhanced_repo_context["iac_output_available"] = True
@@ -744,6 +788,31 @@ def _execution_priority(agent: str) -> int:
         "cicd-agent": 4,
     }
     return priorities.get(agent, 99)
+
+
+def _inject_docker_output_into_repo_context(repo_context: Dict[str, Any], docker_result: Dict[str, Any]) -> None:
+    """Persist docker-agent output in shared context for downstream agents like k8s-agent."""
+    if not isinstance(repo_context, dict) or not isinstance(docker_result, dict):
+        return
+
+    docker_data = docker_result.get("data") if isinstance(docker_result.get("data"), dict) else {}
+    configuration = docker_data.get("configuration") if isinstance(docker_data.get("configuration"), dict) else {}
+    metadata = configuration.get("metadata") if isinstance(configuration.get("metadata"), dict) else {}
+
+    image_name = (
+        metadata.get("image_name")
+        or configuration.get("image_name")
+        or metadata.get("repository")
+        or configuration.get("repository")
+    )
+
+    repo_context["docker-agent"] = docker_result
+    repo_context["docker_output"] = {
+        "image_name": image_name,
+        "configuration": configuration,
+    }
+    if image_name:
+        repo_context["docker_image"] = image_name
 
 
 def _infer_workflow_filename_for_pr(agent_outputs: Dict[str, Any]) -> str:
@@ -1129,14 +1198,19 @@ def _invoke_python_agent(
             env["PYTHONIOENCODING"] = "utf-8"
             env.setdefault("PYTHONUNBUFFERED", "1")
 
-            # Pass arguments as JSON to avoid shell escaping issues
-            args_json = json.dumps(args)
+            # Persist args to a temp file to avoid Windows command-line length limits.
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".json", delete=False) as args_file:
+                json.dump(args, args_file)
+                args_file_path = args_file.name
 
-            # Modified run_code: deserialize args from JSON
+            env["ORCH_AGENT_ARGS_FILE"] = args_file_path
+
+            # Keep -c payload short; load args from temp file at runtime.
             safe_run_code = (
-                f"import json, sys; "
-                f"args = json.loads({repr(args_json)}); "
-                f"sys.argv = [''] + args; "
+                "import json, os, sys; "
+                "args_path = os.environ.get('ORCH_AGENT_ARGS_FILE', ''); "
+                "args = json.load(open(args_path, 'r', encoding='utf-8')) if args_path else []; "
+                "sys.argv = [''] + args; "
                 f"{run_code}"
             )
 
@@ -1204,6 +1278,12 @@ def _invoke_python_agent(
                     pass
             reader_thread.join(timeout=1.0)
 
+            if args_file_path and os.path.exists(args_file_path):
+                try:
+                    os.remove(args_file_path)
+                except OSError:
+                    pass
+
             partial_output = "\n".join(output_lines[-12:]).strip()
 
             if timed_out:
@@ -1251,6 +1331,11 @@ def _invoke_python_agent(
             last_error = "No structured result"
 
         except Exception as e:
+            if args_file_path and os.path.exists(args_file_path):
+                try:
+                    os.remove(args_file_path)
+                except OSError:
+                    pass
             if attempt == max_retries:
                 raise
             error_text = str(e)

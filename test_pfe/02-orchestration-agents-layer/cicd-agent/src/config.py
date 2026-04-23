@@ -1,6 +1,13 @@
 """Configuration management for CI/CD Agent"""
 import os
+import logging
 from typing import Optional
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 try:
     from dotenv import load_dotenv
@@ -11,7 +18,7 @@ except ModuleNotFoundError:
 try:
     load_dotenv(encoding="utf-8")
 except UnicodeDecodeError:
-    print("Warning: .env is not UTF-8 encoded; skipping .env load")
+    logger.warning(".env is not UTF-8 encoded; skipping .env load")
 
 class Config:
     """Application configuration"""
@@ -34,6 +41,7 @@ class Config:
     # Common LLM Settings
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "120"))
 
     # Legacy aliases
     GROQ_MAX_TOKENS: int = LLM_MAX_TOKENS

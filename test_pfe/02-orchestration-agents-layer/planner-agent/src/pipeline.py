@@ -215,9 +215,18 @@ Return ONLY valid JSON, no markdown.
             'build', 'test', 'deploy', 'sonarqube', 'junit',
             'github', 'azure devops'
         ]
+
+        # Kubernetes-specific signals, including manifest resources users ask for directly.
+        k8s_keywords = [
+            'kubernetes', 'k8s', 'kubectl', 'helm', 'manifest', 'manifests',
+            'ingress', 'hpa', 'horizontalpodautoscaler', 'configmap', 'secret',
+            'deployment yaml', 'service yaml', 'namespace', 'serviceaccount',
+            'clusterip', 'nodeport', 'loadbalancer'
+        ]
         
         requires_docker = any(k in request_lower for k in docker_keywords)
         requires_cicd = any(k in request_lower for k in cicd_keywords)
+        requires_k8s = any(k in request_lower for k in k8s_keywords)
         is_deployment_request = any(
             k in request_lower for k in [
                 'deploy', 'deployment', 'release', 'production',
@@ -236,7 +245,7 @@ Return ONLY valid JSON, no markdown.
             "requires_docker": requires_docker,
             "requires_cicd": requires_cicd,
             "requires_infrastructure": any(k in request_lower for k in ['infrastructure', 'terraform', 'cloud', 'aws', 'azure', 'gcp', 'deploy']),
-            "requires_k8s": any(k in request_lower for k in ['kubernetes', 'k8s', 'kubectl', 'helm']),
+            "requires_k8s": requires_k8s,
             "cloud_provider": self._extract_cloud_provider(request_lower),
             "deployment_type": self._extract_deployment_type(request_lower),
             "complexity_factors": []
@@ -282,7 +291,7 @@ Return ONLY valid JSON, no markdown.
         if intent.get('requires_infrastructure'):
             selected.append('iac-agent')
         
-        if intent.get('requires_k8s'):
+        if intent.get('requires_k8s') or deployment_type == 'k8s':
             selected.append('k8s-agent')
         
         print(f"[Planner] Selected agents: {selected}")

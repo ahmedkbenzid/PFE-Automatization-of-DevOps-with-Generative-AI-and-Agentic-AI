@@ -62,6 +62,8 @@ class K8sPipeline:
         manifests = self.generate_file.generate(request, context, intent, rag_hints=rag_hints)
         manifests.metadata["analysis"] = analysis
         manifests.metadata["intent"] = intent
+        manifests.metadata["intent_source"] = intent.get("_intent_source", "rules")
+        manifests.metadata["llm_enabled"] = bool(intent.get("_llm_enabled", False))
         manifests.metadata["rag_pages"] = [page.get("page_id") or page.get("title") for page in rag_pages]
 
         validation = self.validate.run(manifests)
@@ -115,9 +117,22 @@ class K8sPipeline:
             docker_data = ((repo_context.get("docker-agent") or {}).get("data") or {})
             config = docker_data.get("configuration") if isinstance(docker_data, dict) else {}
             if isinstance(config, dict):
-                generated_name = config.get("image_name") or config.get("repository")
+                metadata = config.get("metadata") if isinstance(config.get("metadata"), dict) else {}
+                generated_name = (
+                    config.get("image_name")
+                    or metadata.get("image_name")
+                    or repo_context.get("docker_output", {}).get("image_name")
+                    or config.get("repository")
+                    or metadata.get("repository")
+                )
                 if generated_name:
                     return str(generated_name)
+
+            docker_output = repo_context.get("docker_output")
+            if isinstance(docker_output, dict):
+                output_image = docker_output.get("image_name")
+                if output_image:
+                    return str(output_image)
 
             docker_image = repo_context.get("docker_image")
             if docker_image:

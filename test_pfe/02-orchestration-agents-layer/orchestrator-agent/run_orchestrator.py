@@ -57,7 +57,8 @@ def _infer_requested_artifacts_with_llm(user_prompt: str, state: Dict[str, Any])
             "Available artifacts:\n"
             "- yaml: GitHub Actions workflows, CI/CD pipelines, Jenkins pipelines (YAML format)\n"
             "- dockerfile: Dockerfile, container configurations, Docker Compose\n"
-            "- terraform: Terraform HCL scripts, Infrastructure-as-Code, cloud resources (AWS, Azure, GCP)\n\n"
+            "- terraform: Terraform HCL scripts, Infrastructure-as-Code, cloud resources (AWS, Azure, GCP)\n"
+            "- kubernetes: Kubernetes manifests (Namespace, ConfigMap, Secret, Deployment, Service, Ingress, HPA)\n\n"
             "User Request: {user_prompt}\n\n"
             "Respond ONLY with a JSON object:\n"
             '{{\n'
@@ -99,6 +100,8 @@ def _infer_requested_artifacts_with_llm(user_prompt: str, state: Dict[str, Any])
                 requested.add("dockerfile")
             if "iac-agent" in target_agents:
                 requested.add("terraform")
+            if "k8s-agent" in target_agents:
+                requested.add("kubernetes")
 
         return requested
 
@@ -117,6 +120,7 @@ def _infer_requested_artifacts_with_keywords(user_prompt: str, state: Dict[str, 
     yaml_tokens = ["yaml", "yml", "workflow", "github actions", "gha", "ci", "pipeline"]
     docker_tokens = ["docker", "dockerfile", "container", "image", "compose"]
     terraform_tokens = ["terraform", "hcl", "iac", "infrastructure", "ec2", "s3", "vpc", "aws", "azure", "gcp"]
+    kubernetes_tokens = ["kubernetes", "k8s", "kubectl", "helm", "manifest", "ingress", "hpa", "configmap", "secret"]
 
     if any(token in prompt for token in yaml_tokens):
         requested.add("yaml")
@@ -124,6 +128,8 @@ def _infer_requested_artifacts_with_keywords(user_prompt: str, state: Dict[str, 
         requested.add("dockerfile")
     if any(token in prompt for token in terraform_tokens):
         requested.add("terraform")
+    if any(token in prompt for token in kubernetes_tokens):
+        requested.add("kubernetes")
 
     if not requested:
         target_agents = state.get("target_agents", []) if isinstance(state, dict) else []
@@ -133,6 +139,8 @@ def _infer_requested_artifacts_with_keywords(user_prompt: str, state: Dict[str, 
             requested.add("dockerfile")
         if "iac-agent" in target_agents:
             requested.add("terraform")
+        if "k8s-agent" in target_agents:
+            requested.add("kubernetes")
 
     return requested
 
@@ -150,6 +158,7 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
     cicd = _get_agent_output(state, "cicd-agent")
     docker = _get_agent_output(state, "docker-agent")
     iac = _get_agent_output(state, "iac-agent")
+    k8s = _get_agent_output(state, "k8s-agent")
     requested = _infer_requested_artifacts(user_prompt, state)
 
     print("\n=== Agent Artifacts ===")
@@ -157,6 +166,7 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
     should_print_yaml = output_scope == "all" or "yaml" in requested
     should_print_docker = output_scope == "all" or "dockerfile" in requested
     should_print_terraform = output_scope == "all" or "terraform" in requested
+    should_print_kubernetes = output_scope == "all" or "kubernetes" in requested
 
     if should_print_yaml:
         if cicd and cicd.get("status") == "success":
@@ -237,9 +247,39 @@ def _print_agent_artifacts(result: Dict[str, Any], user_prompt: str, output_scop
             print("\n--- Terraform HCL Scripts ---")
             print(f"iac-agent did not succeed: {iac.get('message', iac.get('status', 'unknown'))}")
 
-    if output_scope != "all" and not should_print_yaml and not should_print_docker and not should_print_terraform:
+    if should_print_kubernetes:
+        if k8s and k8s.get("status") == "success":
+            k8s_data = k8s.get("data", {}) if isinstance(k8s, dict) else {}
+            k8s_manifests = k8s_data.get("k8s_manifests", {}) if isinstance(k8s_data, dict) else {}
+            print("\n--- Kubernetes Manifests (.yaml) ---")
+            if isinstance(k8s_manifests, dict):
+                mapping = [
+                    ("namespace_yaml", "namespace.yaml"),
+                    ("configmap_yaml", "configmap.yaml"),
+                    ("secret_yaml", "secret.yaml"),
+                    ("deployment_yaml", "deployment.yaml"),
+                    ("service_yaml", "service.yaml"),
+                    ("ingress_yaml", "ingress.yaml"),
+                    ("hpa_yaml", "hpa.yaml"),
+                ]
+                has_any = False
+                for key, name in mapping:
+                    content = k8s_manifests.get(key)
+                    if isinstance(content, str) and content.strip():
+                        has_any = True
+                        print(f"\n# {name}")
+                        print(content)
+                if not has_any:
+                    print("No Kubernetes manifest content returned by k8s-agent.")
+            else:
+                print("No k8s_manifests payload returned by k8s-agent.")
+        elif k8s:
+            print("\n--- Kubernetes Manifests (.yaml) ---")
+            print(f"k8s-agent did not succeed: {k8s.get('message', k8s.get('status', 'unknown'))}")
+
+    if output_scope != "all" and not should_print_yaml and not should_print_docker and not should_print_terraform and not should_print_kubernetes:
         print("No specific artifact requested in prompt; nothing to display.")
-    elif not cicd and not docker and not iac:
+    elif not cicd and not docker and not iac and not k8s:
         print("No agent artifacts found in orchestrator output.")
 
 

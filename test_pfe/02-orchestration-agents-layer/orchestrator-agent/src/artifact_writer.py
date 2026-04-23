@@ -1,6 +1,6 @@
 """
 Artifact Writer Module
-Writes generated artifacts (Dockerfiles, CI/CD workflows, Terraform) to the target repository.
+Writes generated artifacts (Dockerfiles, CI/CD workflows, Terraform, Kubernetes) to the target repository.
 """
 
 import logging
@@ -197,13 +197,90 @@ class ArtifactWriter:
             result["error"] = str(e)
         
         return result
+
+    def write_kubernetes_manifests(self, k8s_manifests: Dict[str, str], kubernetes_dir: str = "kubernetes", backup: bool = True) -> Dict[str, Any]:
+        """
+        Write Kubernetes manifests to repository.
+
+        Args:
+            k8s_manifests: Dictionary with keys like 'namespace_yaml', 'deployment_yaml', etc.
+            kubernetes_dir: Directory name for manifest files (default: kubernetes)
+            backup: If True, backup existing files before overwriting
+
+        Returns:
+            Dictionary with overall status and individual file results
+        """
+        k8s_dir = self.repo_path / kubernetes_dir
+        result = {
+            "success": True,
+            "kubernetes_dir": str(k8s_dir),
+            "files": {},
+            "errors": []
+        }
+
+        try:
+            k8s_dir.mkdir(parents=True, exist_ok=True)
+
+            file_mapping = {
+                "namespace_yaml": "namespace.yaml",
+                "configmap_yaml": "configmap.yaml",
+                "secret_yaml": "secret.yaml",
+                "deployment_yaml": "deployment.yaml",
+                "service_yaml": "service.yaml",
+                "ingress_yaml": "ingress.yaml",
+                "hpa_yaml": "hpa.yaml",
+            }
+
+            for manifest_key, filename in file_mapping.items():
+                content = k8s_manifests.get(manifest_key)
+                if not content or not str(content).strip():
+                    continue
+
+                file_path = k8s_dir / filename
+                file_result = {
+                    "success": False,
+                    "path": str(file_path),
+                    "backup_path": None,
+                    "action": None,
+                }
+
+                try:
+                    if file_path.exists() and backup:
+                        backup_path = k8s_dir / f"{filename}.backup"
+                        shutil.copy2(file_path, backup_path)
+                        file_result["backup_path"] = str(backup_path)
+                        file_result["action"] = "overwritten"
+                        logger.info(f"Backed up existing {filename} to {backup_path}")
+                    elif file_path.exists():
+                        file_result["action"] = "overwritten"
+                    else:
+                        file_result["action"] = "created"
+
+                    file_path.write_text(content, encoding="utf-8")
+                    file_result["success"] = True
+                    logger.info(f"Successfully wrote {filename} to {file_path}")
+
+                except Exception as e:
+                    logger.error(f"Failed to write {filename}: {e}")
+                    file_result["error"] = str(e)
+                    result["success"] = False
+                    result["errors"].append(f"{filename}: {str(e)}")
+
+                result["files"][manifest_key] = file_result
+
+        except Exception as e:
+            logger.error(f"Failed to create Kubernetes directory or write manifests: {e}")
+            result["success"] = False
+            result["error"] = str(e)
+
+        return result
     
     def write_all_artifacts(self, artifacts: Dict[str, Any], backup: bool = True) -> Dict[str, Any]:
         """
         Write all generated artifacts to the repository.
         
         Args:
-            artifacts: Dictionary containing generated artifacts (yaml, dockerfile, terraform)
+            artifacts: Dictionary containing generated artifacts (yaml, dockerfile, terraform, kubernetes)
             backup: If True, backup existing files before overwriting
         
         Returns:
@@ -215,7 +292,8 @@ class ArtifactWriter:
             "errors": [],
             "dockerfile": None,
             "cicd_workflow": None,
-            "terraform": None
+            "terraform": None,
+            "kubernetes": None,
         }
         
         # Write Dockerfile
@@ -255,6 +333,31 @@ class ArtifactWriter:
                 else:
                     result["success"] = False
                     result["errors"].extend(terraform_result.get("errors", []))
+
+        # Write Kubernetes manifests
+        kubernetes_data = artifacts.get("kubernetes")
+        if kubernetes_data and isinstance(kubernetes_data, dict):
+            has_content = any(
+                kubernetes_data.get(key) and str(kubernetes_data.get(key)).strip()
+                for key in [
+                    "namespace_yaml",
+                    "configmap_yaml",
+                    "secret_yaml",
+                    "deployment_yaml",
+                    "service_yaml",
+                    "ingress_yaml",
+                    "hpa_yaml",
+                ]
+            )
+
+            if has_content:
+                kubernetes_result = self.write_kubernetes_manifests(kubernetes_data, backup=backup)
+                result["kubernetes"] = kubernetes_result
+                if kubernetes_result["success"]:
+                    result["artifacts_written"].append("Kubernetes Manifests")
+                else:
+                    result["success"] = False
+                    result["errors"].extend(kubernetes_result.get("errors", []))
         
         if not result["artifacts_written"]:
             result["success"] = False

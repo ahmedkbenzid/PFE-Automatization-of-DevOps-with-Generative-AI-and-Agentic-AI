@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -192,6 +193,10 @@ class DockerPipeline:
         )
 
         configuration = self.generate_file.generate(request, context, effective_stack)
+        generated_image_name = self._derive_generated_image_name(repository_path)
+        configuration.metadata["image_name"] = generated_image_name
+        configuration.metadata["repository"] = generated_image_name.rsplit(":", 1)[0]
+        configuration.metadata["tag"] = generated_image_name.rsplit(":", 1)[1] if ":" in generated_image_name else "latest"
         configuration.metadata["rag_pages"] = [
             page.get("page_id") or page.get("title") for page in rag_context
         ]
@@ -259,6 +264,16 @@ class DockerPipeline:
                 image = line.replace("FROM ", "").split(" AS ")[0].strip()
                 images[image] = image
         return images
+
+    def _derive_generated_image_name(self, repository_path: str) -> str:
+        raw_name = (repository_path or "app").rstrip("/\\").split("/")[-1].split("\\")[-1]
+        if raw_name.startswith("http://") or raw_name.startswith("https://"):
+            tail = raw_name.rsplit("/", 1)[-1]
+            raw_name = tail or "app"
+
+        normalized = re.sub(r"[^a-z0-9._-]", "-", raw_name.lower()).strip("-._")
+        normalized = normalized or "app"
+        return f"{normalized}:latest"
 
 
 def run_pipeline(
