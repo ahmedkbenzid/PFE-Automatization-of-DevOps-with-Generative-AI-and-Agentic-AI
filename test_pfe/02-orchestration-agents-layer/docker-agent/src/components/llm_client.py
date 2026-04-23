@@ -1,6 +1,10 @@
 """LLM integration with Ollama and Groq for Docker Agent."""
+
 import os
+import time
+import logging
 from typing import Optional, Any, Callable
+from threading import Lock
 from src.config import LLM_CONFIG
 
 try:
@@ -15,9 +19,60 @@ try:
 except ModuleNotFoundError:
     Groq = None
 
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+except ImportError:
+    retry = None
+
+
+logger = logging.getLogger(__name__)
+
+
+class CircuitBreaker:
+    """Circuit breaker to prevent cascade failures when LLM API is down."""
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+    def __init__(self, failure_threshold: int = 3, recovery_timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failure_count = 0
+        self.last_failure_time: Optional[float] = None
+        self.state = self.CLOSED
+        self._lock = Lock()
+
+    def record_success(self) -> None:
+        with self._lock:
+            self.failure_count = 0
+            self.state = self.CLOSED
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.failure_count >= self.failure_threshold:
+                self.state = self.OPEN
+                logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
+
+    def can_execute(self) -> bool:
+        with self._lock:
+            if self.state == self.CLOSED:
+                return True
+            if self.state == self.OPEN and self.last_failure_time:
+                if time.time() - self.last_failure_time >= self.recovery_timeout:
+                    self.state = self.HALF_OPEN
+                    return True
+            return False
+
+    def get_state(self) -> str:
+        with self._lock:
+            return self.state
+
 
 class LLMClient:
-    """Unified LLM client supporting Ollama and Groq with provider fallback."""
+    """Unified LLM client supporting Ollama and Groq with retry, circuit breaker, and timeout."""
 
     def __init__(self, provider: Optional[str] = None):
         configured_provider = (provider or LLM_CONFIG.get("provider", "ollama")).lower()
@@ -30,7 +85,13 @@ class LLMClient:
         self.client = None
         self.fallback_model = LLM_CONFIG.get("fallback_model", "mixtral-8x7b-32768")
 
-        # Try configured provider first, then automatically fail over.
+        self.ollama_circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
+        self.groq_circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
+
+        self._initialize_providers()
+
+    def _initialize_providers(self) -> None:
+        """Initialize LLM providers with circuit breaker awareness."""
         providers_to_try = [self.provider, "groq" if self.provider == "ollama" else "ollama"]
         init_errors = []
         for candidate in providers_to_try:
@@ -40,21 +101,23 @@ class LLMClient:
                 else:
                     self._init_groq()
                 self.provider = candidate
+                logger.info(f"LLM client initialized with provider: {candidate}")
                 return
             except Exception as exc:
                 init_errors.append(f"{candidate}: {exc}")
+                logger.error(f"Failed to initialize {candidate}: {exc}")
 
         raise RuntimeError(f"Failed to initialize any LLM provider ({'; '.join(init_errors)})")
 
-    def _init_ollama(self):
-        """Initialize Ollama client"""
+    def _init_ollama(self) -> None:
+        """Initialize Ollama client."""
         if chat is None:
             raise RuntimeError("ollama package is not installed. Run: pip install ollama")
         self.model = LLM_CONFIG.get("model", "glm-5:cloud")
-        print(f"[Docker Agent] Using Ollama with model: {self.model}")
+        logger.info(f"Using Ollama with model: {self.model}")
 
-    def _init_groq(self):
-        """Initialize Groq client"""
+    def _init_groq(self) -> None:
+        """Initialize Groq client."""
         if Groq is None:
             raise RuntimeError("groq package is not installed. Run: pip install groq")
 
@@ -64,52 +127,96 @@ class LLMClient:
 
         self.client = Groq(api_key=api_key)
         self.model = LLM_CONFIG.get("groq_model", "mixtral-8x7b-32768")
-        print(f"[Docker Agent] Using Groq with model: {self.model}")
+        logger.info(f"Using Groq with model: {self.model}")
 
     def _ollama_completion(self, prompt: str) -> str:
-        """Generate completion using Ollama"""
+        """Generate completion using Ollama with timeout."""
         if chat is None:
             raise RuntimeError("Ollama chat function is not available")
-        
-        response = chat(  # type: ignore
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            options={
-                "temperature": self.temperature,
-                "num_predict": self.max_tokens,
-            }
-        )
-        return response.message.content  # type: ignore
+
+        if not self.ollama_circuit.can_execute():
+            logger.warning("Ollama circuit breaker is open, skipping")
+            raise RuntimeError("Ollama circuit breaker is open")
+
+        timeout = LLM_CONFIG.get("timeout", 120)
+        try:
+            response = chat(  # type: ignore
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                options={
+                    "temperature": self.temperature,
+                    "num_predict": self.max_tokens,
+                    "timeout": timeout,
+                }
+            )
+            self.ollama_circuit.record_success()
+            return response.message.content  # type: ignore
+        except Exception as e:
+            self.ollama_circuit.record_failure()
+            logger.error(f"Ollama request failed: {e}")
+            raise
 
     def _groq_completion(self, model: str, prompt: str, max_tokens: Optional[int] = None) -> str:
-        """Generate completion using Groq"""
-        response = self.client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens or self.max_tokens,
-            temperature=self.temperature,
-            top_p=0.95,
-            stream=False,
-        )
-        return response.choices[0].message.content
+        """Generate completion using Groq with circuit breaker."""
+        if not self.groq_circuit.can_execute():
+            logger.warning("Groq circuit breaker is open, skipping")
+            raise RuntimeError("Groq circuit breaker is open")
 
-    def generate_text(self, prompt: str, max_tokens: Optional[int] = None) -> str:
-        """Generate text using the configured LLM provider"""
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens or self.max_tokens,
+                temperature=self.temperature,
+                top_p=0.95,
+                stream=False,
+            )
+            self.groq_circuit.record_success()
+            return response.choices[0].message.content
+        except Exception as e:
+            self.groq_circuit.record_failure()
+            logger.error(f"Groq request failed: {e}")
+            raise
+
+    def _create_retry_decorator(self):
+        """Create retry decorator with exponential backoff."""
+        if retry is None:
+            raise RuntimeError("tenacity not installed. Run: pip install tenacity")
+
+        return retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(min=2, max=10, jitter=1),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+
+    @property
+    def _generate_text_retry(self):
+        """Retry-wrapped generate_text method."""
+        if retry is None:
+            return self._generate_text_no_retry
+
+        @self._create_retry_decorator()
+        def wrapped(prompt: str, max_tokens: Optional[int] = None) -> str:
+            return self._generate_text_no_retry(prompt, max_tokens)
+        return wrapped
+
+    def _generate_text_no_retry(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """Generate text without retry (internal use)."""
         if self.provider == "ollama":
             try:
                 return self._ollama_completion(prompt)
             except Exception as ollama_error:
                 if Groq is None:
                     raise
-                # Runtime failover to Groq if Ollama is unavailable in this environment.
                 try:
                     self._init_groq()
                     self.provider = "groq"
+                    logger.warning(f"Falling back to Groq after Ollama failure: {ollama_error}")
                     return self._groq_completion(self.model, prompt, max_tokens)
                 except Exception:
-                    raise Exception(f"Error generating text with ollama: {str(ollama_error)}")
+                    raise Exception(f"Ollama error: {str(ollama_error)}")
 
-        # Groq with fallback support
         try:
             return self._groq_completion(self.model, prompt, max_tokens)
         except Exception as e:
@@ -124,30 +231,36 @@ class LLMClient:
                 try:
                     result = self._groq_completion(self.fallback_model, prompt, max_tokens)
                     self.model = self.fallback_model
+                    logger.warning(f"Falling back to model: {self.fallback_model}")
                     return result
                 except Exception:
                     pass
 
             raise Exception(f"Error generating text: {str(e)}")
 
+    def generate_text(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """Generate text using the configured LLM provider with retry."""
+        logger.info(f"Generating text with provider: {self.provider}")
+
+        if retry is not None:
+            return self._generate_text_retry(prompt, max_tokens)
+        return self._generate_text_no_retry(prompt, max_tokens)
+
     def generate_dockerfile(self, prompt: str, context: dict) -> str:
-        """Generate Dockerfile content based on prompt and project context"""
+        """Generate Dockerfile content based on prompt and project context."""
         stack_type = context.get("stack_type", "generic")
-        
-        # Extract version information from context
+
         python_version = context.get("python_version", "3.11")
         java_version = context.get("java_version", "17")
         node_version = context.get("node_version", "20")
         go_version = context.get("go_version", "1.21")
-        
-        # Build context string
+
         context_items = []
         for k, v in context.items():
             if v and k != "stack_type":
                 context_items.append(f"{k}: {v}")
         context_str = "\n".join(context_items) if context_items else "No additional context"
-        
-        # Stack-specific examples to guide the LLM
+
         stack_examples = {
             "spring": f"""EXAMPLE for Java/Spring Boot (MUST FOLLOW THIS STRUCTURE):
 ```dockerfile
@@ -242,10 +355,9 @@ CMD ["./app"]
 ```
 **MANDATORY**: Use golang:{go_version}-alpine for building, alpine for runtime."""
         }
-        
+
         example = stack_examples.get(stack_type, "")
-        
-        # Add version-specific critical warnings
+
         version_critical = ""
         if stack_type in ["spring", "java"]:
             version_critical = f"""
@@ -273,7 +385,7 @@ DO NOT use generic alpine, ubuntu, or debian images."""
 Python version {python_version} detected in project dependencies.
 YOU MUST USE: python:{python_version}-slim as the base image.
 DO NOT use generic alpine, ubuntu, or debian images."""
-        
+
         full_prompt = f"""You are an expert Docker engineer generating production-ready Dockerfiles.
 
 🎯 STACK TYPE: {stack_type}
@@ -300,7 +412,7 @@ Start directly with "FROM" instruction."""
         return self.generate_text(full_prompt, max_tokens=2048)
 
     def optimize_dockerfile(self, dockerfile_content: str, suggestions: list) -> str:
-        """Suggest optimizations for an existing Dockerfile"""
+        """Suggest optimizations for an existing Dockerfile."""
         prompt = f"""Review this Dockerfile and suggest improvements:
 
 {dockerfile_content}
@@ -319,7 +431,7 @@ Generate ONLY the improved Dockerfile content."""
         return self.generate_text(prompt, max_tokens=2048)
 
     def explain_dockerfile(self, dockerfile_content: str) -> str:
-        """Explain what a Dockerfile does"""
+        """Explain what a Dockerfile does."""
         prompt = f"""Explain this Dockerfile in simple terms:
 
 {dockerfile_content}

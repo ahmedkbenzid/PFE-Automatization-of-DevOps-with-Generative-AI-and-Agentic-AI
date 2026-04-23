@@ -4,3 +4,4 @@ pydantic
 ollama
 groq
 python-dotenv
+tenacity

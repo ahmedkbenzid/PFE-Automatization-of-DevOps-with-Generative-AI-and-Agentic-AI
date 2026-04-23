@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from src.models.types import GeneratedConfiguration, RepositoryContext, UserRequest
 from src.components.llm_client import LLMClient
+
+
+logger = logging.getLogger(__name__)
 
 
 class GenerateFile:
@@ -18,35 +22,41 @@ class GenerateFile:
         """
         self.use_llm = use_llm
         self.llm_client = None
-        print(f"[Docker Agent] GenerateFile initialized with use_llm={use_llm}")
+        self._llm_init_error: str = None
+
+        logger.info(f"Initialize GenerateFile with use_llm={use_llm}")
         if use_llm:
             try:
-                print("[Docker Agent] Attempting to initialize LLM client...")
+                logger.info("Attempting to initialize LLM client...")
                 self.llm_client = LLMClient()
-                print(f"[Docker Agent] LLM client initialized successfully: {self.llm_client.model}")
+                logger.info(f"LLM client initialized: {self.llm_client.model}")
             except Exception as e:
                 import traceback
-                print(f"[Docker Agent] LLM client initialization failed: {e}")
-                print(f"[Docker Agent] Full error traceback:\n{traceback.format_exc()}")
-                print("[Docker Agent] Falling back to template-only generation")
+                self._llm_init_error = str(e)
+                logger.error(f"LLM client initialization failed: {e}")
+                logger.warning(f"Falling back to template-only generation")
                 self.use_llm = False
         else:
-            print("[Docker Agent] Using template-based generation (LLM disabled)")
+            logger.info("Using template-based generation (LLM disabled)")
 
     def generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
-        print(f"[Docker Agent] Generation mode: {'LLM' if self.use_llm and self.llm_client else 'Template'}")
-        
-        # Try LLM generation first if enabled
+        mode = "LLM" if self.use_llm and self.llm_client else "Template"
+        logger.info(f"Generation mode: {mode}, stack: {stack_type}")
+
         if self.use_llm and self.llm_client:
             try:
-                print(f"[Docker Agent] Attempting LLM generation for stack: {stack_type}")
-                return self._llm_generate(request, context, stack_type)
+                config = self._llm_generate(request, context, stack_type)
+                config.metadata["generation_mode"] = mode
+                config.metadata["llm_init_error"] = self._llm_init_error
+                return config
             except Exception as e:
-                print(f"[Docker Agent] LLM generation failed: {e}")
-                print("[Docker Agent] Falling back to template generation")
-        
-        # Fallback to template generation
-        return self._template_generate(request, context, stack_type)
+                logger.warning(f"LLM generation failed: {e}, falling back to template")
+
+        config = self._template_generate(request, context, stack_type)
+        config.metadata["generation_mode"] = "Template"
+        config.metadata["llm_fallback_reason"] = str(e) if 'e' in dir() else "LLM not available or disabled"
+        config.metadata["llm_init_error"] = self._llm_init_error
+        return config
 
     def _llm_generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
         """Generate Dockerfile using LLM"""
@@ -56,7 +66,6 @@ class GenerateFile:
             "package_managers": context.package_managers,
             "build_tools": context.build_tools,
             "frameworks": context.frameworks,
-            # NEW: Add version information
             "python_version": context.python_version,
             "java_version": context.java_version,
             "node_version": context.node_version,
@@ -85,9 +94,8 @@ class GenerateFile:
 
     def _template_generate(self, request: UserRequest, context: RepositoryContext, stack_type: str) -> GeneratedConfiguration:
         """Generate Dockerfile using templates"""
-        print(f"[Docker Agent] Generating Dockerfile for stack: {stack_type}")
+        logger.info(f"Template generation for stack: {stack_type}")
         
-        # Normalize stack type
         stack_type_lower = (stack_type or "").lower()
         
         if stack_type_lower == "node" or "node" in stack_type_lower or "javascript" in stack_type_lower:
@@ -103,7 +111,7 @@ class GenerateFile:
             dockerfile = self._go_template(context)
             normalized_stack = "go"
         else:
-            print(f"[Docker Agent] Unknown stack '{stack_type}', using generic template")
+            logger.warning(f"Unknown stack '{stack_type}', using generic template")
             dockerfile = self._generic_template(context)
             normalized_stack = "generic"
 
@@ -122,7 +130,6 @@ class GenerateFile:
 
     def _node_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 3000
-        # Use detected Node version or default to 20
         node_version = context.node_version or "20"
         return f"""FROM node:{node_version}-alpine AS builder
 WORKDIR /app
@@ -139,12 +146,11 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 USER node
 EXPOSE {port}
-CMD [\"node\", \"dist/main.js\"]
+CMD ["node", "dist/main.js"]
 """
 
     def _python_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 8000
-        # Use detected Python version or default to 3.11
         python_version = context.python_version or "3.11"
         return f"""FROM python:{python_version}-slim
 WORKDIR /app
@@ -156,18 +162,15 @@ COPY . .
 RUN useradd -m appuser
 USER appuser
 EXPOSE {port}
-CMD [\"python\", \"main.py\"]
+CMD ["python", "main.py"]
 """
 
     def _java_template(self, context: RepositoryContext) -> str:
         port = context.detected_ports[0] if context.detected_ports else 8080
-        # Use detected Java version or default to 17
-        # But prefer the version if it was actually detected
         java_version = context.java_version or "17"
         
-        # Add warning if defaulting
         if not context.java_version:
-            print(f"⚠️  WARNING: Java version not detected from dependencies, defaulting to {java_version}")
+            logger.warning(f"Java version not detected, defaulting to {java_version}")
         
         return f"""FROM maven:3.9-eclipse-temurin-{java_version}-alpine AS builder
 WORKDIR /app
@@ -215,4 +218,3 @@ USER appuser
 EXPOSE {port}
 CMD ["./main"]
 """
-

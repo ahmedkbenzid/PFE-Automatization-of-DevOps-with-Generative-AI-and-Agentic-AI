@@ -1,6 +1,13 @@
 import os
 import json
+import logging
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env if exists (for subprocess execution)
 try:
@@ -8,7 +15,7 @@ try:
     env_file = Path(__file__).parent.parent / ".env"
     if env_file.exists():
         load_dotenv(env_file, override=True)
-        print(f"[Docker Agent Config] Loaded .env from {env_file}")
+        logger.info(f"Loaded .env from {env_file}")
 except ImportError:
     pass  # dotenv not required
 
@@ -25,14 +32,10 @@ LLM_CONFIG = {
     "temperature": 0.2,  # Low temperature for more deterministic code generation
     "max_tokens": 4096,
     "enabled": os.getenv("USE_LLM", "false").lower() == "true",  # Enable/disable LLM generation
+    "timeout": int(os.getenv("LLM_TIMEOUT", "120")),
 }
 
-# Debug: Print loaded configuration
-print(f"[Docker Agent Config] LLM Configuration loaded:")
-print(f"  - USE_LLM env var: {os.getenv('USE_LLM', 'NOT SET')}")
-print(f"  - enabled: {LLM_CONFIG['enabled']}")
-print(f"  - provider: {LLM_CONFIG['provider']}")
-print(f"  - GROQ_API_KEY: {'SET' if os.getenv('GROQ_API_KEY') else 'NOT SET'}")
+logger.info(f"LLM Configuration: enabled={LLM_CONFIG['enabled']}, provider={LLM_CONFIG.get('provider')}")
 
 # Pipeline Configuration
 PIPELINE_CONFIG = {
