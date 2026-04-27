@@ -25,7 +25,7 @@ DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
 LLM_CONFIG = {
     "provider": os.getenv("K8S_LLM_PROVIDER", "ollama"),
     "model": os.getenv("K8S_OLLAMA_MODEL", "glm-5:cloud"),
-    "groq_model": os.getenv("K8S_GROQ_MODEL", "mixtral-8x7b-32768"),
+    "groq_model": os.getenv("K8S_GROQ_MODEL", "llama-3.3-70b-versatile"),
     "temperature": 0.2,
     "max_tokens": 2048,
     "timeout": int(os.getenv("K8S_LLM_TIMEOUT", "120")),

@@ -221,7 +221,8 @@ Return ONLY valid JSON, no markdown.
             'kubernetes', 'k8s', 'kubectl', 'helm', 'manifest', 'manifests',
             'ingress', 'hpa', 'horizontalpodautoscaler', 'configmap', 'secret',
             'deployment yaml', 'service yaml', 'namespace', 'serviceaccount',
-            'clusterip', 'nodeport', 'loadbalancer'
+            'clusterip', 'nodeport', 'loadbalancer', 'eks', 'aks', 'gke',
+            'openshift', 'k3s', 'k3d'
         ]
         
         requires_docker = any(k in request_lower for k in docker_keywords)
@@ -263,7 +264,7 @@ Return ONLY valid JSON, no markdown.
     
     def _extract_deployment_type(self, request: str) -> str:
         """Extract deployment type from request"""
-        if 'kubernetes' in request or 'k8s' in request:
+        if any(k in request for k in ['kubernetes', 'k8s', 'eks', 'aks', 'gke', 'openshift', 'k3s', 'k3d']):
             return 'k8s'
         elif 'container' in request or 'docker' in request:
             return 'container'

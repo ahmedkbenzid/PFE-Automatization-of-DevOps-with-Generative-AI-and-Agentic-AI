@@ -83,7 +83,7 @@ class LLMClient:
         self.max_tokens = LLM_CONFIG.get("max_tokens", 4096)
         self.temperature = LLM_CONFIG.get("temperature", 0.2)
         self.client = None
-        self.fallback_model = LLM_CONFIG.get("fallback_model", "mixtral-8x7b-32768")
+        self.fallback_model = LLM_CONFIG.get("fallback_model", "llama-3.3-70b-versatile")
 
         self.ollama_circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
         self.groq_circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
@@ -126,7 +126,7 @@ class LLMClient:
             raise RuntimeError("GROQ_API_KEY environment variable is required for Groq provider")
 
         self.client = Groq(api_key=api_key)
-        self.model = LLM_CONFIG.get("groq_model", "mixtral-8x7b-32768")
+        self.model = LLM_CONFIG.get("groq_model", "llama-3.3-70b-versatile")
         logger.info(f"Using Groq with model: {self.model}")
 
     def _ollama_completion(self, prompt: str) -> str:
@@ -185,7 +185,7 @@ class LLMClient:
 
         return retry(
             stop=stop_after_attempt(3),
-            wait=wait_exponential(min=2, max=10, jitter=1),
+            wait=wait_exponential(min=2, max=10),
             retry=retry_if_exception_type(Exception),
             reraise=True,
         )

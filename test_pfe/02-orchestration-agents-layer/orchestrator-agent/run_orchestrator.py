@@ -461,6 +461,8 @@ def main() -> int:
         
         print("\n=== Orchestration Summary ===")
         print(f"Status: {status}")
+        if status == "plan_ready":
+            print("Mode: Plan Ready (awaiting approval)")
         if result.get("plan_only"):
             print("Mode: Plan Only (awaiting approval)")
         if result.get("used_planner"):

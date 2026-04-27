@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Dict, Any, List, Set, Tuple
 from collections import defaultdict, deque
 
-# Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add planner-agent root to path for imports
+_planner_root = Path(__file__).parent.parent
+sys.path.insert(0, str(_planner_root))
 
 from src.config import PlannerConfig
 from src.components.llm_client import PlannerLLMClient
@@ -104,6 +105,8 @@ class PlannerPipeline:
             
         except Exception as e:
             print(f"[Planner] ❌ Planning failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
                 "status": "error",
                 "message": f"Planning failed: {str(e)}"
@@ -170,10 +173,13 @@ Return ONLY valid JSON, no markdown.
                 for flag in ["requires_docker", "requires_cicd", "requires_infrastructure", "requires_k8s"]
             )
 
+            # If LLM output is structurally incomplete or selects no agents,
+            # fall back to deterministic keyword analysis.
             if not has_required_shape or not llm_selected_any:
                 print("[Planner] LLM intent output incomplete/empty, using fallback keyword analysis")
                 return fallback_analysis
 
+            # Keep LLM as source of truth, but OR key booleans with fallback for resilience.
             merged = dict(analysis)
             for flag in ["requires_docker", "requires_cicd", "requires_infrastructure", "requires_k8s"]:
                 merged[flag] = bool(analysis.get(flag)) or bool(fallback_analysis.get(flag))
@@ -195,7 +201,33 @@ Return ONLY valid JSON, no markdown.
     def _fallback_intent_analysis(self, request: str, context: Dict) -> Dict[str, Any]:
         """Fallback intent analysis using keywords"""
         request_lower = request.lower()
+        
+        # Enhanced keyword detection for Docker
+        docker_keywords = [
+            'docker', 'container', 'containerize', 'dockerfile', 
+            'image', 'registry', 'docker-compose', 'compose'
+        ]
+        
+        # Enhanced keyword detection for CI/CD
+        cicd_keywords = [
+            'ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow',
+            'jenkins', 'gitlab ci', 'circle ci', 'travis',
+            'build', 'test', 'deploy', 'sonarqube', 'junit',
+            'github', 'azure devops'
+        ]
 
+        # Kubernetes-specific signals, including manifest resources users ask for directly.
+        k8s_keywords = [
+            'kubernetes', 'k8s', 'kubectl', 'helm', 'manifest', 'manifests',
+            'ingress', 'hpa', 'horizontalpodautoscaler', 'configmap', 'secret',
+            'deployment yaml', 'service yaml', 'namespace', 'serviceaccount',
+            'clusterip', 'nodeport', 'loadbalancer', 'eks', 'aks', 'gke',
+            'openshift', 'k3s', 'k3d'
+        ]
+        
+        requires_docker = any(k in request_lower for k in docker_keywords)
+        requires_cicd = any(k in request_lower for k in cicd_keywords)
+        requires_k8s = any(k in request_lower for k in k8s_keywords)
         is_deployment_request = any(
             k in request_lower for k in [
                 'deploy', 'deployment', 'release', 'production',
@@ -203,16 +235,18 @@ Return ONLY valid JSON, no markdown.
             ]
         )
 
-        requires_docker = any(k in request_lower for k in ['docker', 'container', 'containerize'])
         if is_deployment_request:
             requires_docker = True
+        
+        print(f"[Planner] Keyword analysis: requires_docker={requires_docker}, requires_cicd={requires_cicd}")
+        print(f"[Planner] Request: {request_lower[:100]}...")
         
         return {
             "primary_goal": "devops automation",
             "requires_docker": requires_docker,
-            "requires_cicd": any(k in request_lower for k in ['ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow']),
+            "requires_cicd": requires_cicd,
             "requires_infrastructure": any(k in request_lower for k in ['infrastructure', 'terraform', 'cloud', 'aws', 'azure', 'gcp', 'deploy']),
-            "requires_k8s": any(k in request_lower for k in ['kubernetes', 'k8s', 'kubectl', 'helm']),
+            "requires_k8s": requires_k8s,
             "cloud_provider": self._extract_cloud_provider(request_lower),
             "deployment_type": self._extract_deployment_type(request_lower),
             "complexity_factors": []
@@ -230,7 +264,7 @@ Return ONLY valid JSON, no markdown.
     
     def _extract_deployment_type(self, request: str) -> str:
         """Extract deployment type from request"""
-        if 'kubernetes' in request or 'k8s' in request:
+        if any(k in request for k in ['kubernetes', 'k8s', 'eks', 'aks', 'gke', 'openshift', 'k3s', 'k3d']):
             return 'k8s'
         elif 'container' in request or 'docker' in request:
             return 'container'
@@ -258,7 +292,7 @@ Return ONLY valid JSON, no markdown.
         if intent.get('requires_infrastructure'):
             selected.append('iac-agent')
         
-        if intent.get('requires_k8s'):
+        if intent.get('requires_k8s') or deployment_type == 'k8s':
             selected.append('k8s-agent')
         
         print(f"[Planner] Selected agents: {selected}")
@@ -463,7 +497,7 @@ def main():
     CLI entry point for planner agent
     """
     if len(sys.argv) < 2:
-        print("Usage: python -m src.pipeline '<request>' [<context_json>]")
+        print("Usage: python pipeline.py '<request>' [<context_json>]")
         sys.exit(1)
     
     request = sys.argv[1]
@@ -473,6 +507,7 @@ def main():
     result = planner.process_request(request, context)
     
     # Output as JSON for orchestrator to parse
+    print("\n=== PLANNER OUTPUT ===")
     print(json.dumps(result, indent=2))
 
 

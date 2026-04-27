@@ -478,8 +478,9 @@ def man_in_the_loop_node(state: OrchestratorState) -> Dict[str, Any]:
     if not has_plan:
         return {"plan_approved": False}
 
-    # Plan-only mode: stop and wait for explicit approval in a follow-up call.
-    if state.get("plan_only", False) and not state.get("approved_execution_plan"):
+    # Any planner-generated plan should pause for review unless an approved
+    # execution plan is already being replayed.
+    if not state.get("approved_execution_plan"):
         return {
             "plan_approved": False,
             "plan_only_waiting_approval": True,

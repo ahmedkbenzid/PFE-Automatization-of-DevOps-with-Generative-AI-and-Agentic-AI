@@ -27,8 +27,8 @@ DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
 LLM_CONFIG = {
     "provider": os.getenv("LLM_PROVIDER", "ollama"),  # ollama or groq
     "model": os.getenv("OLLAMA_MODEL", "glm-5:cloud"),  # Ollama GLM-5 cloud model
-    "groq_model": os.getenv("GROQ_MODEL", "mixtral-8x7b-32768"),  # Groq fallback
-    "fallback_model": os.getenv("GROQ_FALLBACK_MODEL", "mixtral-8x7b-32768"),
+    "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),  # Groq fallback
+    "fallback_model": os.getenv("GROQ_FALLBACK_MODEL", "llama-3.3-70b-versatile"),
     "temperature": 0.2,  # Low temperature for more deterministic code generation
     "max_tokens": 4096,
     "enabled": os.getenv("USE_LLM", "false").lower() == "true",  # Enable/disable LLM generation

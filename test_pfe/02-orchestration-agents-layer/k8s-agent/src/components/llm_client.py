@@ -74,7 +74,7 @@ class LLMClient:
         self.temperature = LLM_CONFIG.get("temperature", 0.2)
         self.client: Optional[Groq] = None
         self.model: str = ""
-        self.fallback_model = "mixtral-8x7b-32768"
+        self.fallback_model = "llama-3.3-70b-versatile"
 
         self.ollama_circuit = CircuitBreaker(3, 60)
         self.groq_circuit = CircuitBreaker(3, 60)
@@ -112,7 +112,7 @@ class LLMClient:
         if not api_key:
             raise RuntimeError("GROQ_API_KEY not set")
         self.client = Groq(api_key=api_key)
-        self.model = LLM_CONFIG.get("groq_model", "mixtral-8x7b-32768")
+        self.model = LLM_CONFIG.get("groq_model", "llama-3.3-70b-versatile")
         self.provider = "groq"
         logger.info(f"Using Groq: {self.model}")
 

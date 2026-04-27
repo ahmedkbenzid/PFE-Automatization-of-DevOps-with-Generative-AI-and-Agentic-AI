@@ -421,56 +421,9 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
     if not result or not isinstance(result, dict):
         return artifacts
     
-    # Check if result has state directly at top level (like from direct agent invocation)
-    if "status" in result and "data" in result:
-        # This is direct agent output format (not wrapped in state)
-        agent_data = result.get("data", {})
-        if agent_data.get("success") and "k8s_manifests" in agent_data:
-            k8s_manifests = agent_data.get("k8s_manifests", {})
-            artifacts["kubernetes"] = {
-                "namespace_yaml": k8s_manifests.get("namespace_yaml"),
-                "configmap_yaml": k8s_manifests.get("configmap_yaml"),
-                "secret_yaml": k8s_manifests.get("secret_yaml"),
-                "deployment_yaml": k8s_manifests.get("deployment_yaml"),
-                "service_yaml": k8s_manifests.get("service_yaml"),
-                "ingress_yaml": k8s_manifests.get("ingress_yaml"),
-                "hpa_yaml": k8s_manifests.get("hpa_yaml"),
-            }
-            processing_time_ms = agent_data.get("processing_time_ms", 0)
-            artifacts["metadata"]["kubernetes"] = {
-                "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
-                "is_valid": agent_data.get("is_valid", False),
-                "validation": agent_data.get("validation", {}),
-                "source": "direct"
-            }
-            return artifacts
-    
     # Case 1: JSON response with state.agent_outputs
     state = result.get("state", {})
     agent_outputs = state.get("agent_outputs", {})
-    
-    if agent_outputs:
-        # Extract Kubernetes manifests
-        k8s_output = agent_outputs.get("k8s-agent", {})
-        if k8s_output.get("status") == "success":
-            k8s_data = k8s_output.get("data", {})
-            if k8s_data.get("success"):
-                k8s_manifests = k8s_data.get("k8s_manifests", {})
-                artifacts["kubernetes"] = {
-                    "namespace_yaml": k8s_manifests.get("namespace_yaml"),
-                    "configmap_yaml": k8s_manifests.get("configmap_yaml"),
-                    "secret_yaml": k8s_manifests.get("secret_yaml"),
-                    "deployment_yaml": k8s_manifests.get("deployment_yaml"),
-                    "service_yaml": k8s_manifests.get("service_yaml"),
-                    "ingress_yaml": k8s_manifests.get("ingress_yaml"),
-                    "hpa_yaml": k8s_manifests.get("hpa_yaml"),
-                }
-                processing_time_ms = k8s_data.get("processing_time_ms", 0)
-                artifacts["metadata"]["kubernetes"] = {
-                    "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
-                    "is_valid": k8s_data.get("is_valid", False),
-                    "validation": k8s_data.get("validation", {})
-                }
     
     def _first_base_image_from_dockerfile(dockerfile_content: Optional[str]) -> Optional[str]:
         if not dockerfile_content:
@@ -582,28 +535,31 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
                     "resources": terraform_config.get("resources", []),
                     "is_valid": terraform_config.get("is_valid", False)
                 }
-        
+
         # Extract Kubernetes manifests
         k8s_output = agent_outputs.get("k8s-agent", {})
         if k8s_output.get("status") == "success":
             k8s_data = k8s_output.get("data", {})
             if k8s_data.get("success"):
                 k8s_manifests = k8s_data.get("k8s_manifests", {})
-                artifacts["kubernetes"] = {
-                    "namespace_yaml": k8s_manifests.get("namespace_yaml"),
-                    "configmap_yaml": k8s_manifests.get("configmap_yaml"),
-                    "secret_yaml": k8s_manifests.get("secret_yaml"),
-                    "deployment_yaml": k8s_manifests.get("deployment_yaml"),
-                    "service_yaml": k8s_manifests.get("service_yaml"),
-                    "ingress_yaml": k8s_manifests.get("ingress_yaml"),
-                    "hpa_yaml": k8s_manifests.get("hpa_yaml"),
-                }
-                processing_time_ms = k8s_data.get("processing_time_ms", 0)
-                artifacts["metadata"]["kubernetes"] = {
-                    "processing_time_s": processing_time_ms / 1000 if processing_time_ms else 0,
-                    "is_valid": k8s_data.get("is_valid", False),
-                    "validation": k8s_data.get("validation", {})
-                }
+                if isinstance(k8s_manifests, dict):
+                    artifacts["kubernetes"] = {
+                        "namespace_yaml": k8s_manifests.get("namespace_yaml"),
+                        "configmap_yaml": k8s_manifests.get("configmap_yaml"),
+                        "secret_yaml": k8s_manifests.get("secret_yaml"),
+                        "deployment_yaml": k8s_manifests.get("deployment_yaml"),
+                        "service_yaml": k8s_manifests.get("service_yaml"),
+                        "ingress_yaml": k8s_manifests.get("ingress_yaml"),
+                        "hpa_yaml": k8s_manifests.get("hpa_yaml"),
+                    }
+                    k8s_validation = k8s_data.get("validation", {})
+                    artifacts["metadata"]["kubernetes"] = {
+                        "namespace": k8s_manifests.get("namespace"),
+                        "app_name": k8s_manifests.get("app_name"),
+                        "image": k8s_manifests.get("image"),
+                        "is_valid": k8s_validation.get("is_valid", k8s_manifests.get("is_valid", False)),
+                        "warnings": k8s_validation.get("warnings", []),
+                    }
     
     # Case 2: Parse console output for artifacts (from subprocess)
     elif "stdout" in result or "raw_output" in result:
@@ -689,6 +645,43 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
                     artifacts["terraform"]["outputs_tf"] = terraform_content[outputs_start:outputs_end].strip()
                 
                 artifacts["metadata"]["terraform"] = {"source": "console"}
+
+        # Extract Kubernetes manifests
+        k8s_match = output.find("--- Kubernetes Manifests (.yaml) ---")
+        if k8s_match != -1:
+            k8s_start = k8s_match + len("--- Kubernetes Manifests (.yaml) ---\n")
+            k8s_end = output.find("\n===", k8s_start)
+            if k8s_end == -1:
+                k8s_end = len(output)
+
+            k8s_content = output[k8s_start:k8s_end].strip()
+            if k8s_content and not k8s_content.startswith("No Kubernetes") and not k8s_content.startswith("k8s-agent did not"):
+                parsed_k8s: Dict[str, str] = {}
+                blocks = re.split(r"\n#\s+", "\n" + k8s_content)
+                key_map = {
+                    "namespace.yaml": "namespace_yaml",
+                    "configmap.yaml": "configmap_yaml",
+                    "secret.yaml": "secret_yaml",
+                    "deployment.yaml": "deployment_yaml",
+                    "service.yaml": "service_yaml",
+                    "ingress.yaml": "ingress_yaml",
+                    "hpa.yaml": "hpa_yaml",
+                }
+
+                for block in blocks:
+                    block = block.strip()
+                    if not block:
+                        continue
+                    lines = block.splitlines()
+                    title = lines[0].strip()
+                    body = "\n".join(lines[1:]).strip()
+                    mapped_key = key_map.get(title)
+                    if mapped_key and body:
+                        parsed_k8s[mapped_key] = body
+
+                if parsed_k8s:
+                    artifacts["kubernetes"] = parsed_k8s
+                    artifacts["metadata"]["kubernetes"] = {"source": "console"}
     
     return artifacts
 
@@ -934,6 +927,20 @@ def _finalize_orchestrator_task_if_done() -> bool:
                     "pr_body": str(payload.get("pr_body", "") or "").strip(),
                 }
                 st.session_state.plan_approved = False
+            elif result_data.get("plan_only") and result_data.get("used_planner") and result_data.get("execution_plan"):
+                st.session_state.pending_plan = {
+                    "prompt": user_prompt,
+                    "repo_path": repo_path,
+                    "github_url": github_url,
+                    "execution_plan": result_data.get("execution_plan"),
+                    "planner_reasoning": result_data.get("planner_reasoning"),
+                    "complexity_score": result_data.get("complexity_score", 0),
+                    "create_pr": bool(payload.get("create_pr", False)),
+                    "branch_name": str(payload.get("branch_name", "") or "").strip(),
+                    "pr_title": str(payload.get("pr_title", "") or "").strip(),
+                    "pr_body": str(payload.get("pr_body", "") or "").strip(),
+                }
+                st.session_state.plan_approved = False
             else:
                 st.session_state.pending_feedback_result = result_data
                 st.session_state.feedback_stage = True
@@ -967,7 +974,8 @@ def display_agent_status(result: Dict[str, Any]):
     agent_info = {
         "cicd-agent": {"name": "CI/CD Agent", "icon": "🔧", "class": "cicd-box"},
         "docker-agent": {"name": "Docker Agent", "icon": "🐳", "class": "docker-box"},
-        "iac-agent": {"name": "IaC Agent", "icon": "☁️", "class": "iac-box"}
+        "iac-agent": {"name": "IaC Agent", "icon": "☁️", "class": "iac-box"},
+        "k8s-agent": {"name": "Kubernetes Agent", "icon": "☸️", "class": "k8s-box"},
     }
     
     for idx, agent_key in enumerate(target_agents):
@@ -1939,75 +1947,53 @@ def display_artifacts(artifacts: Dict[str, Any]):
                 st.info("No Terraform configuration generated. Try requesting infrastructure as code.")
         else:
             st.info("No Terraform configuration generated. Try requesting infrastructure as code.")
-    
+
     # Kubernetes Tab
     with tabs[3]:
-        if artifacts.get("kubernetes") and isinstance(artifacts["kubernetes"], dict):
-            k8s_files = artifacts["kubernetes"]
-            has_any_file = any(k8s_files.values())
-            
-            if has_any_file:
+        kubernetes_files = artifacts.get("kubernetes") if isinstance(artifacts.get("kubernetes"), dict) else {}
+        if kubernetes_files:
+            k8s_order = [
+                ("namespace_yaml", "namespace.yaml"),
+                ("configmap_yaml", "configmap.yaml"),
+                ("secret_yaml", "secret.yaml"),
+                ("deployment_yaml", "deployment.yaml"),
+                ("service_yaml", "service.yaml"),
+                ("ingress_yaml", "ingress.yaml"),
+                ("hpa_yaml", "hpa.yaml"),
+            ]
+
+            has_k8s_content = any(
+                kubernetes_files.get(key) and str(kubernetes_files.get(key)).strip() for key, _ in k8s_order
+            )
+            if has_k8s_content:
                 st.markdown("#### Kubernetes Manifests")
-                
-                file_order = [
-                    ("namespace_yaml", "namespace.yaml", "yaml"),
-                    ("configmap_yaml", "configmap.yaml", "yaml"),
-                    ("secret_yaml", "secret.yaml", "yaml"),
-                    ("deployment_yaml", "deployment.yaml", "yaml"),
-                    ("service_yaml", "service.yaml", "yaml"),
-                    ("ingress_yaml", "ingress.yaml", "yaml"),
-                    ("hpa_yaml", "hpa.yaml", "yaml"),
-                ]
-                
-                for key, filename, language in file_order:
-                    content = k8s_files.get(key)
-                    if content and isinstance(content, str) and content.strip():
+                for key, filename in k8s_order:
+                    content = kubernetes_files.get(key)
+                    if content and str(content).strip():
                         st.markdown(f"**{filename}**")
-                        st.code(content, language=language)
-                        
+                        st.code(content, language="yaml")
                         st.download_button(
                             label=f"📥 Download {filename}",
-                            data=content,
-                            file_name=filename,
-                            mime="text/plain",
+                            data=str(content),
+                            file_name=f"kubernetes/{filename}",
+                            mime="text/yaml",
                             key=f"download_k8s_{key}"
                         )
-                
-                # Download all k8s files as zip
-                if len([v for v in k8s_files.values() if v]) > 1:
-                    st.markdown("---")
-                    import zipfile
-                    import io
-                    
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for key, filename, _ in file_order:
-                            content = k8s_files.get(key)
-                            if content:
-                                zip_file.writestr(filename, content)
-                    
-                    st.download_button(
-                        label="📦 Download All Kubernetes Manifests (.zip)",
-                        data=zip_buffer.getvalue(),
-                        file_name="kubernetes-manifests.zip",
-                        mime="application/zip",
-                        key="download_k8s_zip"
-                    )
-                
-                # Display metadata
+
                 if "kubernetes" in artifacts.get("metadata", {}):
                     meta = artifacts["metadata"]["kubernetes"]
                     st.markdown("---")
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Processing Time", f"{meta.get('processing_time_s', 0):.1f}s")
+                        st.metric("Namespace", meta.get("namespace") or "default")
                     with col2:
-                        is_valid = meta.get('is_valid', False)
-                        st.metric("Validation", "✅ Valid" if is_valid else "⚠️ Check")
+                        st.metric("App", meta.get("app_name") or "Unknown")
+                    with col3:
+                        st.metric("Validation", "✅ Valid" if meta.get("is_valid") else "⚠️ Check")
             else:
-                st.info("No Kubernetes manifests generated.")
+                st.info("Kubernetes agent ran, but no manifest content was returned.")
         else:
-            st.info("No Kubernetes manifests generated. Try requesting a Kubernetes deployment.")
+            st.info("No Kubernetes manifests generated. Try requesting Kubernetes deployment artifacts.")
     
     # Metadata Tab
     with tabs[4]:
@@ -2031,7 +2017,9 @@ def _apply_feedback_edits_to_result(result: Dict[str, Any], edited_artifacts: Di
 
 def _extract_allowed_agents(plan: Dict[str, Any]) -> Set[str]:
     """Extract known agent ids from a planner execution plan."""
-    allowed: Set[str] = set()
+    # Always keep baseline known agents available so users can add steps
+    # during plan editing (for example adding k8s-agent to a CI/CD plan).
+    allowed: Set[str] = {"docker-agent", "cicd-agent", "iac-agent", "k8s-agent"}
 
     for task in plan.get("tasks", []) or []:
         if isinstance(task, dict):
@@ -2057,9 +2045,6 @@ def _extract_allowed_agents(plan: Dict[str, Any]) -> Set[str]:
                     allowed.add(agent)
         elif isinstance(step, str) and step:
             allowed.add(step)
-
-    if not allowed:
-        allowed = {"docker-agent", "cicd-agent", "iac-agent", "k8s-agent"}
 
     return allowed
 
@@ -2864,6 +2849,12 @@ def main():
         # Advanced options
         with st.expander("⚙️ Advanced Options", expanded=False):
             create_pr = st.checkbox("Create Pull Request", value=False, help="Automatically create a PR with generated artifacts")
+
+            require_plan_approval = st.checkbox(
+                "Require Plan Approval Before Execution",
+                value=False,
+                help="When enabled, the first run is plan-only and waits for your approval before executing agents.",
+            )
             
             if create_pr:
                 branch_name = st.text_input("Branch Name", value="devops/auto-generated", help="Branch name for the PR")
@@ -2959,13 +2950,17 @@ def main():
             - "Create a Dockerfile for my Python Flask application"
             - "Generate a Docker configuration for Java Spring Boot"
             - "Build a multi-stage Dockerfile for Go application"
+
+            **Kubernetes Examples:**
+            - "Generate Kubernetes manifests for my FastAPI app with ConfigMap, Secret, Ingress, and HPA"
+            - "Create k8s deployment + service with service type NodePort and Traefik ingress"
+            - "Create manifests for namespace, deployment, service, ingress, and autoscaling for my Java API"
+            - "Use kubernetes/examples style baseline for a production-ready web API deployment"
+            - "Apply kubeflow/manifests-inspired defaults for an ML inference service"
+            - "Generate secure k8s manifests with envFrom, valueFrom, and imagePullSecrets"
             
             **Infrastructure Examples:**
             - "Create Terraform configuration for AWS EC2 deployment"
-            - "Generate Kubernetes manifests for my FastAPI app with ConfigMap, Secret, Ingress, and HPA"
-            - "Create k8s deployment + service with service type NodePort and Traefik ingress"
-            - "Use kubernetes/examples style baseline for a production-ready web API deployment"
-            - "Apply kubeflow/manifests-inspired defaults for an ML inference service"
             - "Set up cloud infrastructure on Azure"
             
             **Combined:**
@@ -3095,7 +3090,8 @@ def main():
 
         st.markdown("### ✏️ Edit Plan (Paragraph)")
         st.caption("Use one step per line. Example: Step 1: docker-agent")
-        st.caption("For parallel steps, write: Step 2: cicd-agent, iac-agent (parallel)")
+        st.caption("For parallel steps, write: Step 2: iac-agent, k8s-agent")
+        st.caption("Step 3: cicd-agent")
         st.text_area(
             "Execution Plan (Text)",
             key="plan_editor_text",
@@ -3227,6 +3223,7 @@ def main():
         
         # Prepare terraform data
         terraform_data = feedback_artifacts.get("terraform") if isinstance(feedback_artifacts.get("terraform"), dict) else {}
+        kubernetes_data = feedback_artifacts.get("kubernetes") if isinstance(feedback_artifacts.get("kubernetes"), dict) else {}
         
         # Show YAML if available
         if feedback_artifacts.get("yaml"):
@@ -3282,12 +3279,44 @@ def main():
                 for tab, (name, key) in zip(tabs, tf_tabs):
                     with tab:
                         st.code(terraform_data.get(key), language="hcl")
+
+        # Show Kubernetes manifests if available
+        if kubernetes_data:
+            has_artifacts = True
+            st.markdown("#### Kubernetes Manifests")
+
+            k8s_tabs = []
+            manifest_map = [
+                ("namespace.yaml", "namespace_yaml"),
+                ("configmap.yaml", "configmap_yaml"),
+                ("secret.yaml", "secret_yaml"),
+                ("deployment.yaml", "deployment_yaml"),
+                ("service.yaml", "service_yaml"),
+                ("ingress.yaml", "ingress_yaml"),
+                ("hpa.yaml", "hpa_yaml"),
+            ]
+            for display_name, key in manifest_map:
+                if kubernetes_data.get(key):
+                    k8s_tabs.append((display_name, key))
+
+            if k8s_tabs:
+                tabs = st.tabs([name for name, _ in k8s_tabs])
+                for tab, (name, key) in zip(tabs, k8s_tabs):
+                    with tab:
+                        st.code(kubernetes_data.get(key), language="yaml")
         
         # Set terraform edited values
         edited_main_tf = terraform_data.get("main_tf") or ""
         edited_variables_tf = terraform_data.get("variables_tf") or ""
         edited_outputs_tf = terraform_data.get("outputs_tf") or ""
         edited_providers_tf = terraform_data.get("providers_tf") or ""
+        edited_namespace_yaml = kubernetes_data.get("namespace_yaml") or ""
+        edited_configmap_yaml = kubernetes_data.get("configmap_yaml") or ""
+        edited_secret_yaml = kubernetes_data.get("secret_yaml") or ""
+        edited_deployment_yaml = kubernetes_data.get("deployment_yaml") or ""
+        edited_service_yaml = kubernetes_data.get("service_yaml") or ""
+        edited_ingress_yaml = kubernetes_data.get("ingress_yaml") or ""
+        edited_hpa_yaml = kubernetes_data.get("hpa_yaml") or ""
         
         if not has_artifacts:
             st.warning("⚠️ No artifacts were generated. Please check the execution logs above.")
@@ -3672,6 +3701,15 @@ def main():
                             "outputs_tf": edited_outputs_tf.strip(),
                             "providers_tf": edited_providers_tf.strip(),
                         },
+                        "kubernetes": {
+                            "namespace_yaml": edited_namespace_yaml.strip(),
+                            "configmap_yaml": edited_configmap_yaml.strip(),
+                            "secret_yaml": edited_secret_yaml.strip(),
+                            "deployment_yaml": edited_deployment_yaml.strip(),
+                            "service_yaml": edited_service_yaml.strip(),
+                            "ingress_yaml": edited_ingress_yaml.strip(),
+                            "hpa_yaml": edited_hpa_yaml.strip(),
+                        },
                         "metadata": feedback_artifacts.get("metadata", {}),
                     }
                     st.session_state.feedback_edits = edited_artifacts
@@ -3699,6 +3737,15 @@ def main():
                         "outputs_tf": edited_outputs_tf.strip(),
                         "providers_tf": edited_providers_tf.strip(),
                     },
+                    "kubernetes": {
+                        "namespace_yaml": edited_namespace_yaml.strip(),
+                        "configmap_yaml": edited_configmap_yaml.strip(),
+                        "secret_yaml": edited_secret_yaml.strip(),
+                        "deployment_yaml": edited_deployment_yaml.strip(),
+                        "service_yaml": edited_service_yaml.strip(),
+                        "ingress_yaml": edited_ingress_yaml.strip(),
+                        "hpa_yaml": edited_hpa_yaml.strip(),
+                    },
                     "metadata": feedback_artifacts.get("metadata", {}),
                 }
                 st.session_state.feedback_edits = edited_artifacts
@@ -3719,6 +3766,15 @@ def main():
                         "variables_tf": edited_variables_tf.strip(),
                         "outputs_tf": edited_outputs_tf.strip(),
                         "providers_tf": edited_providers_tf.strip(),
+                    },
+                    "kubernetes": {
+                        "namespace_yaml": edited_namespace_yaml.strip(),
+                        "configmap_yaml": edited_configmap_yaml.strip(),
+                        "secret_yaml": edited_secret_yaml.strip(),
+                        "deployment_yaml": edited_deployment_yaml.strip(),
+                        "service_yaml": edited_service_yaml.strip(),
+                        "ingress_yaml": edited_ingress_yaml.strip(),
+                        "hpa_yaml": edited_hpa_yaml.strip(),
                     },
                     "metadata": feedback_artifacts.get("metadata", {}),
                 }
@@ -3754,7 +3810,8 @@ def main():
 
             cmd = [sys.executable, str(orchestrator_script)]
             cmd.extend(["--prompt", user_prompt])
-            cmd.append("--plan-only")
+            if require_plan_approval:
+                cmd.append("--plan-only")
 
             if repo_path:
                 cmd.extend(["--repo-path", str(repo_path)])
@@ -3775,11 +3832,12 @@ def main():
                 cwd=str(orchestrator_script.parent),
                 env=run_env,
                 panel_title="Orchestrator Runtime Logs",
-                task_type="plan-only",
+                task_type="plan-only" if require_plan_approval else "direct-execution",
                 payload={
                     "user_prompt": user_prompt,
                     "repo_path": repo_path,
                     "github_url": github_url,
+                    "require_plan_approval": bool(require_plan_approval),
                     "create_pr": bool(create_pr),
                     "branch_name": str(branch_name or "").strip(),
                     "pr_title": str(pr_title or "").strip(),
@@ -3830,6 +3888,13 @@ def main():
                         tf_info = apply_result["terraform"]
                         st.markdown(f"**Terraform:** `{tf_info.get('terraform_dir')}`")
                         for file_key, file_info in tf_info.get("files", {}).items():
+                            if file_info.get("success"):
+                                st.caption(f"  ✅ {Path(file_info.get('path')).name}")
+
+                    if apply_result.get("kubernetes"):
+                        k8s_info = apply_result["kubernetes"]
+                        st.markdown(f"**Kubernetes:** `{k8s_info.get('kubernetes_dir')}`")
+                        for file_key, file_info in k8s_info.get("files", {}).items():
                             if file_info.get("success"):
                                 st.caption(f"  ✅ {Path(file_info.get('path')).name}")
             else:
@@ -3951,11 +4016,6 @@ def main():
 
         artifacts = result.get("edited_artifacts") if isinstance(result.get("edited_artifacts"), dict) else extract_artifacts(result)
 
-        # DEBUG: Show more context
-        k8s_data = artifacts.get("kubernetes")
-        k8s_keys = "None" if not k8s_data else "dict" if isinstance(k8s_data, dict) else type(k8s_data).__name__
-        st.caption(f"DEBUG: status={status}, ui_menu={ui_menu}, k8s={k8s_keys}")
-
         if ui_menu == "Logs":
             display_logs_center(result)
         else:
@@ -3978,7 +4038,6 @@ def main():
                 )
 
             if ui_menu == "Workspace" and status == "completed":
-                st.write("DEBUG: calling display_artifacts with k8s =", "kubernetes" in artifacts)
                 display_artifacts(artifacts)
             elif ui_menu == "Pipeline":
                 st.info("Pipeline view is focused on execution flow. Switch to Workspace from the menu to edit or download artifacts.")

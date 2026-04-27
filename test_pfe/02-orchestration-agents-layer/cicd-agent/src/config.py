@@ -31,7 +31,7 @@ class Config:
 
     # Groq LLM Configuration (fallback)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("CICD_GROQ_MODEL", "mixtral-8x7b-32768")
+    GROQ_MODEL: str = os.getenv("CICD_GROQ_MODEL", "llama-3.3-70b-versatile")
     GROQ_FALLBACK_MODELS: list[str] = [
         model.strip()
         for model in os.getenv("CICD_GROQ_FALLBACK_MODELS", "llama-3.3-70b-versatile").split(",")
