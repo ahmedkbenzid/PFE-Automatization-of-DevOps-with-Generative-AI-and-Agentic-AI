@@ -14,14 +14,37 @@
     </a>
   </header>
 
-  <div class="grid gap-4">
-    <app-agent-status [result]="result$ | async"></app-agent-status>
+  <ng-container *ngIf="activeTab$ | async as activeTab">
+    <div class="mb-4 flex gap-2 border-b border-devflow-border pb-2">
+      <button
+        (click)="setTab('logs')"
+        [class.bg-devflow-elevated]="activeTab === 'logs'"
+        [class.text-devflow-accent]="activeTab === 'logs'"
+        class="rounded-lg px-4 py-2 text-sm font-semibold text-devflow-text-muted hover:bg-devflow-surface transition-colors"
+      >
+        Logs
+      </button>
+      <button
+        (click)="setTab('workspace')"
+        [class.bg-devflow-elevated]="activeTab === 'workspace'"
+        [class.text-devflow-accent]="activeTab === 'workspace'"
+        class="rounded-lg px-4 py-2 text-sm font-semibold text-devflow-text-muted hover:bg-devflow-surface transition-colors"
+      >
+        Workspace
+      </button>
+    </div>
 
-    <app-terminal-panel [lines]="(logs$ | async) ?? []"></app-terminal-panel>
+    <div class="grid gap-4">
+      <app-agent-status [result]="result$ | async"></app-agent-status>
 
-    <app-artifact-viewer *ngIf="artifacts$ | async as artifacts" [artifacts]="artifacts"></app-artifact-viewer>
-  </div>
+      <div *ngIf="activeTab === 'logs'">
+        <app-terminal-panel [lines]="(logs$ | async) ?? []"></app-terminal-panel>
+      </div>
 
-  <!-- Approval Gate Modal (displays as overlay) -->
-  <app-approval-gate [result]="approvalResult$ | async" [runId]="runId"></app-approval-gate>
+      <div *ngIf="activeTab === 'workspace'" class="grid gap-4">
+        <app-approval-gate [result]="approvalResult$ | async" [runId]="runId"></app-approval-gate>
+        <app-artifact-viewer *ngIf="artifacts$ | async as artifacts" [artifacts]="artifacts"></app-artifact-viewer>
+      </div>
+    </div>
+  </ng-container>
 </section>

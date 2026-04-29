@@ -1,12 +1,13 @@
 import { AsyncPipe, CommonModule, NgIf } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, Subscription } from 'rxjs';
 import { catchError, map, startWith, switchMap, tap } from 'rxjs/operators';
 
 import { RunRequest } from '../../models/run.model';
 import { ApiService } from '../../services/api.service';
+import { ExamplesService } from '../../services/examples.service';
 
 interface SubmitState {
   submitting: boolean;
@@ -21,7 +22,9 @@ interface SubmitState {
   styleUrl: './run-form.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RunFormComponent {
+export class RunFormComponent implements OnInit, OnDestroy {
+  private examplesSub?: Subscription;
+
   readonly form = this.fb.nonNullable.group({
     prompt: ['', [Validators.required, Validators.minLength(5)]],
     repo_path: [''],
@@ -55,7 +58,20 @@ export class RunFormComponent {
     private readonly fb: FormBuilder,
     private readonly api: ApiService,
     private readonly router: Router,
+    private readonly examplesService: ExamplesService,
   ) {}
+
+  ngOnInit(): void {
+    this.examplesSub = this.examplesService.selectedExample$.subscribe((example) => {
+      this.loadExample(example);
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.examplesSub) {
+      this.examplesSub.unsubscribe();
+    }
+  }
 
   loadExample(exampleText: string): void {
     this.form.patchValue({ prompt: exampleText });

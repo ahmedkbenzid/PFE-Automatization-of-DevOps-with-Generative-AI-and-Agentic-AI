@@ -1,4 +1,4 @@
-/* Component Styles - Uses CSS Custom Properties from global styles.scss */
+/* Premium Terminal Styles */
 
 :host {
   display: block;
@@ -7,111 +7,149 @@
 .terminal-container {
   display: flex;
   flex-direction: column;
-  height: 400px;
-  background: var(--term-bg);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
+  height: 500px;
+  background: #0d1117; /* GitHub Dark Dimmed / Premium Dark */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
   overflow: hidden;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace;
 }
 
 .terminal-header {
-  height: 36px;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border-default);
+  height: 40px;
+  background: rgba(22, 27, 34, 0.8); /* Slightly translucent */
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 16px;
+  position: relative;
 }
 
 .traffic-light {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 
   .dot {
     display: block;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-
+    
     &.red {
-      background: #ff5f57;
+      background: #ff5f56;
+      border: 1px solid #e0443e;
     }
 
     &.yellow {
-      background: #febc2e;
+      background: #ffbd2e;
+      border: 1px solid #dea123;
     }
 
     &.green {
-      background: #28c840;
+      background: #27c93f;
+      border: 1px solid #1aab29;
     }
   }
 }
 
 .header-label {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 500;
+  color: #8b949e;
+  letter-spacing: 0.5px;
 }
 
 .log-pane {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  padding: 12px 14px;
+  padding: 16px 20px;
   scroll-behavior: smooth;
 
+  /* Custom Scrollbar */
   &::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 8px;
+    height: 8px;
   }
 
   &::-webkit-scrollbar-track {
-    background: var(--term-bg);
+    background: transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--border-default);
-    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
   }
 }
 
 .log-line {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--term-text);
-  margin: 0;
+  color: #c9d1d9; /* Default text color */
+  margin: 0 0 2px 0;
+  display: flex;
+
+  /* Adding a subtle prefix to lines makes it feel more like a real terminal */
+  &::before {
+    content: '❯';
+    color: #58a6ff;
+    margin-right: 12px;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
 
   &.log--error {
-    color: var(--term-red);
+    color: #ff7b72;
+    &::before { color: #ff7b72; }
   }
 
   &.log--warn {
-    color: var(--term-yellow);
+    color: #d29922;
+    &::before { color: #d29922; }
   }
 
   &.log--success {
-    color: var(--term-green);
+    color: #3fb950;
+    &::before { color: #3fb950; }
   }
 
   &.log--info {
-    color: var(--term-blue);
+    color: #58a6ff;
   }
 
   &.log--system {
-    color: var(--term-purple);
+    color: #bc8cff;
+    font-weight: 600;
+    &::before { content: '◈'; color: #bc8cff; }
+  }
+}
+
+.log-cursor-line {
+  &::before {
+    content: '❯';
+    color: #58a6ff;
+    opacity: 1;
   }
 }
 
 .cursor {
   display: inline-block;
-  width: 7px;
-  height: 13px;
-  background: var(--term-cursor);
+  width: 8px;
+  height: 16px;
+  background: #58a6ff;
+  margin-left: 2px;
+  vertical-align: text-bottom;
   animation: pulse-dot 1s step-end infinite;
 }
 
@@ -120,6 +158,6 @@
     opacity: 1;
   }
   50% {
-    opacity: 0.3;
+    opacity: 0;
   }
 }

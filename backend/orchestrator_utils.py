@@ -365,8 +365,25 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
     return artifacts
 
 
+_ORCHESTRATOR_PREFIX_RE = re.compile(r"^\[Orchestrator\]\s*")
+
+
+def _strip_orchestrator_prefix(line: str) -> str:
+    """Remove the [Orchestrator] prefix that run_orchestrator.py adds to every stdout line."""
+    return _ORCHESTRATOR_PREFIX_RE.sub("", line)
+
+
 def _parse_orchestrator_stdout(stdout_text: str, stderr_text: str = "") -> Dict[str, Any]:
-    """Parse orchestrator stdout into a structured result payload."""
+    """Parse orchestrator stdout into a structured result payload.
+
+    Priority order:
+    1. Explicit ``=== JSON OUTPUT === … === END JSON OUTPUT ===`` block (the final result).
+    2. Per-line scan for a bare JSON object (fallback for simpler runs).
+
+    The explicit block is checked *first* because intermediate signals (e.g. ``plan_ready``)
+    are also emitted as bare JSON lines earlier in the stream — scanning lines first would
+    incorrectly pick those up instead of the final ``completed`` result.
+    """
     output_lines = stdout_text.strip().split("\n") if stdout_text else []
     result_data = {
         "status": "completed",
@@ -376,27 +393,42 @@ def _parse_orchestrator_stdout(stdout_text: str, stderr_text: str = "") -> Dict[
         "raw_output": stdout_text,
     }
 
-    json_found = False
-    for line in output_lines:
-        line = line.strip()
-        if line.startswith("{"):
-            try:
-                json_data = json.loads(line)
-                if "status" in json_data or "state" in json_data:
-                    result_data.update(json_data)
-                    json_found = True
-                    break
-            except json.JSONDecodeError:
-                continue
+    # Strip [Orchestrator] prefix from every line before searching.
+    clean_lines = [_strip_orchestrator_prefix(l) for l in output_lines]
+    clean_text = "\n".join(clean_lines)
 
-    if not json_found and "=== JSON OUTPUT ===" in stdout_text:
+    json_found = False
+
+    # Pass 1 – explicit marker block (highest priority; this is the final orchestrator output).
+    # Use rindex to find the LAST occurrence — the orchestrator emits the block twice:
+    # once for plan_ready (intermediate) and once for completed (final). We always want the last.
+    if "=== JSON OUTPUT ===" in clean_text:
         try:
-            json_start = stdout_text.index("=== JSON OUTPUT ===") + len("=== JSON OUTPUT ===")
-            json_end = stdout_text.index("=== END JSON OUTPUT ===")
-            json_str = stdout_text[json_start:json_end].strip()
-            json_data = json.loads(json_str)
-            result_data.update(json_data)
+            marker_start = "=== JSON OUTPUT ==="
+            marker_end = "=== END JSON OUTPUT ==="
+            json_start = clean_text.rindex(marker_start) + len(marker_start)
+            json_end = clean_text.rindex(marker_end)
+            if json_end > json_start:
+                json_str = clean_text[json_start:json_end].strip()
+                json_data = json.loads(json_str)
+                result_data.update(json_data)
+                json_found = True
         except (ValueError, json.JSONDecodeError):
             pass
+
+    # Pass 2 – per-line scan (fallback for simpler runs without the marker block).
+    if not json_found:
+        for clean_line in clean_lines:
+            clean_line = clean_line.strip()
+            if clean_line.startswith("{"):
+                try:
+                    json_data = json.loads(clean_line)
+                    # Only accept a "completed" payload, not intermediate signals like plan_ready.
+                    if json_data.get("status") == "completed" or "state" in json_data:
+                        result_data.update(json_data)
+                        json_found = True  # noqa: F841
+                        break
+                except json.JSONDecodeError:
+                    continue
 
     return result_data

@@ -1,13 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from './components/header/header.component';
 import { ThemeService } from './services/theme.service';
-import { RunFormComponent } from './components/run-form/run-form.component';
+import { ExamplesService } from './services/examples.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, RunFormComponent],
+  imports: [RouterOutlet, HeaderComponent],
   template: `
     <app-header (exampleSelected)="onExampleSelected($event)"></app-header>
     <router-outlet></router-outlet>
@@ -24,17 +24,16 @@ import { RunFormComponent } from './components/run-form/run-form.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {
-  @ViewChild(RunFormComponent) runFormComponent?: RunFormComponent;
-
-  constructor(private readonly themeService: ThemeService) {}
+  constructor(
+    private readonly themeService: ThemeService,
+    private readonly examplesService: ExamplesService
+  ) {}
 
   ngOnInit(): void {
     this.themeService.initTheme();
   }
 
   onExampleSelected(example: string): void {
-    if (this.runFormComponent) {
-      this.runFormComponent.loadExample(example);
-    }
+    this.examplesService.selectExample(example);
   }
 }

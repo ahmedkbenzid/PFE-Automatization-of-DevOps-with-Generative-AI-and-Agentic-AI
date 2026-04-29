@@ -1,5 +1,5 @@
 import { NgFor, NgIf } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 
 import { Artifacts, K8sArtifacts, TerraformArtifacts } from '../../models/run.model';
 
@@ -13,7 +13,7 @@ type MainTab = 'yaml' | 'dockerfile' | 'terraform' | 'kubernetes';
   styleUrl: './artifact-viewer.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ArtifactViewerComponent {
+export class ArtifactViewerComponent implements OnChanges {
   @Input() artifacts: Artifacts | null = null;
 
   mainTab: MainTab = 'yaml';
@@ -46,6 +46,20 @@ export class ArtifactViewerComponent {
 
   selectMainTab(tab: MainTab): void {
     this.mainTab = tab;
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['artifacts'] && this.artifacts) {
+      if (this.artifacts.yaml) {
+        this.mainTab = 'yaml';
+      } else if (this.artifacts.dockerfile) {
+        this.mainTab = 'dockerfile';
+      } else if (this.artifacts.terraform) {
+        this.mainTab = 'terraform';
+      } else if (this.artifacts.kubernetes) {
+        this.mainTab = 'kubernetes';
+      }
+    }
   }
 
   selectTerraformTab(tab: keyof TerraformArtifacts): void {

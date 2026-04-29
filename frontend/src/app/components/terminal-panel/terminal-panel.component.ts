@@ -49,19 +49,23 @@ export class TerminalPanelComponent implements OnChanges, AfterViewChecked {
   }
 
   lineClass(line: string): string {
-    if (/ERROR|error::/i.test(line)) {
-      return 'line-error';
+    if (/error|fail/i.test(line)) {
+      return 'log--error';
     }
 
     if (/warning|warn/i.test(line)) {
-      return 'line-warning';
+      return 'log--warn';
     }
 
     if (/success|completed|done|pass/i.test(line)) {
-      return 'line-success';
+      return 'log--success';
+    }
+    
+    if (/===|---|orchestrator/i.test(line)) {
+      return 'log--system';
     }
 
-    return 'line-normal';
+    return 'log--normal';
   }
 
   trackByIndex(index: number): number {

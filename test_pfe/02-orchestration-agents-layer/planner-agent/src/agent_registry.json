@@ -12,17 +12,37 @@
       "deployment-automation"
     ],
     "inputs": {
-      "required": ["user_prompt", "repo_context"],
-      "optional": ["workflow_type", "deployment_target", "docker_config"]
+      "required": [
+        "user_prompt",
+        "repo_context"
+      ],
+      "optional": [
+        "workflow_type",
+        "deployment_target",
+        "docker_config"
+      ]
     },
     "outputs": {
       "primary": "workflow_yaml",
-      "metadata": ["workflow_name", "triggers", "jobs", "validation_result"]
+      "metadata": [
+        "workflow_name",
+        "triggers",
+        "jobs",
+        "validation_result"
+      ]
     },
     "dependencies": {
-      "requires_before": ["docker-agent", "iac-agent"],
-      "provides_for": ["deployment-agent"],
-      "works_with": ["docker-agent", "k8s-agent"]
+      "requires_before": [
+        "docker-agent",
+        "iac-agent"
+      ],
+      "provides_for": [
+        "deployment-agent"
+      ],
+      "works_with": [
+        "docker-agent",
+        "k8s-agent"
+      ]
     },
     "constraints": {
       "execution_time_sec": 60,
@@ -30,9 +50,10 @@
       "llm_model": "minimax-m2.7:cloud"
     },
     "priority": 2,
-    "can_run_parallel_with": ["iac-agent"]
+    "can_run_parallel_with": [
+      "iac-agent"
+    ]
   },
-  
   "docker-agent": {
     "agent_id": "docker-agent",
     "name": "Dockerfile Generator",
@@ -44,27 +65,43 @@
       "container-optimization"
     ],
     "inputs": {
-      "required": ["user_prompt", "repo_context"],
-      "optional": ["stack_type", "base_image_preference"]
+      "required": [
+        "user_prompt",
+        "repo_context"
+      ],
+      "optional": [
+        "stack_type",
+        "base_image_preference"
+      ]
     },
     "outputs": {
       "primary": "dockerfile_content",
-      "metadata": ["base_image", "stack_type", "build_system"]
+      "metadata": [
+        "base_image",
+        "stack_type",
+        "build_system"
+      ]
     },
     "dependencies": {
       "requires_before": [],
-      "provides_for": ["cicd-agent", "iac-agent", "k8s-agent"],
-      "works_with": ["iac-agent", "k8s-agent"]
+      "provides_for": [
+        "cicd-agent",
+        "iac-agent",
+        "k8s-agent"
+      ],
+      "works_with": [
+        "iac-agent",
+        "k8s-agent"
+      ]
     },
     "constraints": {
       "execution_time_sec": 45,
       "requires_repo_analysis": true,
-      "llm_model": "glm-5:cloud"
+      "llm_model": "minimax-m2.7:cloud"
     },
     "priority": 1,
     "can_run_parallel_with": []
   },
-  
   "iac-agent": {
     "agent_id": "iac-agent",
     "name": "Infrastructure as Code Generator",
@@ -77,28 +114,44 @@
       "pulumi"
     ],
     "inputs": {
-      "required": ["user_prompt", "repo_context", "cloud_provider"],
-      "optional": ["services_needed", "docker_config", "region"]
+      "required": [
+        "user_prompt",
+        "repo_context",
+        "cloud_provider"
+      ],
+      "optional": [
+        "services_needed",
+        "docker_config",
+        "region"
+      ]
     },
     "outputs": {
       "primary": "terraform_config",
-      "metadata": ["provider", "resources", "estimated_cost"]
+      "metadata": [
+        "provider",
+        "resources",
+        "estimated_cost"
+      ]
     },
     "dependencies": {
-      "requires_before": ["docker-agent"],
+      "requires_before": [
+        "docker-agent"
+      ],
       "provides_for": [],
-      "works_with": ["cicd-agent", "k8s-agent"]
+      "works_with": [
+        "cicd-agent",
+        "k8s-agent"
+      ]
     },
     "constraints": {
       "execution_time_sec": 90,
       "requires_repo_analysis": true,
       "requires_cloud_provider": true,
-      "llm_model": "glm-5:cloud"
+      "llm_model": "minimax-m2.7:cloud"
     },
     "priority": 2,
     "can_run_parallel_with": []
   },
-  
   "k8s-agent": {
     "agent_id": "k8s-agent",
     "name": "Kubernetes Manifest Generator",
@@ -110,24 +163,43 @@
       "deployment-configs"
     ],
     "inputs": {
-      "required": ["user_prompt", "repo_context"],
-      "optional": ["docker_config", "namespace", "replicas"]
+      "required": [
+        "user_prompt",
+        "repo_context"
+      ],
+      "optional": [
+        "docker_config",
+        "namespace",
+        "replicas"
+      ]
     },
     "outputs": {
       "primary": "k8s_manifests",
-      "metadata": ["deployments", "services", "configmaps"]
+      "metadata": [
+        "deployments",
+        "services",
+        "configmaps"
+      ]
     },
     "dependencies": {
-      "requires_before": ["docker-agent"],
+      "requires_before": [
+        "docker-agent"
+      ],
       "provides_for": [],
-      "works_with": ["iac-agent", "cicd-agent"]
+      "works_with": [
+        "iac-agent",
+        "cicd-agent"
+      ]
     },
     "constraints": {
       "execution_time_sec": 60,
       "requires_repo_analysis": true,
-      "llm_model": "glm-5:cloud"
+      "llm_model": "minimax-m2.7:cloud"
     },
     "priority": 2,
-    "can_run_parallel_with": ["cicd-agent", "iac-agent"]
+    "can_run_parallel_with": [
+      "cicd-agent",
+      "iac-agent"
+    ]
   }
 }

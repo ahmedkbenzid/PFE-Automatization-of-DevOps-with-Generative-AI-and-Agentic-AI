@@ -228,13 +228,36 @@ async def request_repair(run_id: str, payload: Dict[str, Any] = Body(default_fac
     return {"ok": True, "file": str(repair_file)}
 
 
+@app.get("/api/runs/{run_id}/debug")
+async def debug_run(run_id: str) -> Dict[str, Any]:
+    """Debug endpoint: shows raw stored lines and what the parser sees."""
+    run_state = _ensure_run_exists(run_id)
+    total_lines = len(run_state.output_lines)
+    # Show last 30 lines so we can see the JSON block
+    tail = run_state.output_lines[max(0, total_lines - 30):]
+    stdout_text = "\n".join(run_state.output_lines)
+    parsed = _parse_orchestrator_stdout(stdout_text, "")
+    return {
+        "run_id": run_id,
+        "total_lines": total_lines,
+        "tail_lines": tail,
+        "parsed_status": parsed.get("status"),
+        "has_state": "state" in parsed,
+        "has_agent_outputs": bool(parsed.get("state", {}).get("agent_outputs")),
+        "parsed_result_cached": run_state.parsed_result is not None,
+    }
+
+
 @app.get("/api/runs/{run_id}/artifacts")
 async def get_artifacts(run_id: str) -> Dict[str, Any]:
     run_state = _ensure_run_exists(run_id)
 
-    if run_state.parsed_result is None:
-        stdout_text = "\n".join(run_state.output_lines)
-        run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+    stdout_text = "\n".join(run_state.output_lines)
+    # Always re-parse to pick up latest output (handles race between process exit and HTTP call)
+    run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+
+    print(f"[Backend] artifacts: total_lines={len(run_state.output_lines)}, has_state={'state' in run_state.parsed_result}, has_agent_outputs={bool(run_state.parsed_result.get('state', {}).get('agent_outputs'))}", file=sys.stderr)
+    sys.stderr.flush()
 
     return extract_artifacts(run_state.parsed_result)
 

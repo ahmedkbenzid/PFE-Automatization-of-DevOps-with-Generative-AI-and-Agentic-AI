@@ -1,12 +1,22 @@
-<section class="terminal-shell">
-  <header class="terminal-header">Live Terminal</header>
-  <div #terminalPane class="terminal-pane">
+<section class="terminal-container">
+  <header class="terminal-header">
+    <div class="traffic-light">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+    </div>
+    <span class="header-label">Live Terminal</span>
+  </header>
+  <div #terminalPane class="log-pane">
     <div
       *ngFor="let line of bufferedLines; trackBy: trackByIndex"
-      class="terminal-line"
+      class="log-line"
       [ngClass]="lineClass(line)"
     >
       {{ line }}
+    </div>
+    <div class="log-line log-cursor-line">
+      <span class="cursor"></span>
     </div>
   </div>
 </section>

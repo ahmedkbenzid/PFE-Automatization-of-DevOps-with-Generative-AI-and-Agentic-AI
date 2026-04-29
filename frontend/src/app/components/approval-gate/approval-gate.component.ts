@@ -64,7 +64,7 @@ export class ApprovalGateComponent implements OnChanges {
   ngOnChanges(): void {
     console.log('[ApprovalGate] ngOnChanges called, result:', this.result);
     console.log('[ApprovalGate] isPlanReady():', this.isPlanReady());
-    const paragraph = this.planToParagraph(this.result?.execution_plan);
+    const paragraph = this.planToParagraph(this.result);
     if (paragraph) {
       this.planText.setValue(paragraph, { emitEvent: false });
     }
@@ -94,29 +94,35 @@ export class ApprovalGateComponent implements OnChanges {
       .map((step) => (step.length === 1 ? step[0] : step));
   }
 
-  private planToParagraph(plan: any): string {
-    if (!plan || typeof plan !== 'object') {
-      return '';
+  private planToParagraph(result: any): string {
+    if (!result) return '';
+    
+    const plan = result.execution_plan;
+    if (plan && typeof plan === 'object') {
+      const executionOrder = Array.isArray(plan.execution_order) ? plan.execution_order : [];
+      if (executionOrder.length > 0) {
+        return executionOrder
+          .map((step: any, index: number) => {
+            const line = Array.isArray(step) ? step.join(', ') : String(step);
+            return `Step ${index + 1}: ${line}`;
+          })
+          .join('\n');
+      }
+
+      const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+      if (tasks.length > 0) {
+        return tasks
+          .map((task: any, index: number) => {
+            const value = task?.agent ? String(task.agent) : String(task ?? '');
+            return `Step ${index + 1}: ${value}`;
+          })
+          .join('\n');
+      }
     }
 
-    const executionOrder = Array.isArray(plan.execution_order) ? plan.execution_order : [];
-    if (executionOrder.length > 0) {
-      return executionOrder
-        .map((step: any, index: number) => {
-          const line = Array.isArray(step) ? step.join(', ') : String(step);
-          return `Step ${index + 1}: ${line}`;
-        })
-        .join('\n');
-    }
-
-    const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
-    if (tasks.length > 0) {
-      return tasks
-        .map((task: any, index: number) => {
-          const value = task?.agent ? String(task.agent) : String(task ?? '');
-          return `Step ${index + 1}: ${value}`;
-        })
-        .join('\n');
+    const state = result.state;
+    if (state && Array.isArray(state.target_agents) && state.target_agents.length > 0) {
+      return `Step 1: ${state.target_agents.join(', ')}`;
     }
 
     return '';

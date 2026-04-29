@@ -1,6 +1,6 @@
 <ng-container *ngIf="actionState$ | async as actionState">
-  <div *ngIf="isPlanReady() && !actionState.closed" class="approval-backdrop">
-    <div class="approval-modal">
+  <div *ngIf="isPlanReady() && !actionState.closed" class="approval-container">
+    <div class="approval-panel">
       <div class="modal-header">
         <h2>Execution Plan Approval</h2>
       </div>

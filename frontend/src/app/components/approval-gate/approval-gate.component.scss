@@ -4,27 +4,19 @@
   display: block;
 }
 
-.approval-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+.approval-container {
+  display: block;
+  padding: 0;
 }
 
-.approval-modal {
+.approval-panel {
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   padding: 28px;
-  width: 560px;
-  max-width: 90vw;
+  width: 100%;
   animation: fade-in 200ms ease;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
@@ -257,7 +249,7 @@
 }
 
 @media (max-width: 640px) {
-  .approval-modal {
+  .approval-panel {
     width: 100%;
     padding: 20px;
   }

@@ -113,7 +113,7 @@ class LLMClient:
         """Initialize Ollama client."""
         if chat is None:
             raise RuntimeError("ollama package is not installed. Run: pip install ollama")
-        self.model = LLM_CONFIG.get("model", "glm-5:cloud")
+        self.model = LLM_CONFIG.get("model", "minimax-m2.7:cloud")
         logger.info(f"Using Ollama with model: {self.model}")
 
     def _init_groq(self) -> None:

@@ -1,7 +1,7 @@
 import { AsyncPipe, NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { combineLatest, interval, of } from 'rxjs';
+import { BehaviorSubject, combineLatest, interval, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -21,6 +21,7 @@ import { TerminalPanelComponent } from '../terminal-panel/terminal-panel.compone
 import { CompleteEvent, LogEvent } from '../../models/run.model';
 import { ApiService } from '../../services/api.service';
 import { WebsocketService } from '../../services/websocket.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-run-dashboard',
@@ -39,6 +40,12 @@ import { WebsocketService } from '../../services/websocket.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RunDashboardComponent {
+  readonly activeTab$ = new BehaviorSubject<'logs' | 'workspace'>('logs');
+
+  setTab(tab: 'logs' | 'workspace'): void {
+    this.activeTab$.next(tab);
+  }
+
   readonly runId$ = this.route.paramMap.pipe(
     map((params) => params.get('id') ?? ''),
     filter((id) => id.length > 0),
@@ -101,12 +108,23 @@ export class RunDashboardComponent {
       return null;
     }),
     distinctUntilChanged((prev, curr) => JSON.stringify(prev) === JSON.stringify(curr)),
+    tap((event) => {
+      if (event && this.activeTab$.value !== 'workspace') {
+        this.activeTab$.next('workspace');
+      }
+    }),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   readonly result$ = this.wsEvents$.pipe(
     filter((event): event is CompleteEvent => event.type === 'complete'),
     map((event) => event.result),
+    tap((result) => {
+      console.log('[DEBUG] result$ emitted:', result);
+      if (result && this.activeTab$.value !== 'workspace') {
+        this.activeTab$.next('workspace');
+      }
+    }),
     startWith(null),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
@@ -120,7 +138,8 @@ export class RunDashboardComponent {
       if (planEvent) {
         const result = {
           status: 'plan_ready' as const,
-          execution_plan: planEvent.execution_plan || [],
+          execution_plan: planEvent.execution_plan || {},
+          state: planEvent.state || {},
         };
         console.log('[DEBUG] approvalResult$ returning:', result);
         return result;
@@ -139,7 +158,13 @@ export class RunDashboardComponent {
       if (!result) {
         return of(null);
       }
-      return this.api.getArtifacts(runId).pipe(catchError(() => of(null)));
+      return this.api.getArtifacts(runId).pipe(
+        tap((artifacts) => console.log('[DEBUG] getArtifacts returned:', artifacts)),
+        catchError((err) => {
+          console.error('[DEBUG] getArtifacts error:', err);
+          return of(null);
+        })
+      );
     }),
     startWith(null),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -154,5 +179,9 @@ export class RunDashboardComponent {
     private readonly route: ActivatedRoute,
     private readonly websocket: WebsocketService,
     private readonly api: ApiService,
-  ) {}
+  ) {
+    // Eagerly subscribe to planReadyEvent$ so the tap side-effect runs
+    // even if the user is on the logs tab (where approval gate is hidden).
+    this.planReadyEvent$.pipe(takeUntilDestroyed()).subscribe();
+  }
 }
