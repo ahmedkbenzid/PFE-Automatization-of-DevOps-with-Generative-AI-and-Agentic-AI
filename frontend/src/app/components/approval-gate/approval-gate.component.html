@@ -1,0 +1,57 @@
+<ng-container *ngIf="actionState$ | async as actionState">
+  <div *ngIf="isPlanReady() && !actionState.closed" class="approval-backdrop">
+    <div class="approval-modal">
+      <div class="modal-header">
+        <h2>Execution Plan Approval</h2>
+      </div>
+
+      <!-- Plan Textarea -->
+      <section class="plan-section">
+        <label for="plan-editor" class="form-label">Execution Order</label>
+        <p class="section-description">Review and edit the execution order as needed, then approve or reject</p>
+        <textarea
+          id="plan-editor"
+          [formControl]="planText"
+          class="plan-textarea"
+          placeholder="Step 1: docker-agent"
+          aria-label="Execution plan"
+        ></textarea>
+        <p class="plan-caption">Each step runs with specified agents. Modify as needed before approving.</p>
+      </section>
+
+      <!-- Success Message -->
+      <div *ngIf="actionState.success" class="success-alert" role="status">
+        <span class="success-icon">✓</span>
+        <p class="alert-message">{{ actionState.success }}</p>
+      </div>
+
+      <!-- Error Message -->
+      <div *ngIf="actionState.error" class="error-alert" role="alert">
+        <span class="error-icon">⚠</span>
+        <p class="alert-message">{{ actionState.error }}</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-row">
+        <button
+          type="button"
+          class="button button-reject"
+          [disabled]="actionState.submitting"
+          (click)="submitDecision(false)"
+          aria-label="Reject the execution plan"
+        >
+          {{ actionState.submitting ? 'Processing...' : 'Reject' }}
+        </button>
+        <button
+          type="button"
+          class="button button-approve"
+          [disabled]="actionState.submitting"
+          (click)="submitDecision(true)"
+          aria-label="Approve the execution plan"
+        >
+          {{ actionState.submitting ? 'Processing...' : 'Approve & Execute' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</ng-container>

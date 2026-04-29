@@ -1,10 +1,11 @@
 """
 LangGraph Orchestrator - Graph Construction and Compilation.
-
+ 
 This module builds the orchestration graph matching the requested architecture:
 user prompt -> guardrails -> repo-analysis -> (complex ? planner path : direct routing path)
 """
 
+import sys
 from typing import Literal
 from langgraph.graph import StateGraph, START, END
 
@@ -142,8 +143,9 @@ def run_orchestrator(
     planner_enabled: bool = True,
     planner_complexity_threshold: int = 4,
     user_feedback: str = "accept",
+    run_id: str = None,
 ) -> dict:
-    initial_state = create_initial_state(
+    initial_state: Dict[str, Any] = create_initial_state(
         user_prompt=user_prompt,
         repository_path=repository_path,
         github_url=github_url,
@@ -159,8 +161,29 @@ def run_orchestrator(
     initial_state["planner_complexity_threshold"] = planner_complexity_threshold
     initial_state["user_feedback"] = user_feedback
 
+    # DEBUG: Print run_id being received
+    print(f"[Orchestrator] run_orchestrator() received run_id='{run_id}' from parameter")
+    import os
+    # Also check environment variable as fallback
+    if not run_id:
+        run_id = os.environ.get("ORCHESTRATOR_RUN_ID", "")
+        if run_id:
+            print(f"[Orchestrator] Got run_id from environment: {run_id}")
+
+    # Always ensure run_id is set - use provided run_id or generate one
+    if run_id:
+        initial_state["run_id"] = run_id
+        print(f"[Orchestrator] Using provided run_id: {run_id}")
+    else:
+        import uuid
+        initial_state["run_id"] = str(uuid.uuid4())
+        print(f"[Orchestrator] Generated new run_id: {initial_state['run_id']}")
+
     if execution_plan:
         initial_state["approved_execution_plan"] = execution_plan
+
+    print(f"[Orchestrator] Final initial_state run_id: {initial_state.get('run_id')}")
+    sys.stdout.flush()
 
     final_state = get_compiled_graph().invoke(initial_state)
     return state_to_legacy_format(final_state)

@@ -61,6 +61,7 @@ class OrchestratorState(TypedDict, total=False):
     user_prompt: str
     repository_path: Optional[str]
     github_url: Optional[str]
+    run_id: Optional[str]  # Unique run ID for signal file polling
     plan_only: bool
     skip_planner: bool
     planner_enabled: bool

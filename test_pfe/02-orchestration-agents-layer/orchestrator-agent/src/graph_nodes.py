@@ -473,21 +473,296 @@ def planner_node(state: OrchestratorState) -> Dict[str, Any]:
 
 
 def man_in_the_loop_node(state: OrchestratorState) -> Dict[str, Any]:
-    """Human approval stage."""
-    has_plan = bool(state.get("execution_plan"))
-    if not has_plan:
-        return {"plan_approved": False}
+    """Human approval stage with signal file polling."""
+    import time
+    from pathlib import Path
 
-    # Any planner-generated plan should pause for review unless an approved
-    # execution plan is already being replayed.
-    if not state.get("approved_execution_plan"):
+    try:
+        # DEBUG: Print state at start
+        print(f"[Orchestrator] === MAN_IN_THE_LOOP NODE START ===")
+        print(f"[Orchestrator] plan_only = {state.get('plan_only', False)}")
+        print(f"[Orchestrator] has execution_plan = {bool(state.get('execution_plan'))}")
+        print(f"[Orchestrator] execution_plan = {state.get('execution_plan')}")
+        print(f"[Orchestrator] run_id = '{state.get('run_id', '')}'")
+        print(f"[Orchestrator] status = {state.get('status', 'N/A')}")
+        sys.stdout.flush()
+
+        has_plan = bool(state.get("execution_plan"))
+        if not has_plan:
+            print(f"[Orchestrator] No plan, returning early")
+            sys.stdout.flush()
+            return {"plan_approved": False}
+
+        # If we have an approved execution plan (passed in), use it immediately
+        if state.get("approved_execution_plan"):
+            print(f"[Orchestrator] Already approved plan, skipping polling")
+            sys.stdout.flush()
+            return {"plan_approved": True, "plan_only_waiting_approval": False}
+
+        # In plan_only mode, output plan and poll for approval signal file
+        plan_only = state.get("plan_only", False)
+        if not plan_only:
+            # In normal mode without explicit approval, skip man-in-the-loop
+            print(f"[Orchestrator] Not in plan_only mode, skipping polling")
+            sys.stdout.flush()
+            return {
+                "plan_approved": False,
+                "plan_only_waiting_approval": False,
+                "status": "plan_ready",
+            }
+
+        # Get run_id from state or generate one
+        run_id = state.get("run_id", "")
+        if not run_id:
+            import uuid
+            run_id = str(uuid.uuid4())
+            state["run_id"] = run_id
+            print(f"[Orchestrator] Generated missing run_id = '{run_id}'")
+        print(f"[Orchestrator] DEBUG: run_id from state = '{run_id}'")
+        sys.stdout.flush()
+
+        if not run_id:
+            print("[Orchestrator] ⚠️  No run_id available for signal file polling")
+            return {
+                "plan_approved": False,
+                "plan_only_waiting_approval": True,
+                "status": "plan_ready",
+            }
+
+        # Poll for approval signal file
+        approval_file = Path.cwd() / f"{run_id}.approval.json"
+        # Also check parent directory (where backend writes it)
+        parent_file = Path.cwd().parent / f"{run_id}.approval.json"
+        if not approval_file.exists() and parent_file.exists():
+            approval_file = parent_file
+
+        max_wait_seconds = 3600  # 1 hour timeout
+        poll_interval = 2  # Check every 2 seconds
+        start_time = time.time()
+
+        print(f"[Orchestrator] 🔍 Polling for approval signal")
+        print(f"[Orchestrator] Current working directory: {Path.cwd()}")
+        print(f"[Orchestrator] Absolute approval file path: {approval_file.resolve()}")
+        print(f"[Orchestrator] Signal directory contents: {list(Path.cwd().glob('*.approval.json'))}")
+        sys.stdout.flush()
+
+        # Emit plan_ready signal for frontend to detect
+        print("\n=== JSON OUTPUT ===")
+        plan_ready_signal = {
+            "status": "plan_ready",
+            "run_id": run_id,
+            "execution_plan": state.get("execution_plan", {}),
+            "complexity_score": state.get("complexity_score", 0),
+            "planner_reasoning": state.get("planner_reasoning", ""),
+        }
+        import json
+        print(json.dumps(plan_ready_signal))
+        print("=== END JSON OUTPUT ===\n")
+        sys.stdout.flush()
+
+        while time.time() - start_time < max_wait_seconds:
+            # Signal to backend that we're waiting for approval
+            if int(time.time() - start_time) % 10 == 0:  # Print every ~10 seconds
+                print(f"[Orchestrator] ⏳ Still waiting for approval signal at {approval_file.resolve()}...")
+                sys.stdout.flush()
+
+            if approval_file.exists():
+                try:
+                    approval_data = json.loads(approval_file.read_text(encoding="utf-8"))
+                    print(f"[Orchestrator] ✅ Approval signal received: {approval_data}")
+                    sys.stdout.flush()
+
+                    if approval_data.get("approved", False):
+                        # Extract edited execution order if provided
+                        edited_order = approval_data.get("edited_execution_order", [])
+                        plan = state.get("execution_plan", {})
+
+                        if edited_order:
+                            # Update plan with edited execution order
+                            if isinstance(plan, dict):
+                                plan["execution_order"] = edited_order
+                            print(f"[Orchestrator] 🔄 Using edited execution order: {edited_order}")
+                            sys.stdout.flush()
+
+                        # Clean up signal file
+                        try:
+                            approval_file.unlink()
+                            print(f"[Orchestrator] 🗑️  Cleaned up approval signal file")
+                        except Exception as e:
+                            print(f"[Orchestrator] ⚠️  Could not delete signal file: {e}")
+
+                        sys.stdout.flush()
+
+                        return {
+                            "plan_approved": True,
+                            "plan_only_waiting_approval": False,
+                            "execution_plan": plan,
+                            "status": "pending",
+                            "approved_execution_plan": plan,
+                        }
+                    else:
+                        print(f"[Orchestrator] ❌ Plan rejected by user")
+                        sys.stdout.flush()
+                        try:
+                            approval_file.unlink()
+                        except:
+                            pass
+                        return {
+                            "plan_approved": False,
+                            "plan_only_waiting_approval": False,
+                            "status": "cancelled",
+                        }
+                except Exception as e:
+                    print(f"[Orchestrator] ⚠️  Error reading approval signal: {e}")
+                    sys.stdout.flush()
+                    return {
+                        "plan_approved": False,
+                        "plan_only_waiting_approval": True,
+                        "status": "plan_ready",
+                        "errors": [f"Error reading approval signal: {str(e)}"],
+                    }
+
+            time.sleep(poll_interval)
+
+        # Timeout waiting for approval
+        print(f"[Orchestrator] ⏰ Timeout waiting for approval (>{max_wait_seconds}s)")
+        sys.stdout.flush()
         return {
             "plan_approved": False,
-            "plan_only_waiting_approval": True,
+            "plan_only_waiting_approval": False,
             "status": "plan_ready",
+            "errors": ["Timeout waiting for plan approval"],
+        }
+    except Exception as e:
+        print(f"[Orchestrator] ❌ CRITICAL ERROR in man_in_the_loop: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        return {
+            "plan_approved": False,
+            "plan_only_waiting_approval": False,
+            "status": "error",
+            "errors": [f"man_in_the_loop error: {str(e)}"],
         }
 
-    return {"plan_approved": True, "plan_only_waiting_approval": False}
+        # Get run_id from state or generate one
+        run_id = state.get("run_id", "")
+        if not run_id:
+            import uuid
+            run_id = str(uuid.uuid4())
+            state["run_id"] = run_id
+            print(f"[Orchestrator] Generated missing run_id = '{run_id}'")
+        print(f"[Orchestrator] DEBUG: run_id from state = '{run_id}'")
+        sys.stdout.flush()
+
+        if not run_id:
+            print("[Orchestrator] ⚠️  No run_id available for signal file polling")
+            return {
+                "plan_approved": False,
+                "plan_only_waiting_approval": True,
+                "status": "plan_ready",
+            }
+
+        # Poll for approval signal file
+        approval_file = Path.cwd() / f"{run_id}.approval.json"
+        # Also check parent directory (where backend writes it)
+        parent_file = Path.cwd().parent / f"{run_id}.approval.json"
+        if not approval_file.exists() and parent_file.exists():
+            approval_file = parent_file
+
+        max_wait_seconds = 3600  # 1 hour timeout
+        poll_interval = 2  # Check every 2 seconds
+        start_time = time.time()
+
+        print(f"[Orchestrator] 🔍 Polling for approval signal")
+        print(f"[Orchestrator] Current working directory: {Path.cwd()}")
+        print(f"[Orchestrator] Absolute approval file path: {approval_file.resolve()}")
+        sys.stdout.flush()
+        
+        while time.time() - start_time < max_wait_seconds:
+            # Signal to backend that we're waiting for approval
+            if int(time.time() - start_time) % 10 == 0:  # Print every ~10 seconds
+                print(f"[Orchestrator] ⏳ Still waiting for approval signal at {approval_file.resolve()}...")
+                sys.stdout.flush()
+
+            if approval_file.exists():
+                try:
+                    approval_data = json.loads(approval_file.read_text(encoding="utf-8"))
+                    print(f"[Orchestrator] ✅ Approval signal received: {approval_data}")
+                    sys.stdout.flush()
+
+                    if approval_data.get("approved", False):
+                        # Extract edited execution order if provided
+                        edited_order = approval_data.get("edited_execution_order", [])
+                        plan = state.get("execution_plan", {})
+
+                        if edited_order:
+                            # Update plan with edited execution order
+                            if isinstance(plan, dict):
+                                plan["execution_order"] = edited_order
+                            print(f"[Orchestrator] 🔄 Using edited execution order: {edited_order}")
+                            sys.stdout.flush()
+
+                        # Clean up signal file
+                        try:
+                            approval_file.unlink()
+                            print(f"[Orchestrator] 🗑️  Cleaned up approval signal file")
+                        except Exception as e:
+                            print(f"[Orchestrator] ⚠️  Could not delete signal file: {e}")
+
+                        sys.stdout.flush()
+
+                        return {
+                            "plan_approved": True,
+                            "plan_only_waiting_approval": False,
+                            "execution_plan": plan,
+                            "status": "pending",
+                            "approved_execution_plan": plan,
+                        }
+                    else:
+                        print(f"[Orchestrator] ❌ Plan rejected by user")
+                        sys.stdout.flush()
+                        try:
+                            approval_file.unlink()
+                        except:
+                            pass
+                        return {
+                            "plan_approved": False,
+                            "plan_only_waiting_approval": False,
+                            "status": "cancelled",
+                        }
+                except Exception as e:
+                    print(f"[Orchestrator] ⚠️  Error reading approval signal: {e}")
+                    sys.stdout.flush()
+                    return {
+                        "plan_approved": False,
+                        "plan_only_waiting_approval": True,
+                        "status": "plan_ready",
+                        "errors": [f"Error reading approval signal: {str(e)}"],
+                    }
+
+            time.sleep(poll_interval)
+
+        # Timeout waiting for approval
+        print(f"[Orchestrator] ⏰ Timeout waiting for approval (>{max_wait_seconds}s)")
+        sys.stdout.flush()
+        return {
+            "plan_approved": False,
+            "plan_only_waiting_approval": False,
+            "status": "plan_ready",
+            "errors": ["Timeout waiting for plan approval"],
+        }
+    except Exception as e:
+        print(f"[Orchestrator] ❌ CRITICAL ERROR in man_in_the_loop: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        return {
+            "plan_approved": False,
+            "plan_only_waiting_approval": False,
+            "status": "error",
+            "errors": [f"man_in_the_loop error: {str(e)}"],
+        }
 
 
 def plan_confirmed_node(state: OrchestratorState) -> Dict[str, Any]:

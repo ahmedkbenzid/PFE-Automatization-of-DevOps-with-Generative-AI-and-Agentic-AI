@@ -1,0 +1,119 @@
+/* Component Styles - Uses CSS Custom Properties from global styles.scss */
+
+:host {
+  display: block;
+}
+
+.agents-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.agent-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  transition: background 150ms ease, box-shadow 150ms ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 8px 0 0 8px;
+    transition: background 150ms ease;
+  }
+
+  &.success {
+    background: var(--success-bg);
+    border-color: var(--success-border);
+
+    &::before {
+      background: var(--success);
+    }
+  }
+
+  &.error {
+    background: var(--error-bg);
+    border-color: var(--error-border);
+
+    &::before {
+      background: var(--error);
+    }
+  }
+
+  &.running {
+    background: var(--running-bg);
+    border-color: var(--running-border);
+
+    &::before {
+      background: var(--running);
+      animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  }
+
+  &.pending {
+    background: var(--pending-bg);
+    border-color: var(--pending-border);
+
+    &::before {
+      background: var(--pending);
+    }
+  }
+}
+
+.agent-name {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-type {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: capitalize;
+}
+
+.agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

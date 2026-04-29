@@ -314,6 +314,7 @@ class Orchestrator:
         skip_planner: bool = False,
         execution_plan: Optional[Dict[str, Any]] = None,
         user_feedback: str = "accept",
+        run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a user request through the orchestration pipeline.
@@ -386,6 +387,7 @@ class Orchestrator:
             planner_enabled=self.enable_planner,
             planner_complexity_threshold=self.planner_complexity_threshold,
             user_feedback=user_feedback,
+            run_id=run_id,
         )
 
         return result

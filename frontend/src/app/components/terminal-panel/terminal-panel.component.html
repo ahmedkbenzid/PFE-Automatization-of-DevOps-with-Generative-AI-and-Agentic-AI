@@ -1,0 +1,12 @@
+<section class="terminal-shell">
+  <header class="terminal-header">Live Terminal</header>
+  <div #terminalPane class="terminal-pane">
+    <div
+      *ngFor="let line of bufferedLines; trackBy: trackByIndex"
+      class="terminal-line"
+      [ngClass]="lineClass(line)"
+    >
+      {{ line }}
+    </div>
+  </div>
+</section>

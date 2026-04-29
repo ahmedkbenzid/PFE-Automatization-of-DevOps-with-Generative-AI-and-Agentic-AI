@@ -322,6 +322,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the orchestrator with a user prompt")
     parser.add_argument("--prompt", type=str, default="", help="User prompt to route through orchestrator")
     parser.add_argument(
+        "--run-id",
+        type=str,
+        default="",
+        help="Unique run ID for signal file polling (optional)"
+    )
+    parser.add_argument(
         "--repo-path",
         type=str,
         default="",
@@ -393,6 +399,11 @@ def main() -> int:
     args = parser.parse_args()
 
     _ensure_utf8_output()
+    
+    # DEBUG: Print all received arguments
+    print(f"[Orchestrator] DEBUG: args.plan_only = {args.plan_only}", file=sys.stderr)
+    print(f"[Orchestrator] DEBUG: sys.argv = {sys.argv}", file=sys.stderr)
+    sys.stderr.flush()
 
     project_root = Path(__file__).resolve().parent
     if str(project_root) not in sys.path:
@@ -448,9 +459,14 @@ def main() -> int:
             pr_body=args.pr_body,
             plan_only=args.plan_only,
             skip_planner=args.skip_planner,
+            # Use command-line arg, then environment variable, then None
+            run_id=args.run_id.strip() if args.run_id.strip() else os.environ.get("ORCHESTRATOR_RUN_ID", ""),
             execution_plan=execution_plan,
             user_feedback=args.user_feedback,
         )
+
+        # DEBUG: Print what run_id we received
+        print(f"[Orchestrator] run_orchestrator.py: args.run_id='{args.run_id}', type={type(args.run_id)}")
         status = result.get("status", "unknown") if isinstance(result, dict) else "unknown"
         errors = result.get("state", {}).get("errors", []) if isinstance(result, dict) else []
         

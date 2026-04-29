@@ -3,4 +3,8 @@
 # Core dependencies
 python-dotenv>=1.0.0
 
+# Realtime streaming API
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+
 # No additional dependencies needed - uses standard library for subprocess, threading, queue

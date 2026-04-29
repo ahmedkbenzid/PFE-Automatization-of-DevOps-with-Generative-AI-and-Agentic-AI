@@ -1,0 +1,27 @@
+<section class="mx-auto max-w-7xl px-4 py-6" *ngIf="runId$ | async as runId">
+  <header class="mb-5 rounded-xl border border-devflow-border bg-devflow-surface p-4 shadow-lg">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-devflow-text-muted">Run Dashboard</p>
+        <h1 class="text-xl font-bold text-devflow-text">Run <span class="font-mono text-devflow-accent">{{ runId }}</span></h1>
+      </div>
+      <div class="rounded-lg border border-devflow-border bg-devflow-elevated px-3 py-2 text-sm font-semibold text-devflow-text font-mono">
+        ⏱️ Elapsed: {{ elapsedSeconds$ | async }}s
+      </div>
+    </div>
+    <a routerLink="/" class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-devflow-accent hover:text-blue-400 transition-colors">
+      ← Start another run
+    </a>
+  </header>
+
+  <div class="grid gap-4">
+    <app-agent-status [result]="result$ | async"></app-agent-status>
+
+    <app-terminal-panel [lines]="(logs$ | async) ?? []"></app-terminal-panel>
+
+    <app-artifact-viewer *ngIf="artifacts$ | async as artifacts" [artifacts]="artifacts"></app-artifact-viewer>
+  </div>
+
+  <!-- Approval Gate Modal (displays as overlay) -->
+  <app-approval-gate [result]="approvalResult$ | async" [runId]="runId"></app-approval-gate>
+</section>

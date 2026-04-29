@@ -24,6 +24,77 @@ Execution Agent
         └─ Return Results
 ```
 
+## Realtime Sandbox Streaming API
+
+The execution agent now exposes a realtime WebSocket API for sandbox visualization.
+
+### Start a Run
+
+`POST /api/execution/runs`
+
+Request body:
+
+```json
+{
+  "cicd_workflow_content": "name: CI\n...",
+  "repository_path": "C:/path/to/repo",
+  "dockerfile_content": "",
+  "github_url": "",
+  "act_timeout": 1800,
+  "secrets": {
+    "DOCKERHUB_USERNAME": "...",
+    "DOCKERHUB_TOKEN": "..."
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "run_id": "f4d98a8fb1244e5f96fa9f4c6f74e9fa",
+  "status": "started",
+  "ws_path": "/ws/execution/f4d98a8fb1244e5f96fa9f4c6f74e9fa"
+}
+```
+
+### Stream Logs
+
+`WS /ws/execution/{run_id}`
+
+Each log line is streamed as:
+
+```json
+{
+  "run_id": "f4d98a8fb1244e5f96fa9f4c6f74e9fa",
+  "stage": "build",
+  "line": "[build] Running mvn -B -DskipTests package",
+  "level": "info",
+  "elapsed_ms": 12842,
+  "stage_status": "running"
+}
+```
+
+On stage transitions and completion, a summary event is emitted with:
+
+```json
+{
+  "type": "stage_update",
+  "run_id": "f4d98a8fb1244e5f96fa9f4c6f74e9fa",
+  "stage": "test",
+  "line": "Stage test transitioned to done",
+  "level": "info",
+  "elapsed_ms": 22151,
+  "stage_status": "done"
+}
+```
+
+### Run the API
+
+```bash
+uvicorn realtime_api:app --host 0.0.0.0 --port 8001
+```
+
 ## Usage
 
 ### From Python Code

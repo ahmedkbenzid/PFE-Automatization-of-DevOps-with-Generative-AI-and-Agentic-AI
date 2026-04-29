@@ -1,0 +1,38 @@
+/* Component Styles - Uses CSS Custom Properties from global styles.scss */
+
+:host {
+  display: block;
+}
+
+/* Enhanced card hover effects */
+:host ::ng-deep .section-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Smooth loading animation */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+section {
+  animation: fade-in-up 0.3s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  section {
+    padding: 1rem;
+  }
+}

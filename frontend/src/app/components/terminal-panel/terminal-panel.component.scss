@@ -1,0 +1,125 @@
+/* Component Styles - Uses CSS Custom Properties from global styles.scss */
+
+:host {
+  display: block;
+}
+
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: 400px;
+  background: var(--term-bg);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.terminal-header {
+  height: 36px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.traffic-light {
+  display: flex;
+  gap: 6px;
+
+  .dot {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+
+    &.red {
+      background: #ff5f57;
+    }
+
+    &.yellow {
+      background: #febc2e;
+    }
+
+    &.green {
+      background: #28c840;
+    }
+  }
+}
+
+.header-label {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.log-pane {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 12px 14px;
+  scroll-behavior: smooth;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--term-bg);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 2px;
+  }
+}
+
+.log-line {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--term-text);
+  margin: 0;
+
+  &.log--error {
+    color: var(--term-red);
+  }
+
+  &.log--warn {
+    color: var(--term-yellow);
+  }
+
+  &.log--success {
+    color: var(--term-green);
+  }
+
+  &.log--info {
+    color: var(--term-blue);
+  }
+
+  &.log--system {
+    color: var(--term-purple);
+  }
+}
+
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: var(--term-cursor);
+  animation: pulse-dot 1s step-end infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

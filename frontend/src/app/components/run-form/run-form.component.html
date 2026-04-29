@@ -1,0 +1,147 @@
+<div class="run-form-wrapper">
+  <div class="form-container">
+    <!-- Header -->
+    <div class="form-header">
+      <div class="platform-name">
+        <span>DevFlow AI</span>
+        <span class="accent-dot"></span>
+      </div>
+      <p class="tagline">Intelligent DevOps Automation Platform</p>
+    </div>
+
+    <!-- Form Card -->
+    <div class="form-card">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-content">
+        <!-- Main Input Section -->
+        <section class="form-section">
+          <h2 class="section-title">What do you need?</h2>
+          <div class="form-input">
+            <label for="prompt-input" class="form-label">
+              Prompt
+              <span class="field-required">*</span>
+            </label>
+            <div class="textarea-wrapper">
+              <textarea
+                id="prompt-input"
+                formControlName="prompt"
+                class="form-textarea"
+                placeholder="e.g., Create a Docker image with Node.js, set up a Kubernetes deployment for production, generate Terraform for AWS EC2 instances..."
+                aria-label="Orchestration prompt"
+                aria-describedby="prompt-help prompt-counter"
+              ></textarea>
+              <div class="textarea-footer">
+                <p id="prompt-help" class="field-help">Describe the infrastructure, deployment, or DevOps automation you want to create</p>
+                <span id="prompt-counter" class="char-counter">{{ form.get('prompt')?.value?.length || 0 }} characters</span>
+              </div>
+            </div>
+            <p *ngIf="form.get('prompt')?.hasError('required') && form.get('prompt')?.touched" class="field-error">
+              ✕ Prompt is required
+            </p>
+            <p *ngIf="form.get('prompt')?.hasError('minlength') && form.get('prompt')?.touched" class="field-error">
+              ✕ Prompt must be at least 5 characters
+            </p>
+          </div>
+        </section>
+
+        <!-- Repository Section -->
+        <section class="form-section">
+          <h2 class="section-title">Repository (optional)</h2>
+          <p class="section-description">Provide context about where to deploy or store artifacts</p>
+          <div class="field-row-2">
+            <div class="form-input">
+              <label for="repo-path" class="form-label">Repository Path</label>
+              <input
+                id="repo-path"
+                type="text"
+                formControlName="repo_path"
+                class="form-input-field"
+                placeholder="C:/path/to/repo or /home/user/project"
+                aria-label="Local repository path"
+              />
+              <p class="field-help">Local file system path to your repository</p>
+            </div>
+
+            <div class="form-input">
+              <label for="github-url" class="form-label">GitHub Repository URL</label>
+              <input
+                id="github-url"
+                type="url"
+                formControlName="github_url"
+                class="form-input-field"
+                placeholder="https://github.com/org/repo"
+                aria-label="GitHub repository URL"
+              />
+              <p class="field-help">Link to create PRs and track changes</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Execution Options Section -->
+        <section class="form-section">
+          <h2 class="section-title">Execution Options</h2>
+          <div class="options-grid">
+            <div class="option-card">
+              <div class="option-header">
+                <div class="option-checkbox">
+                  <input
+                    id="plan-approval"
+                    type="checkbox"
+                    formControlName="require_plan_approval"
+                    aria-label="Require plan approval before execution"
+                  />
+                </div>
+                <label for="plan-approval" class="option-label">Require Plan Approval</label>
+              </div>
+              <p class="option-description">Review and approve the execution plan before running</p>
+            </div>
+
+            <div class="option-card">
+              <div class="option-header">
+                <div class="option-checkbox">
+                  <input
+                    id="create-pr"
+                    type="checkbox"
+                    formControlName="create_pr"
+                    aria-label="Automatically create pull request for changes"
+                  />
+                </div>
+                <label for="create-pr" class="option-label">Create Pull Request</label>
+              </div>
+              <p class="option-description">Automatically open a PR with generated artifacts</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Error State -->
+        <ng-container *ngIf="submitState$ | async as submitState">
+          <div *ngIf="submitState.error" class="error-alert" role="alert">
+            <span class="error-icon">⚠</span>
+            <div class="error-content">
+              <p class="error-title">Unable to Start Run</p>
+              <p class="error-message">{{ submitState.error }}</p>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button
+            type="submit"
+            [disabled]="submitState.submitting || form.invalid"
+            class="submit-button"
+            [attr.aria-busy]="submitState.submitting"
+          >
+            <span *ngIf="!submitState.submitting" class="button-text">Start Orchestration</span>
+            <span *ngIf="submitState.submitting" class="button-loading">
+              <span class="spinner"></span>
+              Starting...
+            </span>
+          </button>
+        </ng-container>
+      </form>
+    </div>
+
+    <!-- Footer Hint -->
+    <p class="form-footer-hint">
+      Your orchestration runs will stream logs in real time. You can monitor progress and manage approvals from the dashboard.
+    </p>
+  </div>
+</div>

@@ -1,0 +1,6 @@
+<section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <article *ngFor="let agent of agents; trackBy: trackByAgent" class="agent-card" [ngClass]="cardClass(agent.key)">
+    <h3 class="agent-name">{{ agent.label }}</h3>
+    <p class="agent-state">{{ stateLabel(agent.key) }}</p>
+  </article>
+</section>

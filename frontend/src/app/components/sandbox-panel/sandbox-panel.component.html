@@ -1,0 +1,61 @@
+<section class="sandbox-panel" *ngIf="panelState$ | async as state">
+  <header class="panel-header">
+    <h3>Sandbox Execution</h3>
+    <span class="connection" [ngClass]="'state-' + state.connectionState">
+      {{ state.connectionState }}
+    </span>
+  </header>
+
+  <div class="isolation-banner" role="note">
+    Isolated sandbox mode: this panel is read-only observability. The sandbox is ephemeral and does not apply changes to production or a real cluster.
+  </div>
+
+  <section class="progress-section" aria-label="Pipeline progress">
+    <div class="progress-meta">
+      <span>{{ state.completedCount }}/{{ stageOrder.length }} stages completed</span>
+      <span>{{ state.progressPercent }}%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" [style.width.%]="state.progressPercent"></div>
+    </div>
+  </section>
+
+  <section class="stage-grid" aria-label="Pipeline stages">
+    <article
+      class="stage-card"
+      *ngFor="let stage of stageOrder; trackBy: trackStage"
+      [ngClass]="'status-' + state.stages[stage]"
+    >
+      <div class="stage-title">{{ stage }}</div>
+      <div class="stage-status">
+        <span class="material-icons stage-icon" aria-hidden="true">{{ stageIcon(state.stages[stage]) }}</span>
+        <span>{{ state.stages[stage] }}</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="terminal-wrap" aria-label="Sandbox terminal output">
+    <div class="terminal-pane" #terminalPane>
+      <div
+        class="terminal-line"
+        *ngFor="let item of state.terminal; trackBy: trackTerminal"
+        [ngClass]="'level-' + item.level"
+      >
+        <span class="terminal-ts">+{{ item.elapsedMs }}ms</span>
+        <span class="terminal-stage">[{{ item.stage }}]</span>
+        <span class="terminal-text">{{ item.line }}</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="panel-actions">
+    <button
+      type="button"
+      class="repair-btn"
+      [disabled]="!state.failedStage"
+      (click)="onTriggerRepair(state.runId, state.failedStage)"
+    >
+      Trigger repair
+    </button>
+  </footer>
+</section>

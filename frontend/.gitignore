@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+tmp/
+
+# Angular CLI cache
+.angular/
+
+# IDE files
+.vscode/
+.idea/
+
+# Environment secrets
+*.env
