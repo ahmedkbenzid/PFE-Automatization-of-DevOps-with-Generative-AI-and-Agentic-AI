@@ -27,7 +27,7 @@ class Config:
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
 
     # Ollama Cloud Configuration (primary)
-    OLLAMA_MODEL: str = os.getenv("CICD_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud"))
+    OLLAMA_MODEL: str = os.getenv("CICD_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "qwen3.5:cloud"))
 
     # Groq LLM Configuration (fallback)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

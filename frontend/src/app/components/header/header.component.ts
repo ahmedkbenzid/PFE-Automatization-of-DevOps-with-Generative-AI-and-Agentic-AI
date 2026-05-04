@@ -11,10 +11,15 @@ import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
     <header class="app-header">
       <div class="header-container">
         <div class="header-brand">
-          <h1 class="brand-title">
-            <span class="brand-logo">⚡</span>
-            DevFlow AI
-          </h1>
+          <a class="brand-title" [routerLink]="['/']">
+  <div class="brand-icon">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M10.5 2L4 10h5.5L7.5 16l7-8H9L10.5 2z"
+            fill="white" stroke="white" stroke-width="0.5" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <span class="brand-text">Dev<span class="accent">Flow</span> AI</span>
+</a>
           <p class="brand-tagline">Multi-Agent DevOps Orchestrator</p>
         </div>
         <div class="header-controls">
@@ -96,6 +101,26 @@ import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
     </header>
   `,
   styles: [`
+    .brand-title { 
+      display: inline-flex; 
+      align-items: center; 
+      gap: 10px; 
+      text-decoration: none; 
+      cursor: pointer; }
+    .brand-icon  { 
+      width: 36px; 
+      height: 36px; 
+      border-radius: 8px; 
+      background: linear-gradient(135deg, #4f8ef7, #7c3aed); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      transition: transform 0.18s ease; }
+    .brand-title:hover .brand-icon { transform: scale(1.08); }
+    .brand-text  { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #111; }
+    .brand-text .accent { 
+      color: #4f8ef7; 
+    }
     .app-header {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-default);

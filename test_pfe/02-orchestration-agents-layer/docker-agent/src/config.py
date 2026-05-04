@@ -26,7 +26,7 @@ DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
 # LLM Configuration
 LLM_CONFIG = {
     "provider": os.getenv("LLM_PROVIDER", "ollama"),  # ollama or groq
-    "model": os.getenv("OLLAMA_MODEL", "minimax-m2.7:cloud"),  # Ollama minimax-m2.7 cloud model
+    "model": os.getenv("OLLAMA_MODEL", "qwen3.5:cloud"),  # Ollama qwen3.5 cloud model
     "groq_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),  # Groq fallback
     "fallback_model": os.getenv("GROQ_FALLBACK_MODEL", "llama-3.3-70b-versatile"),
     "temperature": 0.2,  # Low temperature for more deterministic code generation

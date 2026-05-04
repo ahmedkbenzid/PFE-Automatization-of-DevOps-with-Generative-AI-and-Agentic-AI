@@ -52,6 +52,20 @@ export interface ExecutionResultResponse {
   [key: string]: unknown;
 }
 
+export interface ExecutionPlanResponse {
+  run_id: string;
+  plan: {
+    execution_order?: Array<string | string[]>;
+    tasks?: Array<any>;
+    estimated_time_sec?: number;
+    [key: string]: unknown;
+  };
+  complexity_score: number;
+  planner_reasoning: string;
+  status: string;
+  plan_only: boolean;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -94,6 +108,10 @@ export class ApiService {
    */
   getExecution(runId: string): Observable<ExecutionResultResponse> {
     return this.http.get<ExecutionResultResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/execution`);
+  }
+
+  getExecutionPlan(runId: string): Observable<ExecutionPlanResponse> {
+    return this.http.get<ExecutionPlanResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/plan`);
   }
 
   /**
