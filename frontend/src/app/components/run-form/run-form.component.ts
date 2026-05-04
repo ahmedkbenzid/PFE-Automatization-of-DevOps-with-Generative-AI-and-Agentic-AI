@@ -2,12 +2,13 @@ import { AsyncPipe, CommonModule, NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, of, Subscription } from 'rxjs';
+import { Subject, of, Subscription, BehaviorSubject } from 'rxjs';
 import { catchError, map, startWith, switchMap, tap } from 'rxjs/operators';
 
 import { RunRequest } from '../../models/run.model';
 import { ApiService } from '../../services/api.service';
 import { ExamplesService } from '../../services/examples.service';
+import { SecretsFormComponent } from '../secrets-form/secrets-form.component';
 
 interface SubmitState {
   submitting: boolean;
@@ -17,27 +18,30 @@ interface SubmitState {
 @Component({
   selector: 'app-run-form',
   standalone: true,
-  imports: [ReactiveFormsModule, NgIf, AsyncPipe, CommonModule],
+  imports: [ReactiveFormsModule, NgIf, AsyncPipe, CommonModule, SecretsFormComponent],
   templateUrl: './run-form.component.html',
   styleUrl: './run-form.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RunFormComponent implements OnInit, OnDestroy {
   private examplesSub?: Subscription;
+  
+  readonly collectedSecrets$ = new BehaviorSubject<Record<string, string>>({});
 
   readonly form = this.fb.nonNullable.group({
     prompt: ['', [Validators.required, Validators.minLength(5)]],
     repo_path: [''],
     github_url: [''],
-    require_plan_approval: [true],
+    require_plan_approval: [false],
     create_pr: [false],
+    build_in_docker: [true],
   });
 
   private readonly submitTrigger$ = new Subject<RunRequest>();
 
   readonly submitState$ = this.submitTrigger$.pipe(
-    switchMap((request) =>
-      this.api.startRun(request).pipe(
+    switchMap((request) => {
+      return this.api.startRun(request).pipe(
         tap((response) => {
           void this.router.navigate(['/runs', response.run_id]);
         }),
@@ -49,8 +53,8 @@ export class RunFormComponent implements OnInit, OnDestroy {
             error: this.describeError(error),
           }),
         ),
-      ),
-    ),
+      );
+    }),
     startWith({ submitting: false, error: null }),
   );
 
@@ -85,6 +89,10 @@ export class RunFormComponent implements OnInit, OnDestroy {
     }, 100);
   }
 
+  onSecretsChanged(secrets: Record<string, string>): void {
+    this.collectedSecrets$.next(secrets);
+  }
+
   onSubmit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -94,6 +102,7 @@ export class RunFormComponent implements OnInit, OnDestroy {
     const value = this.form.getRawValue();
     console.log('[Frontend] DEBUG: Form values:', value);
     console.log('[Frontend] DEBUG: require_plan_approval =', value.require_plan_approval);
+    console.log('[Frontend] DEBUG: build_in_docker =', value.build_in_docker);
     
     const request: RunRequest = {
       prompt: value.prompt.trim(),
@@ -101,6 +110,8 @@ export class RunFormComponent implements OnInit, OnDestroy {
       github_url: value.github_url.trim() || undefined,
       require_plan_approval: value.require_plan_approval,
       create_pr: value.create_pr,
+      build_in_docker: value.build_in_docker,
+      runtime_secrets: this.collectedSecrets$.value,
     };
     
     console.log('[Frontend] DEBUG: Sending request with require_plan_approval =', request.require_plan_approval);

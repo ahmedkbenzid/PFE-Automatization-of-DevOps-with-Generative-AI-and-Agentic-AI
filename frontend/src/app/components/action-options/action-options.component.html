@@ -1,0 +1,63 @@
+<div class="action-options-container">
+  <!-- Status Messages -->
+  <div *ngIf="errorMessage" class="alert alert-error">
+    {{ errorMessage }}
+  </div>
+  <div *ngIf="successMessage" class="alert alert-success">
+    {{ successMessage }}
+  </div>
+
+  <!-- GitHub URL Mode Info -->
+  <div *ngIf="hasGithubOnly" class="alert alert-info">
+    <strong>ℹ️ GitHub URL Mode:</strong> Repository is on GitHub ({{ input.githubUrl }}).
+    You can download artifacts or clone the repo locally to apply them.
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="button-group">
+    <!-- Apply Button -->
+    <button
+      class="btn btn-primary btn-apply"
+      (click)="onApplyToRepository()"
+      [disabled]="applyButtonDisabled || isLoading"
+      [title]="applyButtonHelp"
+    >
+      <span *ngIf="!isLoading">✅ Accept & Apply to Repository</span>
+      <span *ngIf="isLoading">
+        <span class="spinner"></span> Applying...
+      </span>
+    </button>
+
+    <!-- Download Button -->
+    <button
+      class="btn btn-secondary btn-download"
+      (click)="onDownloadOnly()"
+      [disabled]="isLoading"
+      title="Accept without writing to repository"
+    >
+      <span *ngIf="!isLoading">📥 Accept (Download Only)</span>
+      <span *ngIf="isLoading">
+        <span class="spinner"></span> Preparing...
+      </span>
+    </button>
+
+    <!-- Reject Button -->
+    <button
+      class="btn btn-danger btn-reject"
+      (click)="onReject()"
+      [disabled]="isLoading"
+      title="Reject the generated artifacts"
+    >
+      <span *ngIf="!isLoading">❌ Reject</span>
+      <span *ngIf="isLoading">
+        <span class="spinner"></span> Rejecting...
+      </span>
+    </button>
+  </div>
+
+  <!-- Git Clone Hint -->
+  <div *ngIf="hasGithubOnly && input.githubUrl" class="git-hint">
+    <p class="hint-label">Clone command:</p>
+    <code class="git-command">git clone {{ input.githubUrl }}</code>
+  </div>
+</div>

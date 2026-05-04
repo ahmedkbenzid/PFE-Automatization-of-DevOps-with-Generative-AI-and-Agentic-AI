@@ -88,7 +88,7 @@ class IntentLayer:
 
         explicit_java_requested = any(token in combined for token in ["java", "spring", "spring boot", "springboot", "maven", "gradle"])
         explicit_python_requested = any(token in combined for token in ["python", "pytest", "pip", "poetry", "tox"])
-        explicit_node_requested = any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript"])
+        explicit_node_requested = any(token in combined for token in ["node", "npm", "yarn", "javascript", "typescript", "angular"])
         requests_java = explicit_java_requested
         requests_python = explicit_python_requested
         requests_node = explicit_node_requested
@@ -98,18 +98,31 @@ class IntentLayer:
         requests_ansible = any(token in combined for token in ["ansible", "playbook"])
         requests_k8s = any(token in combined for token in ["kubernetes", "k8s", "kubectl", "helm"])
         requests_monitoring = any(token in combined for token in ["prometheus", "grafana", "monitoring", "observability"])
-        
+
+        # Monorepo layout paths detected by context collector / dependency analyzer
+        frontend_dir = repo_context.get('frontend_dir') or repo_context.get('angular_dir') or ''
+        backend_dir  = repo_context.get('backend_dir') or ''
+        requirements_path = repo_context.get('python_requirements_path') or (
+            f"{backend_dir}/requirements.txt" if backend_dir else 'requirements.txt'
+        )
+        nodejs_package_path = repo_context.get('nodejs_package_path') or (
+            f"{frontend_dir}/package.json" if frontend_dir else 'package.json'
+        )
+        is_monorepo = bool(repo_context.get('is_monorepo')) or bool(frontend_dir and backend_dir)
+        angular_version = repo_context.get('angular_version') or repo_context.get('node_version')
+
         # Also detect based on detected frameworks and build systems
         frameworks_str = " ".join(repo_context.get('frameworks') or []).lower()
         build_system_str = (repo_context.get('build_system') or "").lower()
         detected_python = "python" in frameworks_str or "python" in build_system_str or python_version
         detected_java = "java" in frameworks_str or "maven" in build_system_str or "gradle" in build_system_str or java_version
-        detected_nodejs = "node.js" in frameworks_str or build_system_str == "npm" or node_version
+        detected_nodejs = "node.js" in frameworks_str or "angular" in frameworks_str or "npm" in build_system_str or node_version
+        detected_angular = "angular" in frameworks_str or bool(repo_context.get('angular_version'))
         detected_django = django_version is not None or "django" in frameworks_str
         detected_fastapi = fastapi_version is not None or "fastapi" in frameworks_str
         detected_flask = flask_version is not None or "flask" in frameworks_str
         detected_spring_boot = spring_boot_version is not None or "spring" in frameworks_str.lower()
-        
+
         is_java_primary = bool(
             build_system_str in {"maven", "gradle"}
             or "java" in frameworks_str
@@ -121,19 +134,45 @@ class IntentLayer:
         java_allowed_by_context = bool(explicit_java_requested or detected_java)
 
         if python_allowed_by_context and detected_python:  # Only if Python is actually in the project
+            req_path_hint = f" Use 'pip install -r {requirements_path}'" if requirements_path != 'requirements.txt' else ""
             if python_version:
-                requirement_lines.append(f"Include Python setup with version {python_version} (detected from dependencies) and test execution steps.")
+                requirement_lines.append(
+                    f"Include Python setup with version {python_version} (detected from dependencies) and test execution steps.{req_path_hint}"
+                )
                 # Add framework-specific guidance ONLY if framework is detected
                 if detected_django:
                     requirement_lines.append(f"Project uses Django {django_version or 'detected'}. Include Django migrations and test runner (e.g., python manage.py test).")
                 elif detected_fastapi:
-                    requirement_lines.append(f"Project uses FastAPI {fastapi_version or 'detected'}. Include uvicorn/asgi test commands and API testing steps.")
+                    requirement_lines.append(
+                        f"Project uses FastAPI {fastapi_version or 'detected'}. "
+                        f"Install dependencies with: pip install -r {requirements_path}. "
+                        f"Run tests with: pytest {backend_dir or '.'} -q || echo 'No tests found'."
+                    )
                 elif detected_flask:
                     requirement_lines.append(f"Project uses Flask {flask_version or 'detected'}. Include Flask test runner and WSGI compatibility checks.")
             else:
-                requirement_lines.append("Include Python setup and test execution steps.")
-        
-        if node_allowed_by_context and detected_nodejs:  # Only if Node.js is actually in the project
+                requirement_lines.append(f"Include Python setup and test execution steps.{req_path_hint}")
+
+        # Angular-specific requirements
+        if detected_angular and node_allowed_by_context:
+            node_ver = node_version or "20"
+            pkg_dir = frontend_dir if frontend_dir else "."
+            lock_path = f"{pkg_dir}/package-lock.json" if frontend_dir else "package-lock.json"
+            requirement_lines.append(
+                f"CRITICAL: This project uses Angular {angular_version or 'detected'}. "
+                f"Use actions/setup-node@v4 with node-version: '{node_ver}'. "
+                f"Install with: npm ci --prefix {pkg_dir}. "
+                f"Build with: npm run build --prefix {pkg_dir} (this runs 'ng build'). "
+                f"Use cache: 'npm' with cache-dependency-path: {lock_path}."
+            )
+            if is_monorepo:
+                requirement_lines.append(
+                    f"IMPORTANT: This is a monorepo. Angular frontend is in '{frontend_dir}/', "
+                    f"Python backend is in '{backend_dir}/'. "
+                    "Create SEPARATE jobs: one 'build-frontend' job for Angular and one 'test-backend' job for Python. "
+                    "Do NOT mix Node.js and Python steps in the same job."
+                )
+        elif node_allowed_by_context and detected_nodejs:  # Generic Node.js (non-Angular)
             if node_version:
                 requirement_lines.append(f"Include Node.js setup with version {node_version} (detected from package.json) and package install/test steps.")
             else:
@@ -227,8 +266,20 @@ class IntentLayer:
         repo_context_block = [
             f"Languages: {', '.join(languages) if languages else 'Unknown'}",
             f"Build system: {build_system}",
+            f"Frameworks: {frameworks_str or 'None detected'}",
             f"Existing workflows: {', '.join(workflows) if workflows else 'None'}",
         ]
+
+        # Monorepo structure hints
+        if is_monorepo:
+            repo_context_block.append(f"Monorepo layout: frontend in '{frontend_dir}/', backend in '{backend_dir}/'")
+        if requirements_path:
+            repo_context_block.append(f"Python requirements file: {requirements_path}")
+        if nodejs_package_path:
+            repo_context_block.append(f"Node.js package file: {nodejs_package_path}")
+        if frontend_dir:
+            lock_file = f"{frontend_dir}/package-lock.json"
+            repo_context_block.append(f"npm lock file: {lock_file} (use as cache-dependency-path)")
         
         # Add version information if available
         version_info = []

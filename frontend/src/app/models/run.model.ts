@@ -5,6 +5,7 @@ export interface RunRequest {
   require_plan_approval?: boolean;
   create_pr?: boolean;
   runtime_secrets?: Record<string, string>;
+  build_in_docker?: boolean;
 }
 
 export interface LogEvent {

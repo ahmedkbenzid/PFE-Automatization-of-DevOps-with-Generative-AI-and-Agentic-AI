@@ -502,13 +502,15 @@ def man_in_the_loop_node(state: OrchestratorState) -> Dict[str, Any]:
         # In plan_only mode, output plan and poll for approval signal file
         plan_only = state.get("plan_only", False)
         if not plan_only:
-            # In normal mode without explicit approval, skip man-in-the-loop
-            print(f"[Orchestrator] Not in plan_only mode, skipping polling")
+            # In normal mode, treat the generated plan as approved so the graph
+            # can continue into plan confirmation and execution.
+            print(f"[Orchestrator] Not in plan_only mode, auto-approving plan for execution")
             sys.stdout.flush()
             return {
-                "plan_approved": False,
+                "plan_approved": True,
                 "plan_only_waiting_approval": False,
-                "status": "plan_ready",
+                "status": "pending",
+                "approved_execution_plan": state.get("execution_plan", {}),
             }
 
         # Get run_id from state or generate one

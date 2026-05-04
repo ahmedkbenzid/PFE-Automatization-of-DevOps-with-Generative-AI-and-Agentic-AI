@@ -12,6 +12,7 @@ import {
   SimpleChanges,
   ViewChild,
 } from '@angular/core';
+import { environment } from '../../../environments/environment';
 import { BehaviorSubject, Observable, Subject, combineLatest, defer, of, timer } from 'rxjs';
 import {
   catchError,
@@ -95,7 +96,7 @@ function createInitialState(runId: string): SandboxPanelState {
 })
 export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChecked {
   @Input() runId: string | null = null;
-  @Input() wsEndpointBase = 'ws://localhost:8001/ws/execution';
+  @Input() wsEndpointBase = `${environment.wsUrl.replace(/\/$/, '')}/ws/execution`;
 
   @Output() repairRequested = new EventEmitter<{ runId: string; failedStage: StageName }>();
 
@@ -105,7 +106,7 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
 
   private readonly destroy$ = new Subject<void>();
   private readonly runIdSource$ = new BehaviorSubject<string | null>(null);
-  private readonly wsBaseSource$ = new BehaviorSubject<string>('ws://localhost:8001/ws/execution');
+  private readonly wsBaseSource$ = new BehaviorSubject<string>(`${environment.wsUrl.replace(/\/$/, '')}/ws/execution`);
 
   private lastRenderedLineCount = 0;
 
@@ -134,7 +135,7 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       this.runIdSource$.next(this.runId ?? null);
     }
     if (changes['wsEndpointBase']) {
-      this.wsBaseSource$.next(this.wsEndpointBase || 'ws://localhost:8001/ws/execution');
+      this.wsBaseSource$.next(this.wsEndpointBase || `${environment.wsUrl.replace(/\/$/, '')}/ws/execution`);
       if (this.runId) {
         this.runIdSource$.next(this.runId);
       }

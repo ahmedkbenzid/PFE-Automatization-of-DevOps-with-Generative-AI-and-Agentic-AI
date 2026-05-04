@@ -16,6 +16,8 @@ class RunState:
     started_at: float
     returncode: Optional[int]
     parsed_result: Optional[dict]
+    build_in_docker: bool = False
+    execution_result: Optional[dict] = None
 
 
 class RunManager:

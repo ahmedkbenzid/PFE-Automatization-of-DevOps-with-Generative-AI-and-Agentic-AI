@@ -30,6 +30,7 @@ class DependencyInfo:
     flask_version: Optional[str] = None
     spring_boot_version: Optional[str] = None
     express_version: Optional[str] = None
+    angular_version: Optional[str] = None
 
     # Build tool versions
     maven_version: Optional[str] = None
@@ -39,6 +40,13 @@ class DependencyInfo:
 
     # Critical dependencies
     critical_packages: Dict[str, str] = field(default_factory=dict)
+
+    # Monorepo structure paths (relative to repo root)
+    python_requirements_path: Optional[str] = None  # e.g. "backend/requirements.txt"
+    nodejs_package_path: Optional[str] = None        # e.g. "frontend/package.json"
+    frontend_dir: Optional[str] = None              # e.g. "frontend"
+    backend_dir: Optional[str] = None               # e.g. "backend"
+    is_monorepo: bool = False
 
     # Metadata
     has_version_conflicts: bool = False
@@ -53,7 +61,12 @@ class DependencyAnalyzer:
         self.repo = Path(repository_path)
         self.info = DependencyInfo()
 
+    # Common subdirectory names for monorepo layouts
+    _PYTHON_SUBDIRS = ["backend", "api", "server", "app", "service"]
+    _NODEJS_SUBDIRS = ["frontend", "client", "ui", "web", "app"]
+
     def analyze(self) -> DependencyInfo:
+        self._detect_monorepo_structure()
         self._analyze_python_dependencies()
         self._analyze_java_dependencies()
         self._analyze_nodejs_dependencies()
@@ -61,22 +74,62 @@ class DependencyAnalyzer:
         self._validate_compatibility()
         return self.info
 
+    def _detect_monorepo_structure(self) -> None:
+        """Detect if the repo has a monorepo layout with separate frontend/backend dirs."""
+        has_frontend = any((self.repo / d).is_dir() for d in self._NODEJS_SUBDIRS)
+        has_backend = any((self.repo / d).is_dir() for d in self._PYTHON_SUBDIRS)
+        if has_frontend or has_backend:
+            self.info.is_monorepo = True
+
+        for d in self._NODEJS_SUBDIRS:
+            if (self.repo / d).is_dir() and (self.repo / d / "package.json").exists():
+                self.info.frontend_dir = d
+                break
+
+        for d in self._PYTHON_SUBDIRS:
+            if (self.repo / d).is_dir() and (
+                (self.repo / d / "requirements.txt").exists()
+                or (self.repo / d / "pyproject.toml").exists()
+            ):
+                self.info.backend_dir = d
+                break
+
     # ---------------------------------------------------------------------
     # Python
     # ---------------------------------------------------------------------
 
     def _analyze_python_dependencies(self) -> None:
-        req_file = self.repo / "requirements.txt"
-        if req_file.exists():
-            self._parse_requirements_txt(req_file)
+        """Analyze Python dependency files, checking root and common subdirectory locations."""
+        # Candidate paths for requirements.txt: root first, then known backend subdirs
+        req_candidates = [self.repo / "requirements.txt"] + [
+            self.repo / d / "requirements.txt" for d in self._PYTHON_SUBDIRS
+        ]
+        for req_file in req_candidates:
+            if req_file.exists():
+                self._parse_requirements_txt(req_file)
+                rel = str(req_file.relative_to(self.repo)).replace("\\", "/")
+                self.info.python_requirements_path = rel
+                if req_file.parent != self.repo:
+                    self.info.backend_dir = self.info.backend_dir or req_file.parent.name
+                break  # Use first found
 
-        pyproject = self.repo / "pyproject.toml"
-        if pyproject.exists():
-            self._parse_pyproject_toml(pyproject)
+        # pyproject.toml
+        pyproject_candidates = [self.repo / "pyproject.toml"] + [
+            self.repo / d / "pyproject.toml" for d in self._PYTHON_SUBDIRS
+        ]
+        for pyproject in pyproject_candidates:
+            if pyproject.exists():
+                self._parse_pyproject_toml(pyproject)
+                break
 
-        setup_py = self.repo / "setup.py"
-        if setup_py.exists():
-            self._parse_setup_py(setup_py)
+        # setup.py
+        setup_py_candidates = [self.repo / "setup.py"] + [
+            self.repo / d / "setup.py" for d in self._PYTHON_SUBDIRS
+        ]
+        for setup_py in setup_py_candidates:
+            if setup_py.exists():
+                self._parse_setup_py(setup_py)
+                break
 
         if not self.info.python_version:
             self.info.python_version = self._infer_python_version()
@@ -273,25 +326,61 @@ class DependencyAnalyzer:
     # ---------------------------------------------------------------------
 
     def _analyze_nodejs_dependencies(self) -> None:
-        package_json = self.repo / "package.json"
-        if package_json.exists():
-            self._parse_package_json(package_json)
+        """Analyze Node.js dependency files, checking root and common frontend subdirectory locations."""
+        # Candidate paths: root first, then known frontend subdirs
+        pkg_candidates = [self.repo / "package.json"] + [
+            self.repo / d / "package.json" for d in self._NODEJS_SUBDIRS
+        ]
+        for package_json in pkg_candidates:
+            if package_json.exists():
+                self._parse_package_json(package_json)
+                rel = str(package_json.relative_to(self.repo)).replace("\\", "/")
+                self.info.nodejs_package_path = rel
+                if package_json.parent != self.repo:
+                    self.info.frontend_dir = self.info.frontend_dir or package_json.parent.name
+                break  # Use first found
 
     def _parse_package_json(self, file_path: Path) -> None:
         try:
             content = json.loads(file_path.read_text(encoding="utf-8"))
 
+            # Node version from engines field
             if "engines" in content and "node" in content["engines"]:
                 node_version_spec = content["engines"]["node"]
                 version = re.search(r"(\d+)", node_version_spec)
                 if version:
                     self.info.node_version = version.group(1)
 
-            dependencies = content.get("dependencies", {})
+            dependencies = {**content.get("dependencies", {}), **content.get("devDependencies", {})}
+
+            # Detect Express
             if "express" in dependencies:
                 clean_version = re.sub(r"[\^~]", "", dependencies["express"])
                 self.info.express_version = clean_version
                 self.info.critical_packages["Express"] = clean_version
+
+            # Detect Angular — check @angular/core in dependencies or devDependencies
+            angular_core = dependencies.get("@angular/core", "")
+            if angular_core:
+                clean_version = re.sub(r"[\^~]", "", angular_core)
+                self.info.angular_version = clean_version
+                self.info.critical_packages["Angular"] = clean_version
+                # Infer Node.js version from Angular version if not already set
+                if not self.info.node_version:
+                    try:
+                        major = int(clean_version.split(".")[0])
+                        # Angular 17+ requires Node 18+; Angular 15-16 → Node 18; Angular 14 → Node 14
+                        if major >= 17:
+                            self.info.node_version = "20"
+                        elif major >= 14:
+                            self.info.node_version = "18"
+                        else:
+                            self.info.node_version = "16"
+                    except (ValueError, IndexError):
+                        self.info.node_version = "20"
+                self.info.recommendations.append(
+                    f"Angular {clean_version} detected. Use 'npm ci' and 'ng build' in the CI workflow."
+                )
         except Exception as exc:
             self.info.warnings.append(f"Failed to parse package.json: {exc}")
 

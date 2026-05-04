@@ -12,7 +12,7 @@ import queue
 import re
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Callable
 import logging
 
 logger = logging.getLogger(__name__)
@@ -136,6 +136,61 @@ class ExecutionPipeline:
                 return True
         return False
 
+    def _is_transient_network_error_from_logs(self, logs: List[Dict[str, Any]]) -> bool:
+        """Detect transient network/TLS failures from generic command logs."""
+        network_markers = (
+            "tls handshake timeout",
+            "client network socket disconnected before secure tls connection was established",
+            "i/o timeout",
+            "connection reset by peer",
+            "temporary failure in name resolution",
+            "failed to do request",
+            "failed to resolve source metadata",
+        )
+
+        for entry in logs:
+            if not isinstance(entry, dict):
+                continue
+            line = str(entry.get("line", "")).lower()
+            if any(marker in line for marker in network_markers):
+                return True
+        return False
+
+    def _run_docker_build_with_retries(
+        self,
+        workspace_path: Path,
+        image_tag: str,
+        docker_timeout: int,
+        max_retries: int = 2,
+    ) -> Dict[str, Any]:
+        """Run docker build and retry on transient registry/network failures."""
+        latest_result: Dict[str, Any] = {}
+
+        for attempt in range(max_retries + 1):
+            latest_result = self._run_command_with_timeout(
+                command=["docker", "build", "-t", image_tag, "."],
+                cwd=str(workspace_path),
+                timeout_seconds=docker_timeout,
+                step_name=f"docker-build-try-{attempt + 1}",
+            )
+
+            if latest_result.get("success"):
+                latest_result["network_retry_attempts"] = attempt
+                return latest_result
+
+            logs = latest_result.get("logs", []) if isinstance(latest_result, dict) else []
+            if not isinstance(logs, list) or not self._is_transient_network_error_from_logs(logs):
+                latest_result["network_retry_attempts"] = attempt
+                return latest_result
+
+            if attempt < max_retries:
+                self.logger.warning(
+                    f"Transient network error detected during docker build, retrying ({attempt + 1}/{max_retries})"
+                )
+
+        latest_result["network_retry_attempts"] = max_retries
+        return latest_result
+
     def _run_act_with_network_retries(
         self,
         command: List[str],
@@ -144,6 +199,7 @@ class ExecutionPipeline:
         step_name_prefix: str,
         env: Optional[Dict[str, str]] = None,
         max_retries: int = 2,
+        log_callback: Optional[Callable[[Dict[str, str]], None]] = None,
     ) -> Dict[str, Any]:
         """Run act command and retry on transient network/TLS failures."""
         latest_result: Dict[str, Any] = {}
@@ -156,6 +212,7 @@ class ExecutionPipeline:
                 timeout_seconds=act_timeout,
                 step_name=f"{step_name_prefix}-try-{attempt + 1}",
                 env=env,
+                log_callback=log_callback,
             )
 
             if latest_result.get("success"):
@@ -175,6 +232,37 @@ class ExecutionPipeline:
         latest_result["network_retry_attempts"] = retries_used
         return latest_result
 
+    def _resolve_workflow_file(self, workspace_path: Path) -> str:
+        """Dynamically find the generated workflow file in .github/workflows/.
+
+        Tries well-known names first, then falls back to the first .yml/.yaml
+        file found in the directory.  Returns a relative path string suitable
+        for the act -W flag.
+        """
+        workflows_dir = workspace_path / ".github" / "workflows"
+        preferred_names = ["ci.yml", "ci.yaml", "main.yml", "main.yaml",
+                           "build.yml", "build.yaml", "workflow.yml", "workflow.yaml"]
+
+        for name in preferred_names:
+            if (workflows_dir / name).exists():
+                self.logger.info(f"Using workflow file: .github/workflows/{name}")
+                return f".github/workflows/{name}"
+
+        # Fall back to first YAML file found (alphabetical)
+        if workflows_dir.exists():
+            yamls = sorted(
+                p for p in workflows_dir.iterdir()
+                if p.suffix.lower() in {".yml", ".yaml"}
+            )
+            if yamls:
+                name = yamls[0].name
+                self.logger.info(f"Resolved workflow file (first found): .github/workflows/{name}")
+                return f".github/workflows/{name}"
+
+        # Last resort — keep the original default and let act emit a clear error
+        self.logger.warning("No workflow file found in .github/workflows/; defaulting to ci.yml")
+        return ".github/workflows/ci.yml"
+
     def _run_act_with_fallback_images(
         self,
         workspace_path: Path,
@@ -182,12 +270,14 @@ class ExecutionPipeline:
         runtime_secrets: Optional[Dict[str, str]] = None,
         extra_act_args: Optional[List[str]] = None,
         env: Optional[Dict[str, str]] = None,
+        log_callback: Optional[Callable[[Dict[str, str]], None]] = None,
     ) -> Dict[str, Any]:
         """Run act and retry with fallback runner images if the default image is missing."""
         secret_args = self._build_act_secret_args(runtime_secrets)
         common_args = self._build_act_common_args()
-        extra_args = list(extra_act_args or [])
-        base_command = ["act", "-W", ".github/workflows/ci.yml", *common_args, *secret_args, *extra_args]
+        extra_args  = list(extra_act_args or [])
+        workflow_file = self._resolve_workflow_file(workspace_path)
+        base_command = ["act", "-W", workflow_file, *common_args, *secret_args, *extra_args]
         attempt_summaries: List[Dict[str, Any]] = []
 
         primary_result = self._run_act_with_network_retries(
@@ -197,6 +287,7 @@ class ExecutionPipeline:
             step_name_prefix="act-run",
             env=env,
             max_retries=2,
+            log_callback=log_callback,
         )
         attempt_summaries.append({"command": base_command, "result": primary_result})
 
@@ -215,7 +306,7 @@ class ExecutionPipeline:
             fallback_cmd = [
                 "act",
                 "-W",
-                ".github/workflows/ci.yml",
+                workflow_file,
                 *common_args,
                 *secret_args,
                 *extra_args,
@@ -251,6 +342,7 @@ class ExecutionPipeline:
         act_timeout: int = 1800,
         secrets: Optional[Dict[str, str]] = None,
         prebuilt_image_name: str = "",
+        log_callback: Optional[Callable[[Dict[str, str]], None]] = None,
     ) -> Dict[str, Any]:
         """
         Execute generated CI/CD workflow in a temporary workspace.
@@ -365,11 +457,11 @@ class ExecutionPipeline:
                 extra_act_args.extend(["--env", f"EXECUTION_DOCKER_IMAGE={prebuilt_image}"])
             elif has_dockerfile:
                 self.logger.info(f"Building Docker image from generated Dockerfile: {image_tag}")
-                docker_build_result = self._run_command_with_timeout(
-                    command=["docker", "build", "-t", image_tag, "."],
-                    cwd=str(workspace_path),
-                    timeout_seconds=docker_timeout,
-                    step_name="docker-build",
+                docker_build_result = self._run_docker_build_with_retries(
+                    workspace_path=workspace_path,
+                    image_tag=image_tag,
+                    docker_timeout=docker_timeout,
+                    max_retries=2,
                 )
                 if not docker_build_result.get("success"):
                     return {
@@ -405,6 +497,7 @@ class ExecutionPipeline:
                 runtime_secrets=secrets,
                 extra_act_args=extra_act_args,
                 env=act_env,
+                log_callback=log_callback,
             )
             
             # Determine overall success
@@ -559,6 +652,7 @@ class ExecutionPipeline:
         timeout_seconds: int,
         step_name: str,
         env: Optional[Dict[str, str]] = None,
+        log_callback: Optional[Callable[[Dict[str, str]], None]] = None,
     ) -> Dict[str, Any]:
         """
         Run a command with real-time output streaming and hard timeout.
@@ -634,9 +728,15 @@ class ExecutionPipeline:
             try:
                 stream_name, line = output_queue.get(timeout=0.1)
                 self.logger.debug(f"[{step_name}][{stream_name}] {line}")
+                log_entry = {"stream": stream_name, "line": line}
+                if log_callback:
+                    try:
+                        log_callback(log_entry)
+                    except Exception as e:
+                        self.logger.error(f"log_callback error: {e}")
                 # Limit log collection to prevent memory issues
                 if len(collected_logs) < 2000:
-                    collected_logs.append({"stream": stream_name, "line": line})
+                    collected_logs.append(log_entry)
             except queue.Empty:
                 pass
             
@@ -652,8 +752,14 @@ class ExecutionPipeline:
             try:
                 stream_name, line = output_queue.get_nowait()
                 self.logger.debug(f"[{step_name}][{stream_name}] {line}")
+                log_entry = {"stream": stream_name, "line": line}
+                if log_callback:
+                    try:
+                        log_callback(log_entry)
+                    except Exception as e:
+                        self.logger.error(f"log_callback error: {e}")
                 if len(collected_logs) < 2000:
-                    collected_logs.append({"stream": stream_name, "line": line})
+                    collected_logs.append(log_entry)
             except queue.Empty:
                 break
         
@@ -683,6 +789,7 @@ def run_execution(
     act_timeout: int = 1800,
     secrets: Optional[Dict[str, str]] = None,
     prebuilt_image_name: str = "",
+    log_callback: Optional[Callable[[Dict[str, str]], None]] = None,
 ) -> Dict[str, Any]:
     """
     Convenience function to run execution pipeline.
@@ -709,6 +816,7 @@ def run_execution(
         act_timeout=act_timeout,
         secrets=secrets,
         prebuilt_image_name=prebuilt_image_name,
+        log_callback=log_callback,
     )
 
 

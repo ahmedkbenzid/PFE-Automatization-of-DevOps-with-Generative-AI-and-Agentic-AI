@@ -17,8 +17,9 @@ import {
 import { AgentStatusComponent } from '../agent-status/agent-status.component';
 import { ApprovalGateComponent } from '../approval-gate/approval-gate.component';
 import { ArtifactViewerComponent } from '../artifact-viewer/artifact-viewer.component';
+import { ActionOptionsComponent, ActionOptionsInput, EditedArtifacts } from '../action-options/action-options.component';
 import { TerminalPanelComponent } from '../terminal-panel/terminal-panel.component';
-import { CompleteEvent, LogEvent } from '../../models/run.model';
+import { CompleteEvent, LogEvent, Artifacts } from '../../models/run.model';
 import { ApiService } from '../../services/api.service';
 import { WebsocketService } from '../../services/websocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -34,6 +35,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
     AgentStatusComponent,
     ArtifactViewerComponent,
     ApprovalGateComponent,
+    ActionOptionsComponent,
   ],
   templateUrl: './run-dashboard.component.html',
   styleUrl: './run-dashboard.component.scss',
@@ -52,6 +54,13 @@ export class RunDashboardComponent {
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
+
+  // Store repo path and github URL (from run request or result)
+  readonly repoPath$ = new BehaviorSubject<string | null>(null);
+  readonly githubUrl$ = new BehaviorSubject<string | null>(null);
+
+  // Track edited artifacts
+  readonly editedArtifacts$ = new BehaviorSubject<EditedArtifacts | null>(null);
 
   private readonly wsEvents$ = this.runId$.pipe(
     switchMap((runId) => this.websocket.connect(runId)),
@@ -175,6 +184,27 @@ export class RunDashboardComponent {
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
+  // Generate action options input from artifacts
+  readonly actionOptionsInput$ = combineLatest([
+    this.artifacts$,
+    this.repoPath$,
+    this.githubUrl$,
+    this.editedArtifacts$,
+  ]).pipe(
+    map(([artifacts, repoPath, githubUrl, editedArtifacts]) => {
+      if (!artifacts) return null;
+
+      const input: ActionOptionsInput = {
+        repoPathAvailable: !!repoPath,
+        githubUrl: githubUrl ?? undefined,
+        repoPath: repoPath ?? undefined,
+        editedArtifacts: editedArtifacts || this.artifactsToEdited(artifacts),
+      };
+      return input;
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly websocket: WebsocketService,
@@ -183,5 +213,68 @@ export class RunDashboardComponent {
     // Eagerly subscribe to planReadyEvent$ so the tap side-effect runs
     // even if the user is on the logs tab (where approval gate is hidden).
     this.planReadyEvent$.pipe(takeUntilDestroyed()).subscribe();
+
+    // Extract repo path and github URL from result state
+    this.result$.pipe(
+      filter((result) => !!result),
+      tap((result) => {
+        const repoContext = result?.state?.repo_context;
+        if (repoContext?.path) {
+          this.repoPath$.next(repoContext.path);
+        }
+        if (repoContext?.github_url) {
+          this.githubUrl$.next(repoContext.github_url);
+        }
+      }),
+      takeUntilDestroyed(),
+    ).subscribe();
+  }
+
+  /**
+   * Convert Artifacts model to EditedArtifacts format
+   */
+  private artifactsToEdited(artifacts: Artifacts): EditedArtifacts {
+    return {
+      yaml: artifacts.yaml || null,
+      dockerfile: artifacts.dockerfile || null,
+      terraform: {
+        main_tf: artifacts.terraform?.main_tf || '',
+        variables_tf: artifacts.terraform?.variables_tf || '',
+        outputs_tf: artifacts.terraform?.outputs_tf || '',
+        providers_tf: artifacts.terraform?.providers_tf || '',
+      },
+      kubernetes: {
+        namespace_yaml: artifacts.kubernetes?.namespace_yaml || '',
+        configmap_yaml: artifacts.kubernetes?.configmap_yaml || '',
+        secret_yaml: artifacts.kubernetes?.secret_yaml || '',
+        deployment_yaml: artifacts.kubernetes?.deployment_yaml || '',
+        service_yaml: artifacts.kubernetes?.service_yaml || '',
+        ingress_yaml: artifacts.kubernetes?.ingress_yaml || '',
+        hpa_yaml: artifacts.kubernetes?.hpa_yaml || '',
+      },
+      metadata: artifacts.metadata || {},
+    };
+  }
+
+  /**
+   * Handle artifacts accepted event
+   */
+  onArtifactsAccepted(event: { artifacts: EditedArtifacts; applied: boolean }): void {
+    console.log('✅ Artifacts accepted:', event);
+    this.editedArtifacts$.next(event.artifacts);
+    if (event.applied) {
+      // Show success message or navigate to repo
+      console.log('📁 Artifacts applied to repository');
+    } else {
+      console.log('📥 Artifacts prepared for download');
+    }
+  }
+
+  /**
+   * Handle artifacts rejected event
+   */
+  onArtifactsRejected(): void {
+    console.log('❌ Artifacts rejected');
+    this.editedArtifacts$.next(null);
   }
 }

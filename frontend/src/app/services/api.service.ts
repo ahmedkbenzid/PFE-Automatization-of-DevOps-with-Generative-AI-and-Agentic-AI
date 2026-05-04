@@ -9,11 +9,47 @@ interface StartRunResponse {
   run_id: string;
 }
 
-interface RunStatusResponse {
+export interface RunStatusResponse {
   run_id: string;
   running: boolean;
   returncode: number | null;
   line_count: number;
+}
+
+export interface RunLogsResponse {
+  run_id: string;
+  lines: string[];
+  offset: number;
+  limit: number;
+  total: number;
+  has_more: boolean;
+}
+
+export interface ExecutionLogEntry {
+  stream?: string;
+  line?: string;
+  level?: 'info' | 'warn' | 'error';
+  stage?: string;
+  [key: string]: unknown;
+}
+
+export interface ExecutionLogsResponse {
+  run_id: string;
+  logs: ExecutionLogEntry[];
+  count: number;
+}
+
+export interface ExecutionResultResponse {
+  run_id?: string;
+  status?: 'pending' | 'running' | 'completed' | 'error' | string;
+  started?: boolean;
+  message?: string;
+  act?: {
+    exit_code?: number;
+    logs?: ExecutionLogEntry[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 @Injectable({
@@ -44,5 +80,33 @@ export class ApiService {
 
   getStatus(runId: string): Observable<RunStatusResponse> {
     return this.http.get<RunStatusResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/status`);
+  }
+
+  getLogs(runId: string, offset: number = 0, limit: number = 100): Observable<RunLogsResponse> {
+    return this.http.get<RunLogsResponse>(
+      `${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/logs`,
+      { params: { offset, limit } },
+    );
+  }
+
+  /**
+   * Get post-run execution result produced by the execution agent (if any)
+   */
+  getExecution(runId: string): Observable<ExecutionResultResponse> {
+    return this.http.get<ExecutionResultResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/execution`);
+  }
+
+  /**
+   * Get execution logs streamed from the execution agent
+   */
+  getExecutionLogs(runId: string): Observable<ExecutionLogsResponse> {
+    return this.http.get<ExecutionLogsResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/execution/logs`);
+  }
+
+  /**
+   * Request a stop/repair action for a run (used to stop execution or cleanup)
+   */
+  repairRun(runId: string, payload: Record<string, any> = {}): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/repair`, payload);
   }
 }

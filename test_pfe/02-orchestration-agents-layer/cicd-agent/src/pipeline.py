@@ -135,6 +135,13 @@ class CICDPipeline:
                     'dockerfile_built_successfully': repo_context.get('dockerfile_built_successfully', False),
                     # IaC-aware context so generated CI/CD can avoid Terraform runtime commands.
                     'iac_output_available': repo_context.get('iac_output_available', False),
+                    # Monorepo layout fields (populated by context_collector / dependency_analyzer)
+                    'is_monorepo': repo_context.get('is_monorepo', False),
+                    'frontend_dir': repo_context.get('frontend_dir') or repo_context.get('angular_dir', ''),
+                    'backend_dir': repo_context.get('backend_dir', ''),
+                    'angular_version': repo_context.get('angular_version', ''),
+                    'python_requirements_path': repo_context.get('python_requirements_path', ''),
+                    'nodejs_package_path': repo_context.get('nodejs_package_path', ''),
                 }
             elif repo_path:
                 local_repo_context = self.context_collector.collect_from_local_repo(repo_path)
@@ -398,6 +405,7 @@ class CICDPipeline:
     def _build_fallback_workflow_yaml(self, repo_context: Dict[str, Any], request: UserRequest) -> str:
         """Build a deterministic workflow when the LLM returns empty output."""
         languages = [str(lang).lower() for lang in (repo_context.get("languages") or [])]
+        frameworks = [str(f).lower() for f in (repo_context.get("frameworks") or [])]
         build_system = str(repo_context.get("build_system") or "").lower()
         request_text = (request.text or "").lower()
 
@@ -409,6 +417,80 @@ class CICDPipeline:
         python_match = re.search(r"\d+\.\d+", python_version_raw)
         python_version = python_match.group(0) if python_match else "3.11"
 
+        # Monorepo layout
+        frontend_dir = repo_context.get("frontend_dir") or repo_context.get("angular_dir") or ""
+        backend_dir  = repo_context.get("backend_dir") or ""
+        requirements_path = repo_context.get("python_requirements_path") or (
+            f"{backend_dir}/requirements.txt" if backend_dir else "requirements.txt"
+        )
+        node_version = str(repo_context.get("node_version") or "20")
+        angular_version = repo_context.get("angular_version") or ""
+
+        # ------------------------------------------------------------------
+        # Angular + Python (FastAPI / Django / Flask) monorepo
+        # ------------------------------------------------------------------
+        is_angular = "angular" in frameworks or bool(angular_version) or bool(
+            frontend_dir and re.search(r"angular", build_system)
+        )
+        is_python_backend = "python" in languages or bool(backend_dir) or any(
+            f in frameworks for f in ["fastapi", "django", "flask"]
+        )
+
+        if is_angular and is_python_backend:
+            pkg_dir   = frontend_dir if frontend_dir else "."
+            lock_path = f"{pkg_dir}/package-lock.json"
+            angular_label = f"Angular {angular_version}" if angular_version else "Angular"
+            framework_label = next(
+                (f.capitalize() for f in ["fastapi", "django", "flask"] if f in frameworks),
+                "Python"
+            )
+            test_cmd = "pytest -q || echo 'No tests found'"
+            install_cmd = f"pip install -r {requirements_path}"
+            backend_cd = f"cd {backend_dir} && " if backend_dir else ""
+
+            return f"""name: {angular_label} + {framework_label} CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-frontend:
+    name: Build Angular Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '{node_version}'
+          cache: npm
+          cache-dependency-path: {lock_path}
+      - name: Install dependencies
+        run: npm ci --prefix {pkg_dir}
+      - name: Build frontend
+        run: npm run build --prefix {pkg_dir}
+
+  test-backend:
+    name: Test {framework_label} Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '{python_version}'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r {requirements_path}
+      - name: Run tests
+        run: |
+          {backend_cd}{test_cmd}
+"""
+
+        # ------------------------------------------------------------------
+        # Java (Maven / Gradle)
+        # ------------------------------------------------------------------
         if "java" in languages or build_system in {"maven", "gradle"}:
             return f"""name: Java CI/CD
 on:
@@ -440,6 +522,9 @@ jobs:
         run: docker build -t app:latest .
 """
 
+        # ------------------------------------------------------------------
+        # Generic Python
+        # ------------------------------------------------------------------
         if "python" in languages or build_system in {"pip", "poetry"}:
             deploy_block = ""
             if any(word in request_text for word in ["deploy", "deployment", "release", "production"]):
@@ -452,6 +537,8 @@ jobs:
         run: echo \"Add deployment command here\"
 """
 
+            req_install = f"pip install -r {requirements_path}" if requirements_path else \
+                "if [ -f requirements.txt ]; then pip install -r requirements.txt; fi"
             return f"""name: Python CI/CD
 on:
   push:
@@ -464,13 +551,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '{python_version}'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          {req_install}
       - name: Run tests
         run: |
           if [ -d tests ]; then pytest -q; else echo \"No tests directory\"; fi
@@ -486,6 +573,9 @@ jobs:
 {deploy_block}
 """
 
+        # ------------------------------------------------------------------
+        # Generic fallback
+        # ------------------------------------------------------------------
         return """name: CI Workflow
 on:
   push:
