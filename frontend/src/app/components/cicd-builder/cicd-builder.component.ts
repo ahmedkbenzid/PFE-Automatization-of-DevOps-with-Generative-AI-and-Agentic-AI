@@ -11,7 +11,7 @@ import {
   ViewChild,
   AfterViewChecked,
 } from '@angular/core';
-import { BehaviorSubject, Observable, Subject, of, timer } from 'rxjs';
+import { BehaviorSubject, Subject, of, timer } from 'rxjs';
 import {
   catchError,
   filter,
@@ -40,438 +40,200 @@ interface TerminalLine {
   standalone: true,
   imports: [CommonModule, NgIf, NgFor, AsyncPipe],
   template: `
-    <div class="cicd-builder-container">
-      <!-- Header -->
-      <div class="builder-header">
-        <div class="header-title">
-          <span class="build-icon">📜</span>
-          <span>Execution-Sandbox Logs</span>
-        </div>
-        <div class="header-actions">
-          <span class="status-pill" [class.running]="(executionResult$ | async)?.status === 'running'">
-            {{ executionStatusLabel$ | async }}
-          </span>
-        </div>
+    <div class="terminal-wrap">
+
+      <!-- Summary bar -->
+      <div class="summary-bar" *ngIf="executionResult$ | async as execution">
+        <span class="summary-lines">
+          {{ (terminalLines$ | async)?.length || 0 }} lines
+        </span>
+        <span class="summary-sep">·</span>
+        <span class="summary-exit">
+          exit&nbsp;{{ execution?.act?.exit_code === undefined
+            ? (execution?.status === 'running' ? '…' : 'n/a')
+            : execution?.act?.exit_code }}
+        </span>
+        <span class="summary-sep" *ngIf="execution?.message">·</span>
+        <span class="summary-msg" *ngIf="execution?.message">{{ execution.message }}</span>
+
+        <span class="summary-spacer"></span>
+
+        <span class="result-badge"
+          [class.running]="execution?.status === 'running'"
+          [class.success]="execution?.act?.exit_code === 0 || execution?.status === 'completed'"
+          [class.failed]="execution?.act?.exit_code !== 0 && execution?.act?.exit_code !== undefined && execution?.status !== 'running'">
+          {{ execution?.status === 'running' ? '⏳ Running'
+            : (execution?.act?.exit_code === 0 || execution?.status === 'completed') ? '✅ Success'
+            : '❌ Failed' }}
+        </span>
       </div>
 
-      <!-- Run Summary -->
-      <div class="progress-section" *ngIf="executionResult$ | async as execution">
-        <div class="progress-info">
-          <span class="progress-text">
-            {{ (terminalLines$ | async)?.length || 0 }} sandbox log lines captured
-          </span>
-          <span class="progress-time">
-            Exit code: {{ execution?.act?.exit_code === undefined ? (execution?.status === 'running' ? 'running' : 'n/a') : execution?.act?.exit_code }}
-          </span>
-        </div>
-        <div class="progress-message" *ngIf="execution?.message">
-          {{ execution.message }}
-        </div>
-      </div>
+      <!-- Terminal -->
+      <div class="terminal" #terminal>
+        <div class="terminal-content">
+          <div
+            *ngFor="let line of terminalLines$ | async; let i = index"
+            class="terminal-line"
+            [class.error]="line.level === 'error'"
+            [class.warn]="line.level === 'warn'"
+          >
+            <span class="ln">{{ i + 1 }}</span>
+            <span *ngIf="line.stage" class="ls">[{{ line.stage }}]</span>
+            <span class="lc">{{ line.line }}</span>
+          </div>
 
-      <!-- Terminal Output -->
-      <div class="terminal-section">
-        <div class="terminal-header">
-          <h3>Live Logs</h3>
-          <span class="log-count">
-            {{ (terminalLines$ | async)?.length || 0 }} lines
-          </span>
-        </div>
+          <div
+            *ngIf="(isRunning$ | async) && ((terminalLines$ | async)?.length || 0) === 0"
+            class="terminal-placeholder"
+          >
+            <span class="blink">█</span>&nbsp;Waiting for output…
+          </div>
 
-        <div class="terminal" #terminal>
-          <div class="terminal-content">
-            <div
-              *ngFor="let line of terminalLines$ | async; let i = index"
-              class="terminal-line"
-              [class.error]="line.level === 'error'"
-              [class.warn]="line.level === 'warn'"
-            >
-              <span class="line-number">{{ i + 1 }}</span>
-              <span *ngIf="line.stage" class="line-stage">[{{ line.stage }}]</span>
-              <span class="line-content">{{ line.line }}</span>
-            </div>
-
-            <div
-              *ngIf="(isRunning$ | async) && ((terminalLines$ | async)?.length || 0) === 0"
-              class="terminal-placeholder"
-            >
-              Waiting for output...
-            </div>
+          <div
+            *ngIf="!(isRunning$ | async) && ((terminalLines$ | async)?.length || 0) === 0"
+            class="terminal-placeholder muted"
+          >
+            No log output captured.
           </div>
         </div>
       </div>
 
-      <!-- Build Result -->
-      <div *ngIf="executionResult$ | async as execution" class="result-section" [class.success]="execution?.act?.exit_code === 0 || execution?.status === 'completed'">
-        <div class="result-icon">
-          {{ execution?.status === 'running' ? '⏳' : ((execution?.act?.exit_code === 0 || execution?.status === 'completed') ? '✅' : '❌') }}
-        </div>
-        <div class="result-info">
-          <h3 class="result-title">
-            Sandbox {{ execution?.status === 'running' ? 'In Progress' : ((execution?.act?.exit_code === 0 || execution?.status === 'completed') ? 'Successful' : 'Failed') }}
-          </h3>
-          <p class="result-details">
-            {{ (terminalLines$ | async)?.length || 0 }} sandbox log lines captured
-          </p>
-          <p class="result-code">
-            Exit code: {{ execution?.act?.exit_code === undefined ? (execution?.status === 'running' ? 'running' : 'n/a') : execution?.act?.exit_code }}
-          </p>
-        </div>
-      </div>
     </div>
   `,
   styles: [`
-    .cicd-builder-container {
+    /* ── Outer wrap — no extra border, merges into parent logs-section ── */
+    .terminal-wrap {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      padding: 20px;
-      background: var(--bg-elevated, #1e1e1e);
-      border-radius: 12px;
-      border: 1px solid var(--border-color, #333);
-      max-height: 800px;
-      overflow-y: auto;
+      width: 100%;
+      background: transparent;
     }
 
-    .builder-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border-color, #333);
-    }
-
-    .header-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-primary, #fff);
+    /* ── Summary bar ────────────────────────────────────────────────── */
+    .summary-bar {
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .build-icon {
-      font-size: 24px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: rgba(122, 162, 255, 0.12);
-      color: #8ab4ff;
-      border: 1px solid rgba(122, 162, 255, 0.25);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .status-pill.running {
-      background: rgba(13, 140, 255, 0.15);
-      color: #72c1ff;
-      border-color: rgba(13, 140, 255, 0.35);
-      box-shadow: 0 0 12px rgba(13, 140, 255, 0.12);
-    }
-
-    .btn-stop,
-    .btn-cleanup {
       padding: 8px 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 13px;
-      transition: all 200ms ease;
-    }
-
-    .btn-stop {
-      background: var(--danger-color, #ff4444);
-      color: white;
-    }
-
-    .btn-stop:hover {
-      background: var(--danger-hover, #cc0000);
-      transform: translateY(-2px);
-    }
-
-    .btn-cleanup {
-      background: var(--bg-base, #0d0d0d);
-      color: var(--text-secondary, #999);
-      border: 1px solid var(--border-color, #333);
-    }
-
-    .btn-cleanup:hover {
-      background: var(--bg-hover, #1a1a1a);
-      color: var(--text-primary, #fff);
-    }
-
-    .progress-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .progress-bar {
-      height: 6px;
-      background: var(--bg-base, #0d0d0d);
-      border-radius: 3px;
-      overflow: hidden;
-      border: 1px solid var(--border-color, #333);
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #0d8cff, #00d4ff);
-      transition: width 300ms ease;
-    }
-
-    .progress-info {
-      display: flex;
-      justify-content: space-between;
+      background: #0b1524;
+      border-bottom: 1px solid #1e2d42;
       font-size: 12px;
-      color: var(--text-secondary, #999);
+      font-family: 'Courier New', monospace;
+      flex-wrap: wrap;
     }
 
-    .progress-message {
-      font-size: 12px;
-      color: var(--text-tertiary, #666);
-      line-height: 1.5;
-    }
+    .summary-lines,
+    .summary-exit { color: #7a9abf; }
+    .summary-sep  { color: #2e4057; }
+    .summary-msg  { color: #5a7a9a; font-style: italic; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .summary-spacer { flex: 1; }
 
-    .stages-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 12px;
-    }
-
-    .stage-card {
-      padding: 12px;
-      border: 2px solid var(--border-color, #333);
-      border-radius: 8px;
-      background: var(--bg-base, #0d0d0d);
-      transition: all 200ms ease;
-      cursor: default;
-    }
-
-    .stage-card.running {
-      border-color: var(--accent-color, #0d8cff);
-      background: rgba(13, 140, 255, 0.05);
-      box-shadow: 0 0 12px rgba(13, 140, 255, 0.2);
-    }
-
-    .stage-card.completed {
-      border-color: #00aa00;
-      background: rgba(0, 170, 0, 0.05);
-    }
-
-    .stage-card.failed {
-      border-color: #ff4444;
-      background: rgba(255, 68, 68, 0.05);
-    }
-
-    .stage-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .stage-status-icon {
-      font-size: 18px;
-      min-width: 20px;
-      text-align: center;
-    }
-
-    .stage-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .stage-name {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary, #fff);
-      word-break: break-word;
-    }
-
-    .stage-status {
-      margin: 2px 0 0 0;
+    .result-badge {
       font-size: 11px;
-      color: var(--text-secondary, #999);
-      text-transform: uppercase;
-    }
-
-    .stage-duration,
-    .log-count {
-      font-size: 11px;
-      color: var(--text-secondary, #999);
-      font-family: monospace;
-    }
-
-    .stage-duration {
-      margin-bottom: 4px;
-    }
-
-    .stage-error {
-      font-size: 11px;
-      color: #ff4444;
-      margin-top: 4px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
       white-space: nowrap;
+      background: rgba(142,164,194,0.1);
+      color: #c6d3e8;
+      border-color: rgba(142,164,194,0.2);
     }
 
-    .terminal-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    .result-badge.running {
+      background: rgba(13,140,255,0.15);
+      color: #72c1ff;
+      border-color: rgba(13,140,255,0.3);
     }
 
-    .terminal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      background: var(--bg-base, #0d0d0d);
-      border-radius: 6px 6px 0 0;
-      border-bottom: 1px solid var(--border-color, #333);
+    .result-badge.success {
+      background: rgba(0,170,0,0.14);
+      color: #8cedab;
+      border-color: rgba(0,170,0,0.28);
     }
 
-    .terminal-header h3 {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary, #fff);
+    .result-badge.failed {
+      background: rgba(255,68,68,0.14);
+      color: #ff9d9d;
+      border-color: rgba(255,68,68,0.3);
     }
 
-    .log-count {
-      padding: 2px 6px;
-      background: var(--accent-bg, #1a3a4a);
-      border-radius: 4px;
-    }
-
+    /* ── Terminal ───────────────────────────────────────────────────── */
     .terminal {
-      background: var(--bg-base, #0d0d0d);
-      border: 1px solid var(--border-color, #333);
-      border-radius: 0 0 6px 6px;
+      flex: 1;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      max-height: 300px;
+      min-height: 320px;
+      max-height: 600px;
     }
 
     .terminal-content {
       flex: 1;
       overflow-y: auto;
-      padding: 12px;
+      padding: 12px 16px;
       font-family: 'Courier New', monospace;
       font-size: 12px;
-      line-height: 1.5;
+      line-height: 1.6;
+      background: #060d18;
     }
 
+    /* ── Log lines ──────────────────────────────────────────────────── */
     .terminal-line {
       display: flex;
-      gap: 8px;
-      color: var(--text-secondary, #999);
-      margin-bottom: 2px;
+      gap: 10px;
+      color: #a8c0d8;
+      margin-bottom: 1px;
       word-break: break-all;
     }
 
-    .terminal-line.error {
-      color: #ff6b6b;
-    }
+    .terminal-line.error { color: #ff7070; }
+    .terminal-line.warn  { color: #f0a840; }
 
-    .terminal-line.warn {
-      color: #ffa500;
-    }
-
-    .line-number {
-      color: var(--text-tertiary, #666);
-      min-width: 40px;
+    .ln {
+      color: #2e4a62;
+      min-width: 36px;
       text-align: right;
       flex-shrink: 0;
+      user-select: none;
     }
 
-    .line-stage {
-      color: var(--accent-color, #0d8cff);
-      min-width: 60px;
+    .ls {
+      color: #3a8fd4;
+      min-width: 56px;
       flex-shrink: 0;
     }
 
-    .line-content {
+    .lc {
       flex: 1;
-      color: var(--text-primary, #fff);
+      color: #cfe0f4;
     }
 
+    /* ── Placeholder ────────────────────────────────────────────────── */
     .terminal-placeholder {
-      text-align: center;
-      color: var(--text-tertiary, #666);
-      padding: 24px;
-      font-style: italic;
-    }
-
-    .result-section {
-      padding: 16px;
-      border-radius: 8px;
-      background: var(--bg-base, #0d0d0d);
-      border: 2px solid var(--border-color, #333);
       display: flex;
-      gap: 12px;
       align-items: center;
-    }
-
-    .result-section.success {
-      border-color: #00aa00;
-      background: rgba(0, 170, 0, 0.05);
-    }
-
-    .result-icon {
-      font-size: 32px;
-    }
-
-    .result-info {
-      flex: 1;
-    }
-
-    .result-title {
-      margin: 0 0 4px 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary, #fff);
-    }
-
-    .result-details,
-    .result-code {
-      margin: 2px 0;
+      justify-content: center;
+      padding: 40px 24px;
+      color: #2e4a62;
+      font-style: italic;
       font-size: 13px;
-      color: var(--text-secondary, #999);
     }
 
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+    .terminal-placeholder.muted { color: #1e3048; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
     }
 
-    ::-webkit-scrollbar-track {
-      background: var(--bg-base, #0d0d0d);
-    }
+    .blink { animation: blink 1s step-end infinite; color: #3a8fd4; }
 
-    ::-webkit-scrollbar-thumb {
-      background: var(--border-color, #333);
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--text-secondary, #999);
-    }
+    /* ── Scrollbar ──────────────────────────────────────────────────── */
+    .terminal-content::-webkit-scrollbar        { width: 6px; }
+    .terminal-content::-webkit-scrollbar-track  { background: #060d18; }
+    .terminal-content::-webkit-scrollbar-thumb  { background: #1e3048; border-radius: 3px; }
+    .terminal-content::-webkit-scrollbar-thumb:hover { background: #2e4a62; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -481,19 +243,22 @@ export class CicdBuilderComponent implements OnChanges, OnDestroy, AfterViewChec
 
   private readonly destroy$ = new Subject<void>();
 
-  readonly isRunning$ = new BehaviorSubject<boolean>(false);
-  readonly runStatus$ = new BehaviorSubject<RunStatusResponse | null>(null);
-  readonly terminalLines$ = new BehaviorSubject<TerminalLine[]>([]);
-  readonly buildResult$ = new BehaviorSubject<any>(null);
-  readonly executionResult$ = new BehaviorSubject<ExecutionResultResponse | null>(null);
+  readonly isRunning$            = new BehaviorSubject<boolean>(false);
+  readonly runStatus$            = new BehaviorSubject<RunStatusResponse | null>(null);
+  readonly terminalLines$        = new BehaviorSubject<TerminalLine[]>([]);
+  readonly buildResult$          = new BehaviorSubject<any>(null);
+  readonly executionResult$      = new BehaviorSubject<ExecutionResultResponse | null>(null);
   readonly executionStatusLabel$ = new BehaviorSubject<string>('Loading');
 
-  private lineCounter = 0;
-  private polledLineIndex = 0;
-  private polledExecutionLogIndex = 0;
-  private pollComplete = false;
+  private lineCounter              = 0;
+  private polledLineIndex          = 0;
+  private polledExecutionLogIndex  = 0;
+  private pollComplete             = false;
 
-  constructor(private readonly api: ApiService, private cdr: ChangeDetectorRef) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['executionId'] && this.executionId) {
@@ -510,47 +275,41 @@ export class CicdBuilderComponent implements OnChanges, OnDestroy, AfterViewChec
     this.destroy$.complete();
   }
 
+  // ─── Initialise ────────────────────────────────────────────────────────────
+
   private initializeExecution(): void {
     if (!this.executionId) return;
 
-    this.lineCounter = 0;
-    this.polledLineIndex = 0;
+    this.lineCounter             = 0;
+    this.polledLineIndex         = 0;
     this.polledExecutionLogIndex = 0;
-    this.pollComplete = false;
+    this.pollComplete            = false;
     this.terminalLines$.next([]);
     this.runStatus$.next(null);
     this.buildResult$.next(null);
     this.executionResult$.next(null);
     this.executionStatusLabel$.next('Loading');
-
     this.isRunning$.next(true);
 
-    // Poll orchestrator run status (keeps quick UI feedback)
+    // Poll orchestrator run status
     timer(0, 1000)
       .pipe(
         filter(() => !!this.executionId && !this.pollComplete),
         switchMap(() =>
           this.api.getStatus(this.executionId!).pipe(
-            catchError((error) => {
-              console.error('Run status poll error:', error);
-              return of(null);
-            })
+            catchError((err) => { console.error('Run status poll error:', err); return of(null); })
           )
         ),
-        filter((status): status is RunStatusResponse => status !== null),
+        filter((s): s is RunStatusResponse => s !== null),
         tap((status) => {
           this.runStatus$.next(status);
           this.isRunning$.next(status.returncode === null);
-
           if (status.returncode !== null) {
-            this.buildResult$.next({
-              success: status.returncode === 0,
-              returncode: status.returncode,
-            });
+            this.buildResult$.next({ success: status.returncode === 0, returncode: status.returncode });
             this.pollComplete = true;
           }
         }),
-        takeUntil(this.destroy$)
+        takeUntil(this.destroy$),
       )
       .subscribe();
 
@@ -560,63 +319,58 @@ export class CicdBuilderComponent implements OnChanges, OnDestroy, AfterViewChec
         filter(() => !!this.executionId && !this.pollComplete),
         switchMap(() =>
           this.api.getExecution(this.executionId!).pipe(
-            catchError((error) => {
-              console.error('Execution status poll error:', error);
-              return of(null);
-            })
+            catchError((err) => { console.error('Execution status poll error:', err); return of(null); })
           )
         ),
-        filter((response): response is ExecutionResultResponse => response !== null),
+        filter((r): r is ExecutionResultResponse => r !== null),
         tap((response) => {
           this.executionResult$.next(response);
           this.executionStatusLabel$.next(this.formatExecutionStatus(response));
-
-          const status = String(response.status || '').toLowerCase();
-          this.isRunning$.next(status === 'running' || status === 'pending');
-          if (status && status !== 'running' && status !== 'pending') {
+          const s = String(response.status || '').toLowerCase();
+          this.isRunning$.next(s === 'running' || s === 'pending');
+          if (s && s !== 'running' && s !== 'pending') {
             this.buildResult$.next({
-              success: status === 'completed' || (response.act && response.act.exit_code === 0),
+              success: s === 'completed' || (response.act && response.act.exit_code === 0),
               returncode: response.act ? response.act.exit_code ?? null : null,
             });
             this.pollComplete = true;
           }
         }),
-        takeUntil(this.destroy$)
+        takeUntil(this.destroy$),
       )
       .subscribe();
 
-    // Poll execution logs (JSONL emitted by the sandbox)
+    // Poll execution logs
     timer(0, 1000)
       .pipe(
         filter(() => !!this.executionId && !this.pollComplete),
         switchMap(() =>
           this.api.getExecutionLogs(this.executionId!).pipe(
-            catchError((error) => {
-              console.error('Execution logs poll error:', error);
-              return of(null);
-            })
+            catchError((err) => { console.error('Execution logs poll error:', err); return of(null); })
           )
         ),
-        filter((response): response is ExecutionLogsResponse => response !== null),
+        filter((r): r is ExecutionLogsResponse => r !== null),
         tap((response) => this.handleLogResponse(response)),
-        takeUntil(this.destroy$)
+        takeUntil(this.destroy$),
       )
       .subscribe();
   }
 
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
   private formatExecutionStatus(execution: ExecutionResultResponse | null): string {
     if (!execution) return 'Loading';
-    const status = String(execution.status || '').toLowerCase();
-    if (status === 'running' || status === 'pending') return 'Running';
-    if (status === 'completed' || (execution.act && execution.act.exit_code === 0)) return 'Completed';
+    const s = String(execution.status || '').toLowerCase();
+    if (s === 'running' || s === 'pending') return 'Running';
+    if (s === 'completed' || (execution.act && execution.act.exit_code === 0)) return 'Completed';
     return 'Failed';
   }
 
   private normalizeExecutionLogLine(entry: ExecutionLogEntry | string): string {
     if (typeof entry === 'string') return entry;
-    const line = typeof entry.line === 'string' ? entry.line : '';
+    const line   = typeof entry.line   === 'string' ? entry.line   : '';
     const prefix = typeof entry.stream === 'string' && entry.stream ? `[${entry.stream}] ` : '';
-    const stage = typeof entry.stage === 'string' && entry.stage ? `[${entry.stage}] ` : '';
+    const stage  = typeof entry.stage  === 'string' && entry.stage  ? `[${entry.stage}] `  : '';
     if (line) return `${prefix}${stage}${line}`.trim();
     const msg = (entry as Record<string, unknown>)['message'];
     return msg !== undefined ? String(msg) : JSON.stringify(entry);
@@ -629,13 +383,12 @@ export class CicdBuilderComponent implements OnChanges, OnDestroy, AfterViewChec
 
     const nextLines = [...this.terminalLines$.value];
     for (const entry of newLogs) {
-      const newLine: TerminalLine = {
-        id: this.lineCounter++,
-        line: this.normalizeExecutionLogLine(entry as ExecutionLogEntry),
-        level: 'info',
+      nextLines.push({
+        id:        this.lineCounter++,
+        line:      this.normalizeExecutionLogLine(entry as ExecutionLogEntry),
+        level:     'info',
         timestamp: new Date(),
-      };
-      nextLines.push(newLine);
+      });
     }
 
     if (nextLines.length > 500) nextLines.splice(0, nextLines.length - 500);
@@ -648,17 +401,12 @@ export class CicdBuilderComponent implements OnChanges, OnDestroy, AfterViewChec
   private scrollTerminalToBottom(): void {
     if (this.terminalElement) {
       setTimeout(() => {
-        const content = this.terminalElement!.nativeElement;
-        content.scrollTop = content.scrollHeight;
+        const el = this.terminalElement!.nativeElement;
+        el.scrollTop = el.scrollHeight;
       });
     }
   }
 
-  stopBuild(): void {
-    this.pollComplete = true;
-  }
-
-  cleanup(): void {
-    this.pollComplete = true;
-  }
+  stopBuild():  void { this.pollComplete = true; }
+  cleanup():    void { this.pollComplete = true; }
 }
