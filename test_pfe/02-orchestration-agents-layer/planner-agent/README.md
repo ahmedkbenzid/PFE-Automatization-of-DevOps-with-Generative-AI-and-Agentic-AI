@@ -44,6 +44,6 @@ The Planner is invoked by the Orchestrator when complexity threshold is exceeded
 
 ## Configuration
 
-- **LLM Model**: `qwen3.5:cloud` (configurable in config.py)
+- **LLM Model**: `gpt-oss:20b:cloud` (configurable in config.py)
 - **Complexity Threshold**: 4 (configurable)
 - **Temperature**: 0.1 (low for consistent planning)

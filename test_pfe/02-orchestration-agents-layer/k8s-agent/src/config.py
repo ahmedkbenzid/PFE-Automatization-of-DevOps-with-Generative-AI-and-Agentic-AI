@@ -24,7 +24,7 @@ DATA_DIR = BASE_DIR / "src" / "datasets" / "knowledge_base"
 
 LLM_CONFIG = {
     "provider": os.getenv("K8S_LLM_PROVIDER", "ollama"),
-    "model": os.getenv("K8S_OLLAMA_MODEL", "qwen3.5:cloud"),
+    "model": os.getenv("K8S_OLLAMA_MODEL", "gpt-oss:20b:cloud"),
     "groq_model": os.getenv("K8S_GROQ_MODEL", "llama-3.3-70b-versatile"),
     "temperature": 0.2,
     "max_tokens": 2048,

@@ -47,7 +47,7 @@
     "constraints": {
       "execution_time_sec": 60,
       "requires_repo_analysis": true,
-      "llm_model": "qwen3.5:cloud"
+      "llm_model": "gpt-oss:20b:cloud"
     },
     "priority": 2,
     "can_run_parallel_with": [
@@ -97,7 +97,7 @@
     "constraints": {
       "execution_time_sec": 45,
       "requires_repo_analysis": true,
-      "llm_model": "qwen3.5:cloud"
+      "llm_model": "gpt-oss:20b:cloud"
     },
     "priority": 1,
     "can_run_parallel_with": []
@@ -147,7 +147,7 @@
       "execution_time_sec": 90,
       "requires_repo_analysis": true,
       "requires_cloud_provider": true,
-      "llm_model": "qwen3.5:cloud"
+      "llm_model": "gpt-oss:20b:cloud"
     },
     "priority": 2,
     "can_run_parallel_with": []
@@ -194,7 +194,7 @@
     "constraints": {
       "execution_time_sec": 60,
       "requires_repo_analysis": true,
-      "llm_model": "qwen3.5:cloud"
+      "llm_model": "gpt-oss:20b:cloud"
     },
     "priority": 2,
     "can_run_parallel_with": [

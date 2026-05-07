@@ -17,6 +17,7 @@ import {
 import { AgentStatusComponent } from '../agent-status/agent-status.component';
 import { ApprovalGateComponent } from '../approval-gate/approval-gate.component';
 import { ActionOptionsComponent, ActionOptionsInput, EditedArtifacts } from '../action-options/action-options.component';
+import { RunChatComponent } from '../run-chat/run-chat.component';
 import { TerminalPanelComponent } from '../terminal-panel/terminal-panel.component';
 import { CompleteEvent, LogEvent, Artifacts } from '../../models/run.model';
 import { ApiService } from '../../services/api.service';
@@ -33,6 +34,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
     TerminalPanelComponent,
     AgentStatusComponent,
     ApprovalGateComponent,
+    RunChatComponent,
     ActionOptionsComponent,
   ],
   templateUrl: './run-dashboard.component.html',

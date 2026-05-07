@@ -101,7 +101,7 @@ class LLMClient:
     def _init_ollama(self) -> None:
         if chat is None:
             raise RuntimeError("ollama not installed")
-        self.model = LLM_CONFIG.get("model", "qwen3.5:cloud")
+        self.model = LLM_CONFIG.get("model", "gpt-oss:20b:cloud")
         self.provider = "ollama"
         logger.info(f"Using Ollama: {self.model}")
 

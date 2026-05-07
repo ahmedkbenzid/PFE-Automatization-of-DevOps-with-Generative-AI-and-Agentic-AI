@@ -1,61 +1,76 @@
-<section class="sandbox-panel" *ngIf="panelState$ | async as state">
-  <header class="panel-header">
-    <h3>Sandbox Execution</h3>
-    <span class="connection" [ngClass]="'state-' + state.connectionState">
-      {{ state.connectionState }}
-    </span>
-  </header>
+<!-- FIX (minor): replaced *ngIf / *ngFor / *ngSwitch with Angular 17+ built-in
+     @if / @for control flow. NgIf and NgFor removed from component imports[]. -->
+@if (panelState$ | async; as state) {
+  <section class="sandbox-panel">
+    <header class="panel-header">
+      <h3>Sandbox Execution</h3>
+      <span class="connection" [ngClass]="'state-' + state.connectionState">
+        {{ state.connectionState }}
+      </span>
+    </header>
 
-  <div class="isolation-banner" role="note">
-    Isolated sandbox mode: this panel is read-only observability. The sandbox is ephemeral and does not apply changes to production or a real cluster.
-  </div>
-
-  <section class="progress-section" aria-label="Pipeline progress">
-    <div class="progress-meta">
-      <span>{{ state.completedCount }}/{{ stageOrder.length }} stages completed</span>
-      <span>{{ state.progressPercent }}%</span>
+    <div class="isolation-banner" role="note">
+      Isolated sandbox mode: this panel is read-only observability. The sandbox
+      is ephemeral and does not apply changes to production or a real cluster.
     </div>
-    <div class="progress-track">
-      <div class="progress-fill" [style.width.%]="state.progressPercent"></div>
-    </div>
-  </section>
 
-  <section class="stage-grid" aria-label="Pipeline stages">
-    <article
-      class="stage-card"
-      *ngFor="let stage of stageOrder; trackBy: trackStage"
-      [ngClass]="'status-' + state.stages[stage]"
-    >
-      <div class="stage-title">{{ stage }}</div>
-      <div class="stage-status">
-        <span class="material-icons stage-icon" aria-hidden="true">{{ stageIcon(state.stages[stage]) }}</span>
-        <span>{{ state.stages[stage] }}</span>
+    <section class="progress-section" aria-label="Pipeline progress">
+      <div class="progress-meta">
+        <span>{{ state.completedCount }}/{{ stageOrder.length }} stages completed</span>
+        <span>{{ state.progressPercent }}%</span>
       </div>
-    </article>
-  </section>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="state.progressPercent"></div>
+      </div>
+    </section>
 
-  <section class="terminal-wrap" aria-label="Sandbox terminal output">
-    <div class="terminal-pane" #terminalPane>
-      <div
-        class="terminal-line"
-        *ngFor="let item of state.terminal; trackBy: trackTerminal"
-        [ngClass]="'level-' + item.level"
+    <section class="stage-grid" aria-label="Pipeline stages">
+      @for (stage of stageOrder; track stage) {
+        <article class="stage-card" [ngClass]="'status-' + state.stages[stage]">
+          <div class="stage-title">{{ stage }}</div>
+          <div class="stage-status">
+            <span class="material-icons stage-icon" aria-hidden="true">
+              {{ stageIcon(state.stages[stage]) }}
+            </span>
+            <span>{{ state.stages[stage] }}</span>
+          </div>
+        </article>
+      }
+    </section>
+
+    <section class="terminal-wrap" aria-label="Sandbox terminal output">
+      <div class="terminal-pane" #terminalPane>
+        <!-- FIX (warning): visibleTerminal() returns a bounded slice so the DOM
+             stays capped at VISIBLE_TERMINAL_LINES nodes without copying the
+             full array on every message in the reducer. -->
+        @for (item of visibleTerminal(state.terminal); track item.id) {
+          <div class="terminal-line" [ngClass]="'level-' + item.level">
+            <span class="terminal-ts">+{{ item.elapsedMs }}ms</span>
+            <span class="terminal-stage">[{{ item.stage }}]</span>
+            <span class="terminal-text">{{ item.line }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <footer class="panel-actions">
+      <!--
+        FIX (warning): aria-label communicates why the button is disabled to
+        screen readers instead of just announcing "Trigger repair, dimmed".
+      -->
+      <button
+        type="button"
+        class="repair-btn"
+        [disabled]="!state.failedStage"
+        [attr.aria-label]="
+          state.failedStage
+            ? 'Trigger repair for ' + state.failedStage + ' stage'
+            : 'No failed stage to repair'
+        "
+        (click)="onTriggerRepair(state.runId, state.failedStage)"
       >
-        <span class="terminal-ts">+{{ item.elapsedMs }}ms</span>
-        <span class="terminal-stage">[{{ item.stage }}]</span>
-        <span class="terminal-text">{{ item.line }}</span>
-      </div>
-    </div>
+        Trigger repair
+      </button>
+    </footer>
   </section>
-
-  <footer class="panel-actions">
-    <button
-      type="button"
-      class="repair-btn"
-      [disabled]="!state.failedStage"
-      (click)="onTriggerRepair(state.runId, state.failedStage)"
-    >
-      Trigger repair
-    </button>
-  </footer>
-</section>
+}

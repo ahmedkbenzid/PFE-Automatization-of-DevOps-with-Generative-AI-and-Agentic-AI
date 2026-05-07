@@ -68,4 +68,9 @@
       </div>
     </div>
   </ng-container>
+  <!-- AI Artifact Chatbot -->
+  <app-run-chat
+    [artifacts]="editedArtifacts$ | async"
+    (artifactsChanged)="onArtifactsAccepted({ artifacts: $event, applied: false })"
+  ></app-run-chat>
 </section>

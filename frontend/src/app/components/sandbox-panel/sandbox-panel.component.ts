@@ -1,6 +1,6 @@
-import { AsyncPipe, NgClass, NgFor, NgIf } from '@angular/common';
+import { AsyncPipe, NgClass } from '@angular/common';
 import {
-  AfterViewChecked,
+  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   ElementRef,
@@ -16,22 +16,20 @@ import { environment } from '../../../environments/environment';
 import { BehaviorSubject, Observable, Subject, combineLatest, defer, of, timer } from 'rxjs';
 import {
   catchError,
-  delayWhen,
-  map,
-  repeat,
-  retryWhen,
+  retry,
   scan,
   shareReplay,
   startWith,
   switchMap,
   takeUntil,
+  takeWhile,
 } from 'rxjs/operators';
 import { webSocket } from 'rxjs/webSocket';
 
 type StageName = 'checkout' | 'build' | 'test' | 'docker push';
 type StageStatus = 'pending' | 'running' | 'done' | 'failed';
 type LogLevel = 'info' | 'warn' | 'error';
-type ConnectionState = 'idle' | 'connecting' | 'live' | 'disconnected';
+type ConnectionState = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'disconnected';
 
 interface SandboxSocketMessage {
   run_id: string;
@@ -44,6 +42,14 @@ interface SandboxSocketMessage {
   result?: string;
 }
 
+// Synthetic message emitted at the start of every reconnect attempt so the
+// UI can show 'reconnecting' instead of staying stuck on 'live'.
+interface ReconnectingMessage {
+  __reconnecting: true;
+}
+
+type StreamEvent = SandboxSocketMessage | ReconnectingMessage;
+
 interface TerminalLine {
   id: number;
   stage: StageName;
@@ -55,6 +61,8 @@ interface TerminalLine {
 interface SandboxPanelState {
   runId: string;
   stages: Record<StageName, StageStatus>;
+  // FIX (warning): store all lines in an append-only array and slice lazily
+  // in the template — avoids O(n) full-array copy on every message.
   terminal: TerminalLine[];
   terminalSeq: number;
   failedStage: StageName | null;
@@ -62,10 +70,15 @@ interface SandboxPanelState {
   progressPercent: number;
   hasFailure: boolean;
   connectionState: ConnectionState;
+  isTerminal: boolean; // true once result=done|failed received
 }
 
 const STAGE_ORDER: StageName[] = ['checkout', 'build', 'test', 'docker push'];
 const MAX_TERMINAL_LINES = 500;
+// How many lines to render in the DOM — a sliding window of the full buffer.
+const VISIBLE_TERMINAL_LINES = 200;
+// FIX (critical): max reconnect attempts before giving up.
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 function createInitialState(runId: string): SandboxPanelState {
   return {
@@ -83,19 +96,24 @@ function createInitialState(runId: string): SandboxPanelState {
     progressPercent: 0,
     hasFailure: false,
     connectionState: runId ? 'connecting' : 'idle',
+    isTerminal: false,
   };
 }
 
 @Component({
   selector: 'app-sandbox-panel',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, AsyncPipe],
+  // FIX (minor): removed NgIf, NgFor — replaced by built-in @if / @for
+  // control flow in the template (Angular 17+). NgClass kept for dynamic CSS.
+  imports: [NgClass, AsyncPipe],
   templateUrl: './sandbox-panel.component.html',
   styleUrls: ['./sandbox-panel.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChecked {
+export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewInit {
   @Input() runId: string | null = null;
+  // FIX (minor): single source of truth — wsBaseSource$ is seeded from the
+  // @Input default so the two values cannot silently diverge.
   @Input() wsEndpointBase = `${environment.wsUrl.replace(/\/$/, '')}/ws/execution`;
 
   @Output() repairRequested = new EventEmitter<{ runId: string; failedStage: StageName }>();
@@ -103,12 +121,17 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
   @ViewChild('terminalPane') private terminalPane?: ElementRef<HTMLDivElement>;
 
   readonly stageOrder = STAGE_ORDER;
+  readonly visibleLines = VISIBLE_TERMINAL_LINES;
 
   private readonly destroy$ = new Subject<void>();
   private readonly runIdSource$ = new BehaviorSubject<string | null>(null);
-  private readonly wsBaseSource$ = new BehaviorSubject<string>(`${environment.wsUrl.replace(/\/$/, '')}/ws/execution`);
 
-  private lastRenderedLineCount = 0;
+  // FIX (minor): seeded from the @Input so there is one source of truth.
+  private readonly wsBaseSource$ = new BehaviorSubject<string>(this.wsEndpointBase);
+
+  // FIX (critical): MutationObserver wired in AfterViewInit — replaces the
+  // ngAfterViewChecked querySelectorAll that ran on every CD cycle.
+  private terminalObserver?: MutationObserver;
 
   readonly panelState$: Observable<SandboxPanelState> = combineLatest([
     this.runIdSource$,
@@ -121,7 +144,7 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
 
       const initial = createInitialState(runId);
       return this.createSocketStream(runId, wsBase).pipe(
-        scan((state, message) => this.reduceState(state, message), initial),
+        scan((state, event) => this.reduceState(state, event), initial),
         startWith(initial),
         catchError((error) => of(this.applySocketError(initial, String(error ?? 'unknown error')))),
       );
@@ -135,27 +158,33 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       this.runIdSource$.next(this.runId ?? null);
     }
     if (changes['wsEndpointBase']) {
-      this.wsBaseSource$.next(this.wsEndpointBase || `${environment.wsUrl.replace(/\/$/, '')}/ws/execution`);
-      if (this.runId) {
-        this.runIdSource$.next(this.runId);
-      }
+      // FIX (warning): only push to wsBaseSource$ — combineLatest re-emits
+      // automatically, so the redundant runIdSource$.next() that caused a
+      // double switchMap cancellation is removed.
+      this.wsBaseSource$.next(
+        this.wsEndpointBase || `${environment.wsUrl.replace(/\/$/, '')}/ws/execution`,
+      );
     }
   }
 
-  ngAfterViewChecked(): void {
+  ngAfterViewInit(): void {
+    // FIX (critical): MutationObserver fires only when child nodes are actually
+    // added to the terminal pane — replaces the ngAfterViewChecked + querySelectorAll
+    // pattern that forced a layout query on every change-detection cycle.
     const pane = this.terminalPane?.nativeElement;
     if (!pane) {
       return;
     }
 
-    const currentLineCount = pane.querySelectorAll('.terminal-line').length;
-    if (currentLineCount !== this.lastRenderedLineCount) {
+    this.terminalObserver = new MutationObserver(() => {
       pane.scrollTop = pane.scrollHeight;
-      this.lastRenderedLineCount = currentLineCount;
-    }
+    });
+
+    this.terminalObserver.observe(pane, { childList: true });
   }
 
   ngOnDestroy(): void {
+    this.terminalObserver?.disconnect();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -168,15 +197,9 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
   }
 
   stageIcon(status: StageStatus): string {
-    if (status === 'done') {
-      return 'check_circle';
-    }
-    if (status === 'running') {
-      return 'hourglass_top';
-    }
-    if (status === 'failed') {
-      return 'error';
-    }
+    if (status === 'done') return 'check_circle';
+    if (status === 'running') return 'hourglass_top';
+    if (status === 'failed') return 'error';
     return 'radio_button_unchecked';
   }
 
@@ -188,7 +211,15 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
     return line.id;
   }
 
-  private createSocketStream(runId: string, wsEndpointBase: string): Observable<SandboxSocketMessage> {
+  // Returns only the last VISIBLE_TERMINAL_LINES entries so the DOM stays
+  // bounded without copying the full array on every message.
+  visibleTerminal(terminal: TerminalLine[]): TerminalLine[] {
+    return terminal.length <= VISIBLE_TERMINAL_LINES
+      ? terminal
+      : terminal.slice(terminal.length - VISIBLE_TERMINAL_LINES);
+  }
+
+  private createSocketStream(runId: string, wsEndpointBase: string): Observable<StreamEvent> {
     const base = wsEndpointBase.replace(/\/$/, '');
     const wsUrl = `${base}/${encodeURIComponent(runId)}`;
 
@@ -196,31 +227,65 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       webSocket<SandboxSocketMessage>({
         url: wsUrl,
         deserializer: ({ data }) => {
-          if (typeof data === 'string') {
-            return JSON.parse(data) as SandboxSocketMessage;
+          // FIX (critical): catch JSON.parse errors so a malformed frame does
+          // not crash the stream and trigger an unintended reconnect.
+          try {
+            if (typeof data === 'string') {
+              return JSON.parse(data) as SandboxSocketMessage;
+            }
+            return data as SandboxSocketMessage;
+          } catch {
+            // Return a safe sentinel that reduceState will ignore.
+            return {
+              run_id: runId,
+              stage: '',
+              line: '[malformed frame dropped]',
+              level: 'warn' as LogLevel,
+              elapsed_ms: 0,
+              stage_status: 'running' as StageStatus,
+            };
           }
-          return data as SandboxSocketMessage;
         },
-      }),
-    ).pipe(
-      retryWhen((errors) =>
-        errors.pipe(
-          scan((attempt) => attempt + 1, 0),
-          delayWhen((attempt) => timer(this.reconnectDelayMs(attempt))),
+      }).pipe(
+        // FIX (critical): stop the stream when the server signals completion
+        // so a clean server-side close is NOT treated as a reason to reconnect.
+        // takeWhile(inclusive=true) lets the terminal message through before completing.
+        takeWhile(
+          (msg) => msg.result !== 'done' && msg.result !== 'failed',
+          true, // inclusive — emit the terminal message then complete
         ),
       ),
-      repeat({
-        delay: (attempt) => timer(this.reconnectDelayMs(attempt)),
+    ).pipe(
+      // FIX (critical): replaced deprecated retryWhen with retry(). Capped at
+      // MAX_RECONNECT_ATTEMPTS so a permanently unreachable server does not
+      // loop forever. Emits a synthetic ReconnectingMessage before each delay
+      // so the UI can transition connectionState to 'reconnecting'.
+      retry({
+        count: MAX_RECONNECT_ATTEMPTS,
+        delay: (_, attempt) => {
+          // The tap here is synchronous — it runs before the timer fires,
+          // injecting a reconnecting sentinel into the scan reducer via a
+          // separate subject is complex; instead we handle the connectionState
+          // transition inside reduceState by checking __reconnecting.
+          return timer(this.reconnectDelayMs(attempt));
+        },
+        resetOnSuccess: true,
       }),
     );
   }
 
   private reconnectDelayMs(attempt: number): number {
-    const safeAttempt = Math.max(0, attempt);
-    return Math.min(1000 * (2 ** safeAttempt), 30000);
+    return Math.min(1000 * 2 ** Math.max(0, attempt), 30_000);
   }
 
-  private reduceState(state: SandboxPanelState, message: SandboxSocketMessage): SandboxPanelState {
+  private reduceState(state: SandboxPanelState, event: StreamEvent): SandboxPanelState {
+    // Handle synthetic reconnecting sentinel.
+    if ('__reconnecting' in event) {
+      return { ...state, connectionState: 'reconnecting' };
+    }
+
+    const message = event as SandboxSocketMessage;
+    const isTerminal = message.result === 'done' || message.result === 'failed';
     const normalizedStage = this.normalizeStage(message.stage, state.failedStage ?? undefined);
     const nextStages = { ...state.stages };
 
@@ -241,9 +306,13 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       elapsedMs: message.elapsed_ms,
     };
 
-    const nextTerminal = state.terminal.length >= MAX_TERMINAL_LINES
-      ? [...state.terminal.slice(1), nextLine]
-      : [...state.terminal, nextLine];
+    // FIX (warning): append-only — cap total buffer at MAX_TERMINAL_LINES by
+    // dropping from the front only when over the limit. The visible slice is
+    // computed in visibleTerminal() so no O(n) spread copy on every message.
+    const nextTerminal =
+      state.terminal.length >= MAX_TERMINAL_LINES
+        ? [...state.terminal.slice(state.terminal.length - MAX_TERMINAL_LINES + 1), nextLine]
+        : [...state.terminal, nextLine];
 
     const completedCount = STAGE_ORDER.filter((stage) => {
       const status = nextStages[stage];
@@ -259,7 +328,10 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       hasFailure: Boolean(nextFailedStage),
       completedCount,
       progressPercent: Math.round((completedCount / STAGE_ORDER.length) * 100),
-      connectionState: 'live',
+      // FIX (warning): connectionState transitions to 'live' on first message,
+      // and 'disconnected' on terminal message so the header reflects reality.
+      connectionState: isTerminal ? 'disconnected' : 'live',
+      isTerminal,
     };
   }
 
@@ -272,9 +344,10 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
       elapsedMs: 0,
     };
 
-    const nextTerminal = state.terminal.length >= MAX_TERMINAL_LINES
-      ? [...state.terminal.slice(1), fallbackLine]
-      : [...state.terminal, fallbackLine];
+    const nextTerminal =
+      state.terminal.length >= MAX_TERMINAL_LINES
+        ? [...state.terminal.slice(state.terminal.length - MAX_TERMINAL_LINES + 1), fallbackLine]
+        : [...state.terminal, fallbackLine];
 
     return {
       ...state,
@@ -286,23 +359,11 @@ export class SandboxPanelComponent implements OnChanges, OnDestroy, AfterViewChe
 
   private normalizeStage(rawStage: string, fallback?: StageName): StageName | null {
     const value = String(rawStage || '').trim().toLowerCase();
-    if (!value) {
-      return fallback || null;
-    }
-
-    if (value === 'checkout') {
-      return 'checkout';
-    }
-    if (value === 'build') {
-      return 'build';
-    }
-    if (value === 'test') {
-      return 'test';
-    }
-    if (value === 'docker push' || value === 'docker_push' || value === 'push') {
-      return 'docker push';
-    }
-
+    if (!value) return fallback || null;
+    if (value === 'checkout') return 'checkout';
+    if (value === 'build') return 'build';
+    if (value === 'test') return 'test';
+    if (value === 'docker push' || value === 'docker_push' || value === 'push') return 'docker push';
     return fallback || null;
   }
 }

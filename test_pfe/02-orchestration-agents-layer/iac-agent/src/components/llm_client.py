@@ -16,7 +16,7 @@ class IACLLMClient:
         self.temperature = IAC_CONFIG.get("llm_temperature", 0.1)
         self.max_tokens = IAC_CONFIG.get("llm_max_tokens", 4096)
         self.groq_model = IAC_CONFIG.get("groq_model", "llama-3.1-8b-instant")
-        self.ollama_model = IAC_CONFIG.get("ollama_model", "qwen3.5:cloud")
+        self.ollama_model = IAC_CONFIG.get("ollama_model", "gpt-oss:20b:cloud")
 
     def generate(self, prompt: str) -> str:
         if self.provider == "ollama":
