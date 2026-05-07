@@ -826,6 +826,16 @@ class ExecutionPipeline:
             f"[{step_name}] Completed: exit_code={exit_code}, timed_out={timed_out}, success={success}"
         )
         return result
+    import re
+
+def strip_code_fence(content: str) -> str:
+    """Remove markdown code fences that LLMs often wrap output in."""
+    # Matches ```dockerfile, ```yaml, ``` etc. at start and end
+    pattern = r"^\s*```[a-zA-Z]*\n(.*?)\n\s*```\s*$"
+    match = re.match(pattern, content.strip(), re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return content.strip()
 
 
 def run_execution(

@@ -1,6 +1,6 @@
 import { AsyncPipe, NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute,Router, RouterLink } from '@angular/router';
 import { BehaviorSubject, combineLatest, interval, of } from 'rxjs';
 import {
   catchError,
@@ -43,6 +43,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 })
 export class RunDashboardComponent {
   readonly activeTab$ = new BehaviorSubject<'logs' | 'workspace'>('logs');
+  readonly sandboxStarting$ = new BehaviorSubject<boolean>(false);
+  readonly sandboxStartError$ = new BehaviorSubject<string | null>(null);
 
   setTab(tab: 'logs' | 'workspace'): void {
     this.activeTab$.next(tab);
@@ -175,6 +177,8 @@ export class RunDashboardComponent {
     private readonly route: ActivatedRoute,
     private readonly websocket: WebsocketService,
     private readonly api: ApiService,
+    private readonly router: Router,
+
   ) {
     this.planReadyEvent$.pipe(takeUntilDestroyed()).subscribe();
 
@@ -221,5 +225,38 @@ export class RunDashboardComponent {
 
   onArtifactsRejected(): void {
     this.editedArtifacts$.next(null);
+  }
+  onSandboxExecution(runId: string): void {
+    if (this.sandboxStarting$.value) return;
+
+    this.sandboxStarting$.next(true);
+    this.sandboxStartError$.next(null);
+
+    const editedArtifacts = this.editedArtifacts$.value;
+    const payload: { force: boolean; artifacts?: Record<string, unknown> } = { force: true };
+    if (editedArtifacts) {
+      payload.artifacts = editedArtifacts as unknown as Record<string, unknown>;
+    }
+
+    this.api.startExecutionForRun(runId, payload).pipe(
+      catchError((error) => {
+        this.sandboxStartError$.next(this.describeSandboxStartError(error));
+        return of(null);
+      }),
+    ).subscribe((result) => {
+      this.sandboxStarting$.next(false);
+      if (!result) return;
+      void this.router.navigate(['/cicd', runId]);
+    });
+  }
+
+  private describeSandboxStartError(error: unknown): string {
+    if (typeof error === 'object' && error && 'error' in error) {
+      const backendError = (error as { error?: { detail?: string } }).error;
+      if (backendError && typeof backendError.detail === 'string') {
+        return backendError.detail;
+      }
+    }
+    return 'Failed to start sandbox execution.';
   }
 }

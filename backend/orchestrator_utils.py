@@ -103,8 +103,8 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
     def _first_base_image_from_dockerfile(dockerfile_content: Optional[str]) -> Optional[str]:
         if not dockerfile_content:
             return None
-        for line in dockerfile_content.splitlines():
-            stripped = line.strip()
+        normalized = _unwrap_fenced_text(dockerfile_content, expected_language="dockerfile")
+        for line in normalized.splitlines():            stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
             match = re.match(r"^FROM\s+([^\s]+)", stripped, re.IGNORECASE)
@@ -186,7 +186,7 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 stack = _infer_stack_type(raw_stack, base_image)
 
-                artifacts["dockerfile"] = dockerfile_content
+                artifacts["dockerfile"] = _unwrap_fenced_text(dockerfile_content, expected_language="dockerfile")
                 artifacts["metadata"]["docker"] = {
                     "build_time_s": build_time_s,
                     "stack": stack,
@@ -273,7 +273,7 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
 
             dockerfile_content = output[docker_start:docker_end].strip()
             if dockerfile_content and not dockerfile_content.startswith("No Dockerfile") and not dockerfile_content.startswith("docker-agent did not"):
-                artifacts["dockerfile"] = dockerfile_content
+                artifacts["dockerfile"] = _unwrap_fenced_text(dockerfile_content, expected_language="dockerfile")
                 artifacts["metadata"]["docker"] = {"source": "console"}
 
         # Extract Terraform
@@ -363,7 +363,29 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
                     artifacts["metadata"]["kubernetes"] = {"source": "console"}
 
     return artifacts
+def _unwrap_fenced_text(text: Optional[str], expected_language: Optional[str] = None) -> str:
+    """Remove markdown code fences (```lang ... ```) from generated artifact text."""
+    if text is None:
+        return ""
+    cleaned = str(text).strip()
+    if not cleaned:
+        return ""
 
+    for fence in ("```", "'''"):
+        lines = cleaned.splitlines()
+        if len(lines) < 2:
+            continue
+        first = lines[0].strip()
+        last = lines[-1].strip()
+        if not first.startswith(fence) or last != fence:
+            continue
+
+        header = first[len(fence):].strip().lower()
+        if expected_language and header and expected_language not in header:
+            continue
+        return "\n".join(lines[1:-1]).strip()
+
+    return cleaned
 
 _ORCHESTRATOR_PREFIX_RE = re.compile(r"^\[Orchestrator\]\s*")
 

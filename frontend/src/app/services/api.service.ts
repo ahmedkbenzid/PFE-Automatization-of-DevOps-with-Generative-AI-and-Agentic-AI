@@ -109,7 +109,22 @@ export class ApiService {
   getExecution(runId: string): Observable<ExecutionResultResponse> {
     return this.http.get<ExecutionResultResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/execution`);
   }
+  startExecutionForRun(
+    runId: string,
+    payload: { force?: boolean; artifacts?: Record<string, unknown> } = {},
+  ): Observable<ExecutionResultResponse> {
+    return this.http.post<ExecutionResultResponse>(
+      `${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/execution/start`,
+      payload,
+    );
+  }
 
+  saveEditedArtifacts(runId: string, artifacts: Record<string, unknown>): Observable<{ ok: boolean; run_id: string }> {
+    return this.http.post<{ ok: boolean; run_id: string }>(
+      `${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/artifacts/edited`,
+      { artifacts },
+    );
+  }
   getExecutionPlan(runId: string): Observable<ExecutionPlanResponse> {
     return this.http.get<ExecutionPlanResponse>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/plan`);
   }

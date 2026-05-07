@@ -45,6 +45,9 @@ class ApproveRequest(BaseModel):
     approved: bool
     edited_execution_order: List[Any] = Field(default_factory=list)
 
+class StartExecutionRequest(BaseModel):
+    force: bool = False
+    artifacts: Optional[Dict[str, Any]] = None
 
 app = FastAPI(title="Orchestrator Backend", version="1.0.0")
 
@@ -71,6 +74,8 @@ run_manager = RunManager()
 runs: Dict[str, RunState] = run_manager.runs
 post_run_execution_results: Dict[str, Dict[str, Any]] = {}
 post_run_execution_lock = threading.Lock()
+edited_artifacts_overrides: Dict[str, Dict[str, Any]] = {}
+edited_artifacts_lock = threading.Lock()
 
 
 def _to_safe_jsonable(value: Any, seen: Optional[set[int]] = None) -> Any:
@@ -139,6 +144,35 @@ def _ensure_run_exists(run_id: str) -> RunState:
         raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
     return run_state
 
+def _get_effective_artifacts(run_id: str, run_state: RunState, refresh_parse: bool = False) -> Dict[str, Any]:
+    if refresh_parse or run_state.parsed_result is None:
+        stdout_text = "\n".join(run_state.output_lines)
+        run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+
+    artifacts = extract_artifacts(run_state.parsed_result or {})
+    with edited_artifacts_lock:
+        override = edited_artifacts_overrides.get(run_id)
+
+    if isinstance(override, dict):
+        for key in ("yaml", "dockerfile", "terraform", "kubernetes", "metadata"):
+            if key in override:
+                artifacts[key] = override.get(key)
+
+    return artifacts
+
+
+def _normalize_edited_artifacts_payload(artifacts: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(artifacts)
+    dockerfile = normalized.get("dockerfile")
+    if isinstance(dockerfile, str):
+        content = dockerfile.strip()
+        for fence in ("```", "'''"):
+            lines = content.splitlines()
+            if len(lines) >= 2 and lines[0].strip().startswith(fence) and lines[-1].strip() == fence:
+                content = "\n".join(lines[1:-1]).strip()
+                break
+        normalized["dockerfile"] = content
+    return normalized
 
 def _run_execution_agent_after_artifacts(run_id: str, request: RunRequest) -> None:
     print(f"[Backend] Execution watcher started for run {run_id}", file=sys.stderr)
@@ -150,11 +184,8 @@ def _run_execution_agent_after_artifacts(run_id: str, request: RunRequest) -> No
         print(f"[Backend] Execution watcher exiting early for run {run_id}: run_state missing or build_in_docker disabled", file=sys.stderr)
         return
 
-    stdout_text = "\n".join(run_state.output_lines)
-    if run_state.parsed_result is None:
-        run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+    artifacts = _get_effective_artifacts(run_id, run_state, refresh_parse=True)
 
-    artifacts = extract_artifacts(run_state.parsed_result or {})
     workflow_yaml = artifacts.get("yaml") or ""
     if not workflow_yaml.strip():
         with post_run_execution_lock:
@@ -223,25 +254,37 @@ def _run_execution_agent_after_artifacts(run_id: str, request: RunRequest) -> No
             post_run_execution_results[run_id] = error_result
 
 
-def _start_execution_agent_for_run(run_id: str) -> Dict[str, Any]:
+def _start_execution_agent_for_run(run_id: str, force_restart: bool = False) -> Dict[str, Any]:
     run_state = _ensure_run_exists(run_id)
 
     with post_run_execution_lock:
         existing = post_run_execution_results.get(run_id)
         if isinstance(existing, dict) and existing.get("started"):
-            return {
-                "run_id": run_id,
-                "started": True,
-                "already_started": True,
-                "status": existing.get("status", "running"),
-                "message": existing.get("message", "Execution agent already started."),
-            }
+            existing_status = str(existing.get("status") or "").lower()
+            if existing_status in {"running", "pending"}:
+                return {
+                    "run_id": run_id,
+                    "started": True,
+                    "already_started": True,
+                    "status": existing.get("status", "running"),
+                    "message": existing.get("message", "Execution agent already running."),
+                }
+            if not force_restart:
+                return {
+                    "run_id": run_id,
+                    "started": True,
+                    "already_started": True,
+                    "status": existing.get("status", "running"),
+                    "message": existing.get("message", "Execution agent already started."),
+                }
 
-    if run_state.parsed_result is None:
-        stdout_text = "\n".join(run_state.output_lines)
-        run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+    preserved_secrets = None
+    if isinstance(run_state.execution_result, dict):
+        preserved_secrets = run_state.execution_result.get("secrets")
+    if preserved_secrets is None and isinstance(existing, dict):
+        preserved_secrets = existing.get("secrets")
 
-    artifacts = extract_artifacts(run_state.parsed_result or {})
+    artifacts = _get_effective_artifacts(run_id, run_state, refresh_parse=(run_state.parsed_result is None))
     workflow_yaml = artifacts.get("yaml") or ""
     if not workflow_yaml.strip():
         with post_run_execution_lock:
@@ -266,6 +309,8 @@ def _start_execution_agent_for_run(run_id: str) -> Dict[str, Any]:
         "started": True,
         "message": "Execution-sandbox agent is validating the generated CI/CD workflow.",
     }
+    if isinstance(preserved_secrets, dict):
+        pending_result["secrets"] = preserved_secrets
     run_state.execution_result = pending_result
     with post_run_execution_lock:
         post_run_execution_results[run_id] = pending_result
@@ -290,7 +335,7 @@ def _start_execution_agent_for_run(run_id: str) -> Dict[str, Any]:
                 repository_path=repository_path,
                 github_url=github_url,
                 act_timeout=1800,
-                secrets=run_state.execution_result.get("secrets") if isinstance(run_state.execution_result, dict) else None,
+                secrets=preserved_secrets if isinstance(preserved_secrets, dict) else None,
                 log_callback=append_log,
             )
             execution_result = _to_safe_jsonable(execution_result)
@@ -471,10 +516,28 @@ async def get_execution_logs(run_id: str) -> Dict[str, Any]:
         "count": len(logs),
     }
 
+@app.post("/api/runs/{run_id}/artifacts/edited")
+async def save_edited_artifacts(run_id: str, payload: Dict[str, Any] = Body(default_factory=dict)) -> Dict[str, Any]:
+    _ensure_run_exists(run_id)
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise HTTPException(status_code=400, detail="artifacts payload must be an object")
+
+    safe_artifacts = _to_safe_jsonable(artifacts)
+    with edited_artifacts_lock:
+        edited_artifacts_overrides[run_id] = safe_artifacts
+
+    return {"ok": True, "run_id": run_id}
 
 @app.post("/api/runs/{run_id}/execution/start")
-async def start_post_run_execution(run_id: str) -> Dict[str, Any]:
-    return _start_execution_agent_for_run(run_id)
+async def start_post_run_execution(run_id: str, request: StartExecutionRequest = Body(default_factory=StartExecutionRequest)) -> Dict[str, Any]:
+    _ensure_run_exists(run_id)
+    if isinstance(request.artifacts, dict):
+        safe_artifacts = _to_safe_jsonable(request.artifacts)
+        with edited_artifacts_lock:
+            edited_artifacts_overrides[run_id] = safe_artifacts
+    return _start_execution_agent_for_run(run_id, force_restart=request.force)
 
 
 @app.post("/api/runs/{run_id}/approve")
@@ -545,14 +608,11 @@ async def debug_run(run_id: str) -> Dict[str, Any]:
 async def get_artifacts(run_id: str) -> Dict[str, Any]:
     run_state = _ensure_run_exists(run_id)
 
-    stdout_text = "\n".join(run_state.output_lines)
-    # Always re-parse to pick up latest output (handles race between process exit and HTTP call)
-    run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
-
-    print(f"[Backend] artifacts: total_lines={len(run_state.output_lines)}, has_state={'state' in run_state.parsed_result}, has_agent_outputs={bool(run_state.parsed_result.get('state', {}).get('agent_outputs'))}", file=sys.stderr)
+    artifacts = _get_effective_artifacts(run_id, run_state, refresh_parse=True)
+    print(f"[Backend] artifacts: total_lines={len(run_state.output_lines)}, has_state={bool(run_state.parsed_result and 'state' in run_state.parsed_result)}, has_agent_outputs={bool((run_state.parsed_result or {}).get('state', {}).get('agent_outputs'))}", file=sys.stderr)
     sys.stderr.flush()
 
-    return extract_artifacts(run_state.parsed_result)
+    return artifacts
 
 
 @app.get("/api/runs/{run_id}/plan")
