@@ -1,7 +1,7 @@
-import { AsyncPipe, NgIf } from '@angular/common';
+import { AsyncPipe, NgIf, NgFor, NgClass, TitleCasePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { ActivatedRoute,Router, RouterLink } from '@angular/router';
-import { BehaviorSubject, combineLatest, interval, of } from 'rxjs';
+import { BehaviorSubject, combineLatest, firstValueFrom, interval, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -20,7 +20,7 @@ import { ActionOptionsComponent, ActionOptionsInput, EditedArtifacts } from '../
 import { RunChatComponent } from '../run-chat/run-chat.component';
 import { TerminalPanelComponent } from '../terminal-panel/terminal-panel.component';
 import { CompleteEvent, LogEvent, Artifacts } from '../../models/run.model';
-import { ApiService } from '../../services/api.service';
+import { ApiService, JudgeVerdictResponse } from '../../services/api.service';
 import { WebsocketService } from '../../services/websocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -29,7 +29,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   standalone: true,
   imports: [
     NgIf,
+    NgFor,
+    NgClass,
     AsyncPipe,
+    TitleCasePipe,
+    DecimalPipe,
     RouterLink,
     TerminalPanelComponent,
     AgentStatusComponent,
@@ -42,12 +46,47 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RunDashboardComponent {
-  readonly activeTab$ = new BehaviorSubject<'logs' | 'workspace'>('logs');
+  readonly activeTab$ = new BehaviorSubject<'logs' | 'workspace' | 'report'>('logs');
   readonly sandboxStarting$ = new BehaviorSubject<boolean>(false);
   readonly sandboxStartError$ = new BehaviorSubject<string | null>(null);
 
-  setTab(tab: 'logs' | 'workspace'): void {
+  // ─── LLM Judge state ──────────────────────────────────────────────
+  readonly judgeLoading$ = new BehaviorSubject<boolean>(false);
+  readonly judgeError$ = new BehaviorSubject<string | null>(null);
+  readonly judgeVerdict$ = new BehaviorSubject<JudgeVerdictResponse | null>(null);
+
+  setTab(tab: 'logs' | 'workspace' | 'report'): void {
     this.activeTab$.next(tab);
+  }
+
+  /**
+   * Request the LLM judge to analyse the logs for the current run.
+   * Skips the API call if a cached verdict already exists (unless force=true).
+   */
+  async requestJudgeVerdict(runId: string, force = false): Promise<void> {
+    if (this.judgeLoading$.value) return;
+
+    // Skip if we already have a verdict (and not forcing refresh)
+    if (!force && this.judgeVerdict$.value) return;
+
+    this.judgeLoading$.next(true);
+    this.judgeError$.next(null);
+
+    try {
+      const verdict = await firstValueFrom(
+        this.api.judgeRun(runId, force).pipe(
+          catchError((err) => {
+            const detail = err?.error?.detail || err?.message || 'Failed to get verdict';
+            throw new Error(detail);
+          }),
+        ),
+      );
+      this.judgeVerdict$.next(verdict);
+    } catch (err: any) {
+      this.judgeError$.next(err.message || 'Unknown error');
+    } finally {
+      this.judgeLoading$.next(false);
+    }
   }
 
   readonly runId$ = this.route.paramMap.pipe(
@@ -219,8 +258,17 @@ export class RunDashboardComponent {
     };
   }
 
-  onArtifactsAccepted(event: { artifacts: EditedArtifacts; applied: boolean }): void {
+  async onArtifactsAccepted(
+    runId: string,
+    event: { artifacts: EditedArtifacts; applied: boolean },
+  ): Promise<void> {
     this.editedArtifacts$.next(event.artifacts);
+
+    try {
+      await firstValueFrom(this.api.saveEditedArtifacts(runId, event.artifacts as unknown as Record<string, unknown>));
+    } catch {
+      // Keep local edits even if persistence fails.
+    }
   }
 
   onArtifactsRejected(): void {

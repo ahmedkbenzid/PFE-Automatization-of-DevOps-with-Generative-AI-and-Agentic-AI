@@ -15,6 +15,7 @@
   </header>
 
   <ng-container *ngIf="activeTab$ | async as activeTab">
+    <!-- ─── Tab bar ─────────────────────────────────────────────── -->
     <div class="mb-4 flex gap-2 border-b border-devflow-border pb-2">
       <button
         (click)="setTab('logs')"
@@ -32,15 +33,30 @@
       >
         Workspace
       </button>
+      <button
+        id="tab-ai-report"
+        (click)="setTab('report'); requestJudgeVerdict(runId)"
+        [class.bg-devflow-elevated]="activeTab === 'report'"
+        [class.text-devflow-accent]="activeTab === 'report'"
+        class="rounded-lg px-4 py-2 text-sm font-semibold text-devflow-text-muted hover:bg-devflow-surface transition-colors inline-flex items-center gap-1.5"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a5 5 0 0 1 5 5c0 2-1.5 3.5-3 4.5V13a2 2 0 0 1-4 0v-1.5C8.5 10.5 7 9 7 7a5 5 0 0 1 5-5z"/>
+          <path d="M10 17h4"/><path d="M10 20h4"/><path d="M10 23h4"/>
+        </svg>
+        AI Report
+      </button>
     </div>
 
     <div class="grid gap-4">
       <app-agent-status [result]="result$ | async"></app-agent-status>
 
+      <!-- ─── Logs tab ────────────────────────────────────────── -->
       <div *ngIf="activeTab === 'logs'">
         <app-terminal-panel [lines]="(logs$ | async) ?? []"></app-terminal-panel>
       </div>
 
+      <!-- ─── Workspace tab ───────────────────────────────────── -->
       <div *ngIf="activeTab === 'workspace'" class="grid gap-4">
         <app-approval-gate [result]="approvalResult$ | async" [runId]="runId"></app-approval-gate>
 
@@ -48,7 +64,7 @@
           <h2 class="mb-4 text-lg font-bold text-slate-800">🎯 Actions</h2>
           <app-action-options
             [input]="actionInput"
-            (accepted)="onArtifactsAccepted($event)"
+            (accepted)="onArtifactsAccepted(runId, $event)"
             (rejected)="onArtifactsRejected()"
           ></app-action-options>
         </div>
@@ -70,11 +86,180 @@
         </div>
 
       </div>
+
+      <!-- ─── AI Report tab ───────────────────────────────────── -->
+      <div *ngIf="activeTab === 'report'" class="judge-report-container">
+
+        <!-- Loading state -->
+        <div *ngIf="judgeLoading$ | async" class="judge-loading">
+          <div class="judge-loading-spinner"></div>
+          <p class="text-devflow-text-secondary text-sm mt-3">Analyzing logs with AI…</p>
+        </div>
+
+        <!-- Error state -->
+        <div *ngIf="judgeError$ | async as judgeError" class="judge-error">
+          <div class="flex items-start gap-3">
+            <span class="text-xl">⚠️</span>
+            <div>
+              <p class="font-semibold text-devflow-error">Analysis Failed</p>
+              <p class="text-sm text-devflow-text-secondary mt-1">{{ judgeError }}</p>
+              <button
+                (click)="requestJudgeVerdict(runId, true)"
+                class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-devflow-accent hover:text-blue-400 transition-colors"
+              >
+                ↻ Retry
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verdict display -->
+        <ng-container *ngIf="judgeVerdict$ | async as verdict">
+          <div class="judge-verdict animate-fade-in">
+
+            <!-- Header: Status + Confidence -->
+            <div class="judge-verdict-header">
+              <div class="flex items-center gap-3">
+                <span
+                  class="judge-status-badge"
+                  [ngClass]="{
+                    'judge-status-success':  verdict.overall_status === 'success',
+                    'judge-status-partial':  verdict.overall_status === 'partial_success',
+                    'judge-status-failed':   verdict.overall_status === 'failed',
+                    'judge-status-error':    verdict.overall_status === 'error'
+                  }"
+                >
+                  <span class="judge-status-dot"></span>
+                  {{ verdict.overall_status === 'partial_success' ? 'Partial Success' : verdict.overall_status | titlecase }}
+                </span>
+                <span class="text-devflow-text-muted text-xs" *ngIf="verdict.cached">
+                  (cached)
+                </span>
+              </div>
+              <div class="judge-confidence">
+                <span class="text-xs font-semibold text-devflow-text-muted uppercase tracking-wider">Confidence</span>
+                <div class="judge-confidence-bar">
+                  <div
+                    class="judge-confidence-fill"
+                    [style.width.%]="verdict.confidence"
+                    [ngClass]="{
+                      'bg-devflow-success': verdict.confidence >= 80,
+                      'bg-devflow-warning': verdict.confidence >= 50 && verdict.confidence < 80,
+                      'bg-devflow-error':   verdict.confidence < 50
+                    }"
+                  ></div>
+                </div>
+                <span class="text-xs font-mono text-devflow-text-secondary">{{ verdict.confidence }}%</span>
+              </div>
+              <button
+                (click)="requestJudgeVerdict(runId, true)"
+                [disabled]="judgeLoading$ | async"
+                class="judge-refresh-btn"
+                title="Re-analyse logs"
+              >
+                ↻
+              </button>
+            </div>
+
+            <!-- Summary -->
+            <div class="judge-section">
+              <h3 class="judge-section-title">📋 Summary</h3>
+              <p class="text-sm text-devflow-text leading-relaxed">{{ verdict.summary }}</p>
+            </div>
+
+            <!-- Root Cause (only if present) -->
+            <div *ngIf="verdict.root_cause" class="judge-section judge-root-cause">
+              <h3 class="judge-section-title">🔍 Root Cause</h3>
+              <p class="text-sm text-devflow-text leading-relaxed">{{ verdict.root_cause }}</p>
+            </div>
+
+            <!-- Agent breakdown -->
+            <div *ngIf="verdict.agents && verdict.agents.length > 0" class="judge-section">
+              <h3 class="judge-section-title">🤖 Agent Breakdown</h3>
+              <div class="judge-agents-grid">
+                <div
+                  *ngFor="let agent of verdict.agents"
+                  class="judge-agent-card"
+                  [ngClass]="{
+                    'judge-agent-success': agent.status === 'success',
+                    'judge-agent-failed':  agent.status === 'failed',
+                    'judge-agent-skipped': agent.status === 'skipped'
+                  }"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-sm text-devflow-text font-mono">{{ agent.agent_name }}</span>
+                    <span
+                      class="judge-agent-badge"
+                      [ngClass]="{
+                        'text-devflow-success border-devflow-success/30': agent.status === 'success',
+                        'text-devflow-error border-devflow-error/30':     agent.status === 'failed',
+                        'text-devflow-text-muted border-devflow-border':  agent.status === 'skipped'
+                      }"
+                    >
+                      {{ agent.status }}
+                    </span>
+                  </div>
+                  <p class="text-xs text-devflow-text-secondary leading-relaxed">{{ agent.summary }}</p>
+                  <div *ngIf="agent.errors && agent.errors.length > 0" class="mt-2">
+                    <p *ngFor="let err of agent.errors" class="text-xs text-devflow-error/90 font-mono mt-1">• {{ err }}</p>
+                  </div>
+                  <div *ngIf="agent.warnings && agent.warnings.length > 0" class="mt-2">
+                    <p *ngFor="let warn of agent.warnings" class="text-xs text-devflow-warning/90 font-mono mt-1">⚠ {{ warn }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Errors found -->
+            <div *ngIf="verdict.errors_found && verdict.errors_found.length > 0" class="judge-section">
+              <h3 class="judge-section-title text-devflow-error">🚨 Errors Found</h3>
+              <ul class="judge-list">
+                <li *ngFor="let err of verdict.errors_found" class="judge-list-item judge-list-error">
+                  {{ err }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- Warnings found -->
+            <div *ngIf="verdict.warnings_found && verdict.warnings_found.length > 0" class="judge-section">
+              <h3 class="judge-section-title text-devflow-warning">⚠️ Warnings</h3>
+              <ul class="judge-list">
+                <li *ngFor="let warn of verdict.warnings_found" class="judge-list-item judge-list-warning">
+                  {{ warn }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- Recommendations -->
+            <div *ngIf="verdict.recommendations && verdict.recommendations.length > 0" class="judge-section">
+              <h3 class="judge-section-title">💡 Recommendations</h3>
+              <ul class="judge-list">
+                <li *ngFor="let rec of verdict.recommendations" class="judge-list-item judge-list-recommendation">
+                  {{ rec }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- Token usage footer -->
+            <div class="judge-footer">
+              <span class="text-xs text-devflow-text-muted">
+                Tokens: {{ verdict.token_usage['total_tokens'] || 0 }} total
+                ({{ verdict.token_usage['prompt_tokens'] || 0 }} prompt / {{ verdict.token_usage['completion_tokens'] || 0 }} completion)
+              </span>
+              <span class="text-xs text-devflow-text-muted">
+                Cleaned log: {{ verdict.cleaned_log_length | number }} chars
+              </span>
+            </div>
+
+          </div>
+        </ng-container>
+
+      </div>
     </div>
   </ng-container>
   <!-- AI Artifact Chatbot -->
   <app-run-chat
     [artifacts]="editedArtifacts$ | async"
-    (artifactsChanged)="onArtifactsAccepted({ artifacts: $event, applied: false })"
+    (artifactsChanged)="onArtifactsAccepted(runId, { artifacts: $event, applied: false })"
   ></app-run-chat>
 </section>

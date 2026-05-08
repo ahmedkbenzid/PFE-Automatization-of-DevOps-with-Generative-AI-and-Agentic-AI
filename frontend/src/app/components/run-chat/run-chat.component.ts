@@ -1,5 +1,6 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   Input,
@@ -8,7 +9,9 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgFor, NgIf, NgClass } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { EditedArtifacts } from '../action-options/action-options.component';
+import { environment } from '../../../environments/environment';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -118,23 +121,30 @@ export class RunChatComponent implements OnChanges {
   userInput = '';
   messages: ChatMessage[] = [];
 
+  private readonly apiUrl = environment.apiUrl;
+
   // Local snapshot kept in sync with @Input so we can mutate and emit
   private current: EditedArtifacts | null = null;
 
+  constructor(
+    private readonly http: HttpClient,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
+
   ngOnChanges(): void {
-    // Only sync when user isn't mid-edit (chat hasn't produced a diff yet)
-    if (this.artifacts && !this.current) {
+    // Always keep current in sync with latest artifacts from parent
+    if (this.artifacts) {
       this.current = structuredClone(this.artifacts);
     }
   }
 
-    onEnter(event: Event): void {
+  onEnter(event: Event): void {
     const ke = event as KeyboardEvent;
     if (!ke.shiftKey) {
-        event.preventDefault();
-        this.send();
+      event.preventDefault();
+      this.send();
     }
-    }
+  }
 
   async send(): Promise<void> {
     const text = this.userInput.trim();
@@ -146,10 +156,11 @@ export class RunChatComponent implements OnChanges {
 
     const loadingMsg: ChatMessage = { role: 'assistant', content: '', loading: true };
     this.messages.push(loadingMsg);
+    this.cdr.markForCheck();
     this.scrollToBottom();
 
     try {
-      const reply = await this.callClaude(text);
+      const reply = await this.callBackend(text);
       loadingMsg.loading = false;
       loadingMsg.content = reply.explanation;
 
@@ -162,56 +173,41 @@ export class RunChatComponent implements OnChanges {
       loadingMsg.content = 'Something went wrong. Please try again.';
     } finally {
       this.loading = false;
+      this.cdr.markForCheck();
       this.scrollToBottom();
     }
   }
 
-  private async callClaude(userMessage: string): Promise<{ explanation: string; artifacts: EditedArtifacts | null }> {
-    const systemPrompt = `You are a DevOps assistant that modifies CI/CD, Dockerfile, Terraform, and Kubernetes artifacts based on user requests.
+  /**
+   * Call the backend /api/chat/artifacts endpoint which uses the
+   * server-side Groq LLM to understand and apply artifact corrections.
+   */
+  private callBackend(userMessage: string): Promise<{ explanation: string; artifacts: EditedArtifacts | null }> {
+    // Build conversation history for multi-turn context
+    const conversationHistory = this.messages
+      .filter(m => !m.loading)
+      .map(m => ({ role: m.role, content: m.content }));
 
-You will receive the current artifacts as JSON and a user instruction.
-You MUST respond with ONLY a valid JSON object in this exact shape:
-{
-  "explanation": "brief human-readable summary of what you changed",
-  "artifacts": { ...the full updated EditedArtifacts object... }
-}
+    const body = {
+      message: userMessage,
+      artifacts: this.current ?? {},
+      conversation_history: conversationHistory,
+    };
 
-Rules:
-- Always return the COMPLETE artifacts object, not just the changed fields.
-- If a field is unchanged, keep it exactly as-is.
-- If the user's request does not require any artifact change, set "artifacts" to null and explain why.
-- Never add markdown fences or any text outside the JSON object.`;
-
-    const userContent = `Current artifacts:
-${JSON.stringify(this.current, null, 2)}
-
-User request: ${userMessage}`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-      }),
+    return new Promise((resolve, reject) => {
+      this.http
+        .post<{ explanation: string; artifacts: EditedArtifacts | null }>(
+          `${this.apiUrl}/api/chat/artifacts`,
+          body,
+        )
+        .subscribe({
+          next: (res) => resolve({
+            explanation: res.explanation ?? 'Done.',
+            artifacts: res.artifacts ?? null,
+          }),
+          error: (err) => reject(err),
+        });
     });
-
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-
-    const data = await response.json();
-    const raw = data.content?.find((b: any) => b.type === 'text')?.text ?? '{}';
-
-    try {
-      const parsed = JSON.parse(raw);
-      return {
-        explanation: parsed.explanation ?? 'Done.',
-        artifacts: parsed.artifacts ?? null,
-      };
-    } catch {
-      return { explanation: raw, artifacts: null };
-    }
   }
 
   private scrollToBottom(): void {
@@ -220,4 +216,4 @@ User request: ${userMessage}`;
       if (el) el.scrollTop = el.scrollHeight;
     }, 50);
   }
-}
+}

@@ -20,6 +20,7 @@ class RunState:
     execution_result: Optional[dict] = None
     history_session_id: Optional[str] = None
     history_finalized: bool = False
+    judge_verdict: Optional[dict] = None
 
 
 class RunManager:

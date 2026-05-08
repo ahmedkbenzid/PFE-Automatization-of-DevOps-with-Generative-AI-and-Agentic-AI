@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
@@ -142,4 +142,42 @@ export class ApiService {
   repairRun(runId: string, payload: Record<string, any> = {}): Observable<any> {
     return this.http.post<any>(`${this.baseUrl}/api/runs/${encodeURIComponent(runId)}/repair`, payload);
   }
+
+  /**
+   * Request the LLM-as-a-Judge to analyse the orchestrator logs of a run.
+   * Returns a structured verdict with status, root-cause, per-agent breakdown, etc.
+   */
+  judgeRun(runId: string, force: boolean = false): Observable<JudgeVerdictResponse> {
+    const params = force ? new HttpParams().set('force', 'true') : undefined;
+    return this.http.post<JudgeVerdictResponse>(
+      `${this.baseUrl}/api/judge/${encodeURIComponent(runId)}`,
+      null,
+      { params },
+    );
+  }
+}
+
+// ─── LLM Judge types ────────────────────────────────────────────────────────
+
+export interface AgentVerdictResponse {
+  agent_name: string;
+  status: string;          // "success" | "failed" | "skipped"
+  summary: string;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface JudgeVerdictResponse {
+  run_id: string | null;
+  overall_status: string;  // "success" | "partial_success" | "failed" | "error"
+  confidence: number;
+  summary: string;
+  root_cause: string | null;
+  agents: AgentVerdictResponse[];
+  errors_found: string[];
+  warnings_found: string[];
+  recommendations: string[];
+  token_usage: Record<string, number>;
+  cleaned_log_length: number;
+  cached: boolean;
 }

@@ -31,6 +31,7 @@ from backend.session_history_router import (
 from backend.websocket_manager import RunManager, RunState
 from backend.routes.artifacts import router as artifacts_router
 from backend.routes.cicd_build import router as cicd_router
+from backend.routes.log_judge import router as judge_router
 
 
 class RunRequest(BaseModel):
@@ -70,6 +71,9 @@ app.include_router(artifacts_router, prefix="/api")
 
 # Include CI/CD routes
 app.include_router(cicd_router, prefix="/api")
+
+# Include LLM-as-a-Judge routes
+app.include_router(judge_router, prefix="/api")
 
 # Include session history routes
 app.include_router(history_router, prefix="/api")
@@ -657,6 +661,7 @@ async def get_run_status(run_id: str) -> Dict[str, Any]:
         "line_count": len(run_state.output_lines),
         "build_in_docker": run_state.build_in_docker,
         "execution_result": execution_result,
+        "judge_verdict": _to_safe_jsonable(run_state.judge_verdict),
     }
 
 
@@ -850,6 +855,160 @@ async def get_logs(
         "total": total,
         "has_more": offset + limit < total,
     }
+
+
+class ArtifactChatRequest(BaseModel):
+    """Request body for the artifact chat endpoint."""
+    message: str
+    artifacts: Dict[str, Any]
+    conversation_history: List[Dict[str, str]] = Field(default_factory=list)
+
+
+@app.post("/api/chat/artifacts")
+async def chat_modify_artifacts(request: ArtifactChatRequest) -> Dict[str, Any]:
+    """
+    LLM-powered endpoint that understands user prompts in the context of
+    correcting / modifying DevOps artifacts (CI/CD YAML, Dockerfile,
+    Terraform HCL, Kubernetes manifests).
+
+    Uses the Groq LLM already configured for the orchestrator so no
+    extra API keys are needed and nothing is exposed on the frontend.
+    """
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="message is required")
+
+    # ── Load Groq config from orchestrator ──────────────────────────
+    orchestrator_env = ORCHESTRATOR_CWD / ".env"
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    model_name = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+
+    # Try loading from orchestrator .env if not already in environment
+    if not groq_key and orchestrator_env.exists():
+        try:
+            for line in orchestrator_env.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("GROQ_API_KEY="):
+                    groq_key = line.split("=", 1)[1].strip().strip("\"'")
+                    break
+        except Exception:
+            pass
+
+    if not groq_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is not configured. Set it in the orchestrator .env file.",
+        )
+
+    # ── Build the prompt for the LLM ────────────────────────────────
+    system_prompt = (
+        "You are a DevOps assistant that modifies CI/CD, Dockerfile, Terraform, "
+        "and Kubernetes artifacts based on user requests.\n\n"
+        "You will receive the current artifacts as JSON and a user instruction.\n"
+        "You MUST respond with ONLY a valid JSON object in this exact shape:\n"
+        "{\n"
+        '  "explanation": "brief human-readable summary of what you changed",\n'
+        '  "artifacts": { ...the full updated artifacts object... }\n'
+        "}\n\n"
+        "The artifacts object has these fields:\n"
+        '- "yaml": string or null — GitHub Actions CI/CD workflow YAML content\n'
+        '- "dockerfile": string or null — Dockerfile content\n'
+        '- "terraform": object with keys "main_tf", "variables_tf", "outputs_tf", "providers_tf"\n'
+        '- "kubernetes": object with keys "namespace_yaml", "configmap_yaml", "secret_yaml", '
+        '"deployment_yaml", "service_yaml", "ingress_yaml", "hpa_yaml"\n'
+        '- "metadata": any additional metadata\n\n'
+        "Rules:\n"
+        "- Always return the COMPLETE artifacts object, not just the changed fields.\n"
+        "- If a field is unchanged, keep it exactly as-is.\n"
+        '- If the user\'s request does not require any artifact change, set "artifacts" to null '
+        "and explain why.\n"
+        "- Never add markdown fences or any text outside the JSON object.\n"
+        "- Focus ONLY on artifact corrections. Do not re-generate artifacts from scratch unless "
+        "explicitly asked."
+    )
+
+    user_content = (
+        f"Current artifacts:\n"
+        f"{json.dumps(request.artifacts, indent=2)}\n\n"
+        f"User request: {request.message}"
+    )
+
+    # Build messages array including conversation history for context
+    messages = []
+    for hist_msg in request.conversation_history[-10:]:  # Keep last 10 messages for context
+        role = hist_msg.get("role", "user")
+        content = hist_msg.get("content", "")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_content})
+
+    # ── Call Groq API ───────────────────────────────────────────────
+    import httpx
+
+    groq_url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {groq_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            *messages,
+        ],
+        "temperature": 0,
+        "max_tokens": 8192,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(groq_url, headers=headers, json=payload)
+
+        if resp.status_code != 200:
+            error_detail = resp.text[:500]
+            print(f"[Backend] Groq API error {resp.status_code}: {error_detail}", file=sys.stderr)
+            raise HTTPException(
+                status_code=502,
+                detail=f"LLM API returned status {resp.status_code}",
+            )
+
+        data = resp.json()
+        raw_text = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "{}")
+        )
+
+        # Strip markdown fences if the model added them
+        content = raw_text.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+
+        try:
+            parsed = json.loads(content)
+            return {
+                "explanation": parsed.get("explanation", "Done."),
+                "artifacts": parsed.get("artifacts"),
+            }
+        except json.JSONDecodeError:
+            # If the LLM didn't return valid JSON, return the raw text as explanation
+            return {
+                "explanation": raw_text[:500],
+                "artifacts": None,
+            }
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="LLM request timed out")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[Backend] Chat artifacts error: {exc}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/api/runs/{run_id}/cancel")

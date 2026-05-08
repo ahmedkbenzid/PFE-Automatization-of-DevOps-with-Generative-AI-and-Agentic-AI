@@ -630,3 +630,54 @@ $mono:      'IBM Plex Mono', monospace;
   color: $text;
   word-break: break-all;
 }
+
+// ── Theme toggle (light mode overrides - softer) ──────────────────────────────
+.btn-theme {
+  font-family: $mono;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 4px;
+  color: $text-dim;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { border-color: rgba(0,0,0,0.12); color: $amber-dim; }
+}
+
+.history-root.theme-light {
+  /* page background: warm off-white */
+  background: #f2f4f7;
+  color: #0f1720;
+
+  /* panels are soft white cards with low-contrast borders */
+  .hist-header { background: #fbfcfd; border-bottom-color: rgba(15,23,32,0.06); }
+  .hist-header__icon { color: rgba(176,107,0,0.9); }
+  .btn-back { color: #4b5563; border-color: rgba(15,23,32,0.06); background: #ffffff; }
+  .session-list { background: #ffffff; border-right: 1px solid rgba(15,23,32,0.04); }
+  .stat-card { background: #ffffff; }
+
+  /* inputs and selects: subtle background and low-contrast border */
+  .search-input, .filter-select { background: #f6f8fa; color: #0f1720; border-color: rgba(15,23,32,0.06); }
+
+  .detail-panel { background: #f2f4f7; }
+  .detail-header { background: #fbfcfd; border-bottom-color: rgba(15,23,32,0.06); }
+
+  /* code block: keep readable neutral background */
+  .code-block { background: #eef2f6; color: #0f1720; border: 1px solid rgba(15,23,32,0.04); }
+
+  .btn-copy, .btn-theme { background: transparent; color: #0f1720; border-color: rgba(15,23,32,0.06); }
+
+  .dtab { color: #6b7280; }
+  .dtab--active { color: rgba(176,107,0,0.95); border-bottom-color: rgba(176,107,0,0.95); }
+
+  /* amber accent toned down */
+  .stat-val { color: rgba(176,107,0,0.95); }
+
+  /* status chips with soft fills */
+  .session-status.status-ok { color: #0b8b3a; background: rgba(11,139,58,0.06); border: 1px solid rgba(11,139,58,0.08); }
+  .session-status.status-fail { color: #b91c1c; background: rgba(185,28,28,0.04); border: 1px solid rgba(185,28,28,0.06); }
+
+  .log-entry.log-ok { background: rgba(11,139,58,0.03); }
+  .log-entry.log-err { background: rgba(185,28,28,0.03); }
+}

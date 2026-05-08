@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { HistoryService, Session, HistoryStats, Artifact } from '../../services/history.service';
+import { ThemeService } from '../../services/theme.service';
 
 type FilterStatus = 'all' | 'completed' | 'failed' | 'running';
 type ArtifactTab = Artifact['type'];
@@ -17,6 +18,7 @@ type ArtifactTab = Artifact['type'];
   styleUrls: ['./history-dashboard.component.scss'],
 })
 export class HistoryDashboardComponent implements OnInit, OnDestroy {
+  readonly theme$ = this.themeService.theme$;
   sessions: Session[] = [];
   stats: HistoryStats | null = null;
   selectedSession: Session | null = null;
@@ -30,7 +32,10 @@ export class HistoryDashboardComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(private historyService: HistoryService) {}
+  constructor(
+    private historyService: HistoryService,
+    private readonly themeService: ThemeService,
+  ) {}
 
   ngOnInit(): void {
     this.loadStats();
