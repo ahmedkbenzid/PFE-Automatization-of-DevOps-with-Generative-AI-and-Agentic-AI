@@ -23,6 +23,15 @@ import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
           <p class="brand-tagline">Multi-Agent DevOps Orchestrator</p>
         </div>
         <div class="header-controls">
+                <a
+        routerLink="/history"
+        routerLinkActive="nav-link--active"
+        class="nav-link"
+        title="Session History"
+      >
+        <span class="nav-link__icon">◈</span>
+        <span class="nav-link__label">History</span>
+      </a>
           <div class="examples-dropdown">
             <button class="examples-button" (click)="toggleExamplesMenu()">
               <span>💡 Examples</span>
@@ -101,6 +110,34 @@ import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
     </header>
   `,
   styles: [`
+      .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      color: #8896ab;
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    
+      &:hover {
+        color: #f5a623;
+        border-color: rgba(#f5a623, 0.25);
+        background: rgba(#f5a623, 0.06);
+      }
+    
+      &--active {
+        color: #f5a623;
+        border-color: rgba(#f5a623, 0.3);
+        background: rgba(#f5a623, 0.08);
+      }
+    
+      &__icon { font-size: 1rem; line-height: 1; }
+      &__label { line-height: 1; }
+    }
     .brand-title { 
       display: inline-flex; 
       align-items: center; 

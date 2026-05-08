@@ -104,7 +104,8 @@ def extract_artifacts(result: Dict[str, Any]) -> Dict[str, Any]:
         if not dockerfile_content:
             return None
         normalized = _unwrap_fenced_text(dockerfile_content, expected_language="dockerfile")
-        for line in normalized.splitlines():            stripped = line.strip()
+        for line in normalized.splitlines():            
+            stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
             match = re.match(r"^FROM\s+([^\s]+)", stripped, re.IGNORECASE)

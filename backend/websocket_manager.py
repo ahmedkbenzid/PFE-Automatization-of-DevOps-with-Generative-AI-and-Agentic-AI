@@ -18,6 +18,8 @@ class RunState:
     parsed_result: Optional[dict]
     build_in_docker: bool = False
     execution_result: Optional[dict] = None
+    history_session_id: Optional[str] = None
+    history_finalized: bool = False
 
 
 class RunManager:

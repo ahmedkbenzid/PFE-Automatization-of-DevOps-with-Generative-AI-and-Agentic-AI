@@ -8,6 +8,7 @@ import sys
 import time
 import threading
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
@@ -22,6 +23,11 @@ from backend.orchestrator_utils import (
     extract_artifacts,
 )
 from backend.execution_agent_bridge import run_generated_cicd_workflow
+from backend.session_history_router import (
+    history_router,
+    _load as _history_load,
+    _save as _history_save,
+)
 from backend.websocket_manager import RunManager, RunState
 from backend.routes.artifacts import router as artifacts_router
 from backend.routes.cicd_build import router as cicd_router
@@ -65,6 +71,9 @@ app.include_router(artifacts_router, prefix="/api")
 # Include CI/CD routes
 app.include_router(cicd_router, prefix="/api")
 
+# Include session history routes
+app.include_router(history_router, prefix="/api")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ORCHESTRATOR_SCRIPT = PROJECT_ROOT / "test_pfe" / "02-orchestration-agents-layer" / "orchestrator-agent" / "run_orchestrator.py"
 ORCHESTRATOR_CWD = ORCHESTRATOR_SCRIPT.parent
@@ -76,6 +85,185 @@ post_run_execution_results: Dict[str, Dict[str, Any]] = {}
 post_run_execution_lock = threading.Lock()
 edited_artifacts_overrides: Dict[str, Dict[str, Any]] = {}
 edited_artifacts_lock = threading.Lock()
+history_lock = threading.Lock()
+
+
+def _utc_now_iso() -> str:
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def _to_history_artifacts(artifacts: Dict[str, Any]) -> List[Dict[str, Any]]:
+    history_artifacts: List[Dict[str, Any]] = []
+
+    yaml_content = artifacts.get("yaml")
+    if isinstance(yaml_content, str) and yaml_content.strip():
+        history_artifacts.append(
+            {
+                "type": "cicd",
+                "filename": ".github/workflows/ci.yml",
+                "content": yaml_content,
+                "validation_status": "unknown",
+                "validation_errors": [],
+            }
+        )
+
+    dockerfile = artifacts.get("dockerfile")
+    if isinstance(dockerfile, str) and dockerfile.strip():
+        history_artifacts.append(
+            {
+                "type": "dockerfile",
+                "filename": "Dockerfile",
+                "content": dockerfile,
+                "validation_status": "unknown",
+                "validation_errors": [],
+            }
+        )
+
+    terraform = artifacts.get("terraform")
+    if isinstance(terraform, dict):
+        for name, content in terraform.items():
+            if isinstance(content, str) and content.strip():
+                history_artifacts.append(
+                    {
+                        "type": "terraform",
+                        "filename": str(name),
+                        "content": content,
+                        "validation_status": "unknown",
+                        "validation_errors": [],
+                    }
+                )
+
+    kubernetes = artifacts.get("kubernetes")
+    if isinstance(kubernetes, dict):
+        for name, content in kubernetes.items():
+            if isinstance(content, str) and content.strip():
+                history_artifacts.append(
+                    {
+                        "type": "kubernetes",
+                        "filename": str(name),
+                        "content": content,
+                        "validation_status": "unknown",
+                        "validation_errors": [],
+                    }
+                )
+
+    return history_artifacts
+
+
+def _to_history_logs(lines: List[str], max_lines: int = 200) -> List[Dict[str, Any]]:
+    recent_lines = lines[-max_lines:]
+    logs: List[Dict[str, Any]] = []
+    now = _utc_now_iso()
+
+    for line in recent_lines:
+        level = "info"
+        lowered = str(line).lower()
+        if "error" in lowered or "traceback" in lowered or "failed" in lowered:
+            level = "error"
+        elif "warn" in lowered:
+            level = "warning"
+        elif "success" in lowered or "completed" in lowered:
+            level = "success"
+
+        logs.append(
+            {
+                "timestamp": now,
+                "level": level,
+                "message": str(line),
+                "agent": None,
+            }
+        )
+
+    return logs
+
+
+def _create_history_session_for_run(run_id: str, request: RunRequest) -> Optional[str]:
+    try:
+        now = _utc_now_iso()
+        session_id = str(uuid4())
+        entry: Dict[str, Any] = {
+            "session_id": session_id,
+            "run_id": run_id,
+            "prompt": request.prompt,
+            "created_at": now,
+            "updated_at": now,
+            "status": "running",
+            "artifacts": [],
+            "execution_logs": [],
+            "repair_attempts": [],
+            "rag_sources": [],
+            "agents_used": [],
+            "duration_seconds": None,
+            "artifact_count": 0,
+            "log_count": 0,
+        }
+        with history_lock:
+            sessions = _history_load()
+            sessions.insert(0, entry)
+            _history_save(sessions)
+        return session_id
+    except Exception as exc:
+        print(f"[Backend] Failed to create history session for run {run_id}: {exc}", file=sys.stderr)
+        return None
+
+
+def _finalize_history_session_for_run(run_id: str, run_state: RunState) -> None:
+    if run_state.history_finalized:
+        return
+    if not run_state.history_session_id:
+        return
+
+    try:
+        if run_state.parsed_result is None:
+            stdout_text = "\n".join(run_state.output_lines)
+            run_state.parsed_result = _parse_orchestrator_stdout(stdout_text, "")
+
+        artifacts = _get_effective_artifacts(run_id, run_state, refresh_parse=False)
+        history_artifacts = _to_history_artifacts(artifacts)
+        history_logs = _to_history_logs(run_state.output_lines)
+
+        status = "completed"
+        if (run_state.process.poll() or 0) != 0:
+            status = "failed"
+        parsed_status = str((run_state.parsed_result or {}).get("status") or "").lower()
+        if parsed_status in {"error", "failed"}:
+            status = "failed"
+
+        repo_context = (run_state.parsed_result or {}).get("state", {}).get("repo_context", {})
+        agents_used = (run_state.parsed_result or {}).get("state", {}).get("execution_order")
+        if not isinstance(agents_used, list):
+            agents_used = []
+        rag_sources: List[str] = []
+        if isinstance(repo_context, dict):
+            github_url = repo_context.get("github_url")
+            repo_path = repo_context.get("path")
+            if isinstance(github_url, str) and github_url.strip():
+                rag_sources.append(github_url)
+            if isinstance(repo_path, str) and repo_path.strip():
+                rag_sources.append(repo_path)
+
+        now = _utc_now_iso()
+        duration = max(0.0, time.time() - run_state.started_at)
+
+        with history_lock:
+            sessions = _history_load()
+            for session in sessions:
+                if session.get("session_id") == run_state.history_session_id:
+                    session["updated_at"] = now
+                    session["status"] = status
+                    session["artifacts"] = history_artifacts
+                    session["artifact_count"] = len(history_artifacts)
+                    session["execution_logs"] = history_logs
+                    session["log_count"] = len(history_logs)
+                    session["duration_seconds"] = round(duration, 1)
+                    session["agents_used"] = [str(a) for a in agents_used]
+                    session["rag_sources"] = rag_sources
+                    break
+            _history_save(sessions)
+
+        run_state.history_finalized = True
+    except Exception as exc:
+        print(f"[Backend] Failed to finalize history for run {run_id}: {exc}", file=sys.stderr)
 
 
 def _to_safe_jsonable(value: Any, seen: Optional[set[int]] = None) -> Any:
@@ -393,6 +581,7 @@ async def start_run(request: RunRequest) -> Dict[str, str]:
     run_state = run_manager.get_run(run_id)
     if run_state is not None:
         run_state.build_in_docker = request.build_in_docker
+        run_state.history_session_id = _create_history_session_for_run(run_id, request)
 
     if request.build_in_docker:
         watcher = threading.Thread(
@@ -436,6 +625,8 @@ async def stream_run_logs(websocket: WebSocket, run_id: str) -> None:
                     else run_state.process.poll()
                 )
 
+                _finalize_history_session_for_run(run_id, run_state)
+
                 await websocket.send_json({"type": "complete", "result": run_state.parsed_result})
                 await websocket.close()
                 return
@@ -451,6 +642,9 @@ async def get_run_status(run_id: str) -> Dict[str, Any]:
     running = run_manager.is_running(run_id)
     returncode = run_state.process.returncode if run_state.process.returncode is not None else run_state.process.poll()
     run_state.returncode = returncode
+
+    if not running:
+        _finalize_history_session_for_run(run_id, run_state)
 
     with post_run_execution_lock:
         execution_result = post_run_execution_results.get(run_id)

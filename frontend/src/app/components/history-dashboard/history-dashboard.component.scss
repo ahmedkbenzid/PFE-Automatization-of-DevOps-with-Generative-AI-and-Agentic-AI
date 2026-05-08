@@ -1,0 +1,632 @@
+/* history-dashboard.component.scss
+   Aesthetic: dark industrial terminal — monospace grid, amber accents, scan-line depth */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:host {
+  display: block;
+  height: 100%;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+// ── Tokens ──────────────────────────────────────────────────────────────────
+$bg:        #0d0f12;
+$surface:   #13161b;
+$surface2:  #1a1e25;
+$border:    #252a33;
+$border2:   #2e3540;
+$amber:     #f5a623;
+$amber-dim: #b87a1a;
+$green:     #3ddc84;
+$red:       #ff4d4d;
+$blue:      #4da6ff;
+$muted:     #5a6478;
+$text:      #c8d0de;
+$text-dim:  #8896ab;
+$mono:      'IBM Plex Mono', monospace;
+
+// ── Root ────────────────────────────────────────────────────────────────────
+.history-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: $bg;
+  color: $text;
+  overflow: hidden;
+}
+
+// ── Header ──────────────────────────────────────────────────────────────────
+.hist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid $border;
+  background: $surface;
+  flex-shrink: 0;
+
+  &__left { display: flex; align-items: center; gap: 1rem; }
+
+  &__icon {
+    font-size: 2rem;
+    color: $amber;
+    line-height: 1;
+  }
+
+  &__title {
+    font-family: $mono;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  &__sub {
+    font-size: 0.75rem;
+    color: $text-dim;
+    margin: 0.1rem 0 0;
+  }
+}
+
+.btn-back {
+  font-family: $mono;
+  font-size: 0.75rem;
+  color: $text-dim;
+  text-decoration: none;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid $border2;
+  border-radius: 4px;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover { color: $amber; border-color: $amber-dim; }
+}
+
+// ── Stats bar ───────────────────────────────────────────────────────────────
+.stats-bar {
+  display: flex;
+  gap: 1px;
+  background: $border;
+  border-bottom: 1px solid $border;
+  flex-shrink: 0;
+}
+
+.stat-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.85rem 0.5rem;
+  background: $surface;
+  gap: 0.2rem;
+
+  &--ok  { .stat-val { color: $green; } }
+  &--fail { .stat-val { color: $red; } }
+}
+
+.stat-val {
+  font-family: $mono;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: $amber;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: $text-dim;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+// ── Body layout ─────────────────────────────────────────────────────────────
+.hist-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+// ── Session list ────────────────────────────────────────────────────────────
+.session-list {
+  width: 320px;
+  min-width: 280px;
+  flex-shrink: 0;
+  background: $surface;
+  border-right: 1px solid $border;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  &__toolbar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid $border;
+    flex-shrink: 0;
+  }
+
+  &__empty, &__loading {
+    padding: 2rem;
+    text-align: center;
+    color: $text-dim;
+    font-size: 0.85rem;
+  }
+
+  // scrollable list
+  overflow-y: auto;
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: $surface; }
+  &::-webkit-scrollbar-thumb { background: $border2; border-radius: 2px; }
+}
+
+.search-input {
+  flex: 1;
+  background: $bg;
+  border: 1px solid $border2;
+  border-radius: 4px;
+  color: $text;
+  font-family: $mono;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+
+  &::placeholder { color: $muted; }
+  &:focus { border-color: $amber-dim; }
+}
+
+.filter-select {
+  background: $bg;
+  border: 1px solid $border2;
+  border-radius: 4px;
+  color: $text;
+  font-family: $mono;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.4rem;
+  outline: none;
+  cursor: pointer;
+  &:focus { border-color: $amber-dim; }
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid $border2;
+  border-top-color: $amber;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+// ── Session item ─────────────────────────────────────────────────────────────
+.session-item {
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid $border;
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover { background: $surface2; }
+
+  &--active {
+    background: $surface2;
+    border-left: 3px solid $amber;
+    padding-left: calc(0.9rem - 3px);
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
+}
+
+.session-prompt {
+  font-size: 0.8rem;
+  color: $text;
+  margin: 0 0 0.5rem;
+  line-height: 1.45;
+  // Clamp to 2 lines
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.session-time {
+  font-family: $mono;
+  font-size: 0.65rem;
+  color: $muted;
+  margin-left: auto;
+}
+
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.artifact-badge {
+  font-size: 0.62rem;
+  font-family: $mono;
+  padding: 0.15rem 0.45rem;
+  background: rgba($amber, 0.08);
+  border: 1px solid rgba($amber, 0.2);
+  border-radius: 3px;
+  color: $amber-dim;
+}
+
+.meta-chip {
+  font-size: 0.62rem;
+  font-family: $mono;
+  padding: 0.15rem 0.45rem;
+  background: rgba($blue, 0.08);
+  border: 1px solid rgba($blue, 0.2);
+  border-radius: 3px;
+  color: $blue;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: $muted;
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.2rem;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  .session-item:hover & { opacity: 1; }
+  &:hover { color: $red; }
+}
+
+// ── Status badges ────────────────────────────────────────────────────────────
+.session-status {
+  font-family: $mono;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
+  &.status-ok   { background: rgba($green,0.12); color: $green; border: 1px solid rgba($green,0.25); }
+  &.status-fail { background: rgba($red,0.12);   color: $red;   border: 1px solid rgba($red,0.25);   }
+  &.status-run  { background: rgba($blue,0.12);  color: $blue;  border: 1px solid rgba($blue,0.25);  }
+}
+
+// ── Detail panel ─────────────────────────────────────────────────────────────
+.detail-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: $bg;
+
+  &--empty {
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    color: $muted;
+    font-size: 0.9rem;
+
+    .empty-icon { font-size: 3rem; color: $border2; }
+  }
+}
+
+// ── Detail header ────────────────────────────────────────────────────────────
+.detail-header {
+  display: flex;
+  gap: 2rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid $border;
+  background: $surface;
+  flex-shrink: 0;
+
+  &__prompt { flex: 1; min-width: 0; }
+  &__meta   { flex-shrink: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+}
+
+.detail-label {
+  font-family: $mono;
+  font-size: 0.62rem;
+  color: $amber;
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.detail-prompt-text {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: $text;
+  margin: 0;
+}
+
+.meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.meta-key {
+  font-family: $mono;
+  font-size: 0.68rem;
+  color: $muted;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  min-width: 72px;
+  padding-top: 0.1rem;
+}
+
+.agents-list, .rag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.agent-chip {
+  font-size: 0.68rem;
+  font-family: $mono;
+  padding: 0.1rem 0.4rem;
+  background: $surface2;
+  border: 1px solid $border2;
+  border-radius: 3px;
+  color: $text-dim;
+}
+
+// ── Detail tabs ───────────────────────────────────────────────────────────────
+.detail-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid $border;
+  background: $surface;
+  flex-shrink: 0;
+}
+
+.dtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: $text-dim;
+  font-family: $mono;
+  font-size: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.15s, border-color 0.15s;
+
+  &--active {
+    color: $amber;
+    border-bottom-color: $amber;
+  }
+
+  &:hover:not(.dtab--active) { color: $text; }
+}
+
+.dtab-count {
+  font-size: 0.65rem;
+  background: $surface2;
+  border: 1px solid $border2;
+  border-radius: 10px;
+  padding: 0.05rem 0.4rem;
+  color: $muted;
+}
+
+// ── Detail content ────────────────────────────────────────────────────────────
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: $bg; }
+  &::-webkit-scrollbar-thumb { background: $border2; border-radius: 2px; }
+}
+
+.empty-tab {
+  color: $muted;
+  font-size: 0.85rem;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+// ── Artifact viewer ───────────────────────────────────────────────────────────
+.artifact-type-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.atype-btn {
+  background: $surface;
+  border: 1px solid $border2;
+  border-radius: 4px;
+  color: $text-dim;
+  font-family: $mono;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &--active {
+    background: rgba($amber, 0.1);
+    border-color: $amber-dim;
+    color: $amber;
+  }
+
+  &:hover:not(.atype-btn--active) { border-color: $border2; color: $text; background: $surface2; }
+}
+
+.artifact-viewer {
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+}
+
+.artifact-filename {
+  font-family: $mono;
+  font-size: 0.78rem;
+  color: $text;
+  flex: 1;
+}
+
+.val-badge {
+  font-family: $mono;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+
+  &.val-ok   { background: rgba($green,0.12); color: $green; border: 1px solid rgba($green,0.25); }
+  &.val-fail { background: rgba($red,0.12);   color: $red;   border: 1px solid rgba($red,0.25);   }
+  &.val-skip { background: rgba($muted,0.12); color: $muted; border: 1px solid rgba($muted,0.25); }
+  &.val-unk  { background: rgba($muted,0.08); color: $muted; border: 1px solid rgba($muted,0.15); }
+}
+
+.btn-copy {
+  font-family: $mono;
+  font-size: 0.72rem;
+  background: $surface;
+  border: 1px solid $border2;
+  border-radius: 4px;
+  color: $text-dim;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover { border-color: $amber-dim; color: $amber; }
+}
+
+.validation-errors {
+  margin-bottom: 0.6rem;
+}
+
+.val-error {
+  font-family: $mono;
+  font-size: 0.72rem;
+  color: $red;
+  background: rgba($red, 0.06);
+  border-left: 3px solid $red;
+  padding: 0.35rem 0.6rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0 3px 3px 0;
+}
+
+.code-block {
+  background: $surface;
+  border: 1px solid $border;
+  border-radius: 6px;
+  padding: 1.1rem 1.25rem;
+  font-family: $mono;
+  font-size: 0.75rem;
+  line-height: 1.65;
+  color: #a8c4e0;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: calc(100vh - 420px);
+  overflow-y: auto;
+
+  &::-webkit-scrollbar { width: 4px; height: 4px; }
+  &::-webkit-scrollbar-thumb { background: $border2; border-radius: 2px; }
+}
+
+// ── Log viewer ────────────────────────────────────────────────────────────────
+.log-viewer {
+  font-family: $mono;
+  font-size: 0.73rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.log-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 3px;
+  line-height: 1.4;
+
+  &.log-info  { color: $text-dim; }
+  &.log-ok    { color: $green; background: rgba($green, 0.04); }
+  &.log-warn  { color: #f0c040; background: rgba(#f0c040, 0.04); }
+  &.log-err   { color: $red;   background: rgba($red, 0.06);    }
+}
+
+.log-time  { color: $muted; flex-shrink: 0; }
+.log-level { font-weight: 600; flex-shrink: 0; min-width: 50px; }
+.log-agent { color: $amber-dim; flex-shrink: 0; }
+.log-msg   { flex: 1; word-break: break-word; }
+
+// ── Repair cards ──────────────────────────────────────────────────────────────
+.repair-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.repair-card {
+  background: $surface;
+  border: 1px solid $border;
+  border-radius: 6px;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    background: $surface2;
+    border-bottom: 1px solid $border;
+  }
+}
+
+.repair-attempt {
+  font-family: $mono;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: $text;
+}
+
+.repair-result {
+  font-family: $mono;
+  font-size: 0.72rem;
+  &--ok   { color: $green; }
+  &--fail { color: $red;   }
+}
+
+.repair-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid $border;
+  font-size: 0.78rem;
+  align-items: flex-start;
+
+  &:last-child { border-bottom: none; }
+}
+
+.repair-label {
+  font-family: $mono;
+  font-size: 0.65rem;
+  color: $muted;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  min-width: 110px;
+  padding-top: 0.1rem;
+}
+
+.repair-val {
+  font-family: $mono;
+  font-size: 0.75rem;
+  color: $text;
+  word-break: break-all;
+}

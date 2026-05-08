@@ -1,0 +1,254 @@
+<!-- history-dashboard.component.html -->
+<div class="history-root">
+
+  <!-- ── Header ── -->
+  <header class="hist-header">
+    <div class="hist-header__left">
+      <span class="hist-header__icon">◈</span>
+      <div>
+        <h1 class="hist-header__title">Session History</h1>
+        <p class="hist-header__sub">All automation runs, artifacts & execution logs</p>
+      </div>
+    </div>
+    <a routerLink="/" class="btn-back">← Back to Workspace</a>
+  </header>
+
+  <!-- ── Stats bar ── -->
+  <section class="stats-bar" *ngIf="stats">
+    <div class="stat-card">
+      <span class="stat-val">{{ stats.total }}</span>
+      <span class="stat-label">Total Runs</span>
+    </div>
+    <div class="stat-card stat-card--ok">
+      <span class="stat-val">{{ stats.completed }}</span>
+      <span class="stat-label">Completed</span>
+    </div>
+    <div class="stat-card stat-card--fail">
+      <span class="stat-val">{{ stats.failed }}</span>
+      <span class="stat-label">Failed</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-val">{{ stats.total_artifacts }}</span>
+      <span class="stat-label">Artifacts</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-val">{{ formatDuration(stats.avg_duration) }}</span>
+      <span class="stat-label">Avg Duration</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-val">{{ stats.repair_rate }}%</span>
+      <span class="stat-label">Self-Repair Rate</span>
+    </div>
+  </section>
+
+  <!-- ── Main layout ── -->
+  <div class="hist-body">
+
+    <!-- ── Session list (left panel) ── -->
+    <aside class="session-list">
+      <div class="session-list__toolbar">
+        <input
+          class="search-input"
+          type="text"
+          placeholder="Search prompts…"
+          [(ngModel)]="searchQuery"
+        />
+        <select class="filter-select" [(ngModel)]="filterStatus" (change)="onFilterChange()">
+          <option value="all">All</option>
+          <option value="completed">Completed</option>
+          <option value="failed">Failed</option>
+          <option value="running">Running</option>
+        </select>
+      </div>
+
+      <div class="session-list__empty" *ngIf="!loading && filteredSessions.length === 0">
+        <span>No sessions found</span>
+      </div>
+
+      <div class="session-list__loading" *ngIf="loading">
+        <span class="spinner"></span> Loading…
+      </div>
+
+      <div
+        class="session-item"
+        *ngFor="let s of filteredSessions"
+        [class.session-item--active]="selectedSession?.session_id === s.session_id"
+        (click)="selectSession(s)"
+      >
+        <div class="session-item__top">
+          <span class="session-status" [ngClass]="getStatusClass(s.status)">
+            {{ s.status }}
+          </span>
+          <span class="session-time">{{ formatRelative(s.created_at) }}</span>
+          <button class="btn-delete" (click)="deleteSession(s.session_id, $event)" title="Delete">✕</button>
+        </div>
+        <p class="session-prompt">{{ s.prompt }}</p>
+        <div class="session-meta">
+          <span *ngFor="let type of getArtifactTypes(s)" class="artifact-badge">
+            {{ artifactIcon(type) }} {{ type }}
+          </span>
+          <span class="meta-chip" *ngIf="s.repair_attempts?.length">
+            🔧 {{ s.repair_attempts.length }} repair{{ s.repair_attempts.length > 1 ? 's' : '' }}
+          </span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── Detail panel (right) ── -->
+    <main class="detail-panel" *ngIf="selectedSession; else emptyState">
+
+      <!-- Detail header -->
+      <div class="detail-header">
+        <div class="detail-header__prompt">
+          <span class="detail-label">PROMPT</span>
+          <p class="detail-prompt-text">{{ selectedSession.prompt }}</p>
+        </div>
+        <div class="detail-header__meta">
+          <div class="meta-row">
+            <span class="meta-key">Status</span>
+            <span class="session-status" [ngClass]="getStatusClass(selectedSession.status)">
+              {{ selectedSession.status }}
+            </span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-key">Started</span>
+            <span>{{ formatDate(selectedSession.created_at) }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-key">Duration</span>
+            <span>{{ formatDuration(selectedSession.duration_seconds) }}</span>
+          </div>
+          <div class="meta-row" *ngIf="selectedSession.agents_used?.length">
+            <span class="meta-key">Agents</span>
+            <span class="agents-list">
+              <span *ngFor="let a of selectedSession.agents_used" class="agent-chip">
+                {{ agentIcon(a) }} {{ a }}
+              </span>
+            </span>
+          </div>
+          <div class="meta-row" *ngIf="selectedSession.rag_sources?.length">
+            <span class="meta-key">RAG Sources</span>
+            <span class="rag-list">{{ selectedSession.rag_sources.join(', ') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail tabs -->
+      <div class="detail-tabs">
+        <button
+          class="dtab"
+          [class.dtab--active]="activeDetailTab === 'artifacts'"
+          (click)="activeDetailTab = 'artifacts'"
+        >
+          Artifacts <span class="dtab-count">{{ selectedSession.artifact_count }}</span>
+        </button>
+        <button
+          class="dtab"
+          [class.dtab--active]="activeDetailTab === 'logs'"
+          (click)="activeDetailTab = 'logs'"
+        >
+          Execution Logs <span class="dtab-count">{{ selectedSession.log_count }}</span>
+        </button>
+        <button
+          class="dtab"
+          [class.dtab--active]="activeDetailTab === 'repairs'"
+          (click)="activeDetailTab = 'repairs'"
+          *ngIf="selectedSession.repair_attempts?.length"
+        >
+          Self-Repair <span class="dtab-count">{{ selectedSession.repair_attempts.length }}</span>
+        </button>
+      </div>
+
+      <!-- Artifacts tab -->
+      <div class="detail-content" *ngIf="activeDetailTab === 'artifacts'">
+        <div class="artifact-tabs" *ngIf="selectedSession.artifacts.length; else noArtifacts">
+          <div class="artifact-type-bar">
+            <button
+              *ngFor="let type of getArtifactTypes(selectedSession)"
+              class="atype-btn"
+              [class.atype-btn--active]="activeArtifactTab === type"
+              (click)="activeArtifactTab = type"
+            >
+              {{ artifactIcon(type) }} {{ type | titlecase }}
+            </button>
+          </div>
+
+          <ng-container *ngFor="let type of getArtifactTypes(selectedSession)">
+            <div class="artifact-viewer" *ngIf="activeArtifactTab === type">
+              <ng-container *ngIf="getArtifactByType(selectedSession, type) as artifact">
+                <div class="artifact-viewer__header">
+                  <span class="artifact-filename">{{ artifact.filename }}</span>
+                  <span class="val-badge" [ngClass]="getValidationClass(artifact.validation_status)">
+                    {{ artifact.validation_status }}
+                  </span>
+                  <button class="btn-copy" (click)="copyArtifact(artifact.content, type)">
+                    {{ copiedArtifact === type ? '✅ Copied' : '⎘ Copy' }}
+                  </button>
+                </div>
+                <div class="validation-errors" *ngIf="artifact.validation_errors?.length">
+                  <div class="val-error" *ngFor="let err of artifact.validation_errors">⚠ {{ err }}</div>
+                </div>
+                <pre class="code-block"><code>{{ artifact.content }}</code></pre>
+              </ng-container>
+            </div>
+          </ng-container>
+        </div>
+
+        <ng-template #noArtifacts>
+          <div class="empty-tab">No artifacts generated for this session.</div>
+        </ng-template>
+      </div>
+
+      <!-- Logs tab -->
+      <div class="detail-content" *ngIf="activeDetailTab === 'logs'">
+        <div class="log-viewer" *ngIf="selectedSession.execution_logs.length; else noLogs">
+          <div
+            class="log-entry"
+            *ngFor="let log of selectedSession.execution_logs"
+            [ngClass]="getLogClass(log.level)"
+          >
+            <span class="log-time">{{ log.timestamp | slice:11:19 }}</span>
+            <span class="log-level">{{ log.level.toUpperCase() }}</span>
+            <span class="log-agent" *ngIf="log.agent">{{ agentIcon(log.agent) }} {{ log.agent }}</span>
+            <span class="log-msg">{{ log.message }}</span>
+          </div>
+        </div>
+        <ng-template #noLogs>
+          <div class="empty-tab">No execution logs for this session.</div>
+        </ng-template>
+      </div>
+
+      <!-- Repairs tab -->
+      <div class="detail-content" *ngIf="activeDetailTab === 'repairs'">
+        <div class="repair-list">
+          <div class="repair-card" *ngFor="let r of selectedSession.repair_attempts">
+            <div class="repair-card__header">
+              <span class="repair-attempt">Attempt {{ r.attempt_number }}</span>
+              <span class="repair-result" [class.repair-result--ok]="r.success" [class.repair-result--fail]="!r.success">
+                {{ r.success ? '✅ Fixed' : '❌ Failed' }}
+              </span>
+            </div>
+            <div class="repair-row">
+              <span class="repair-label">Error detected</span>
+              <code class="repair-val">{{ r.error_detected }}</code>
+            </div>
+            <div class="repair-row">
+              <span class="repair-label">Fix applied</span>
+              <code class="repair-val">{{ r.fix_applied }}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Empty state -->
+    <ng-template #emptyState>
+      <main class="detail-panel detail-panel--empty">
+        <span class="empty-icon">◈</span>
+        <p>Select a session to inspect its artifacts and logs</p>
+      </main>
+    </ng-template>
+
+  </div>
+</div>
