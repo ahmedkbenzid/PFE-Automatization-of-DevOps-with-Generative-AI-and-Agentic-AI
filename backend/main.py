@@ -56,6 +56,75 @@ class StartExecutionRequest(BaseModel):
     force: bool = False
     artifacts: Optional[Dict[str, Any]] = None
 
+
+def _strip_json_fences(text: str) -> str:
+    content = text.strip()
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    return content.strip()
+
+
+def _parse_chat_artifacts_response(raw_text: str) -> Dict[str, Any]:
+    content = _strip_json_fences(raw_text)
+
+    parsed = json.loads(content)
+    if not isinstance(parsed, dict):
+        raise json.JSONDecodeError("Expected a JSON object", content, 0)
+
+    for _ in range(3):
+        explanation = parsed.get("explanation")
+        artifacts = parsed.get("artifacts")
+
+        if not isinstance(explanation, str):
+            break
+
+        inner_content = _strip_json_fences(explanation)
+        if not inner_content.startswith("{"):
+            break
+
+        try:
+            inner_parsed = json.loads(inner_content)
+        except json.JSONDecodeError:
+            break
+
+        if not isinstance(inner_parsed, dict):
+            break
+
+        parsed = inner_parsed
+        if artifacts is not None:
+            break
+
+    return {
+        "explanation": parsed.get("explanation", "Done."),
+        "artifacts": parsed.get("artifacts"),
+    }
+
+
+def _merge_artifacts(
+    original: Dict[str, Any],
+    updates: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Merge LLM-returned artifacts with the originals so partial responses
+    don't wipe out unchanged fields (e.g. terraform sub-files)."""
+    merged = dict(original)
+    for key in ("yaml", "dockerfile", "metadata"):
+        if key in updates:
+            merged[key] = updates[key]
+
+    for group_key in ("terraform", "kubernetes"):
+        if group_key in updates and isinstance(updates[group_key], dict):
+            base = dict(merged.get(group_key) or {})
+            base.update(updates[group_key])
+            merged[group_key] = base
+        elif group_key in updates:
+            merged[group_key] = updates[group_key]
+
+    return merged
+
 app = FastAPI(title="Orchestrator Backend", version="1.0.0")
 
 app.add_middleware(
@@ -909,6 +978,8 @@ async def chat_modify_artifacts(request: ArtifactChatRequest) -> Dict[str, Any]:
         '  "explanation": "brief human-readable summary of what you changed",\n'
         '  "artifacts": { ...the full updated artifacts object... }\n'
         "}\n\n"
+        "Return the actual JSON object itself, not a JSON string containing JSON.\n"
+        "Do not wrap the response in markdown fences. Do not put JSON inside the explanation field.\n"
         "The artifacts object has these fields:\n"
         '- "yaml": string or null — GitHub Actions CI/CD workflow YAML content\n'
         '- "dockerfile": string or null — Dockerfile content\n'
@@ -928,7 +999,7 @@ async def chat_modify_artifacts(request: ArtifactChatRequest) -> Dict[str, Any]:
 
     user_content = (
         f"Current artifacts:\n"
-        f"{json.dumps(request.artifacts, indent=2)}\n\n"
+        f"{json.dumps(request.artifacts, separators=(',', ':'))}\n\n"
         f"User request: {request.message}"
     )
 
@@ -957,6 +1028,7 @@ async def chat_modify_artifacts(request: ArtifactChatRequest) -> Dict[str, Any]:
         ],
         "temperature": 0,
         "max_tokens": 8192,
+        "response_format": {"type": "json_object"},
     }
 
     try:
@@ -978,24 +1050,18 @@ async def chat_modify_artifacts(request: ArtifactChatRequest) -> Dict[str, Any]:
             .get("content", "{}")
         )
 
-        # Strip markdown fences if the model added them
-        content = raw_text.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-
         try:
-            parsed = json.loads(content)
-            return {
-                "explanation": parsed.get("explanation", "Done."),
-                "artifacts": parsed.get("artifacts"),
-            }
+            result = _parse_chat_artifacts_response(raw_text)
+            # Merge returned artifacts with originals so partial responses
+            # don't wipe unchanged fields
+            if isinstance(result.get("artifacts"), dict):
+                result["artifacts"] = _merge_artifacts(
+                    request.artifacts, result["artifacts"]
+                )
+            return result
         except json.JSONDecodeError:
             # If the LLM didn't return valid JSON, return the raw text as explanation
+            print(f"[Backend] Chat artifacts: LLM returned non-JSON: {raw_text[:200]}", file=sys.stderr)
             return {
                 "explanation": raw_text[:500],
                 "artifacts": None,

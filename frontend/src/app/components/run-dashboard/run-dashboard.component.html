@@ -260,6 +260,6 @@
   <!-- AI Artifact Chatbot -->
   <app-run-chat
     [artifacts]="editedArtifacts$ | async"
-    (artifactsChanged)="onArtifactsAccepted(runId, { artifacts: $event, applied: false })"
+    (artifactsChanged)="onChatArtifactsChanged(runId, $event)"
   ></app-run-chat>
 </section>

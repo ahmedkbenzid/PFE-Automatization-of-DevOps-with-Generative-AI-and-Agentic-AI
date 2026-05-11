@@ -1,5 +1,5 @@
 import { AsyncPipe, NgIf, NgFor, NgClass, TitleCasePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component } from '@angular/core';
 import { ActivatedRoute,Router, RouterLink } from '@angular/router';
 import { BehaviorSubject, combineLatest, firstValueFrom, interval, of } from 'rxjs';
 import {
@@ -217,6 +217,7 @@ export class RunDashboardComponent {
     private readonly websocket: WebsocketService,
     private readonly api: ApiService,
     private readonly router: Router,
+    private readonly cdr: ChangeDetectorRef,
 
   ) {
     this.planReadyEvent$.pipe(takeUntilDestroyed()).subscribe();
@@ -262,13 +263,23 @@ export class RunDashboardComponent {
     runId: string,
     event: { artifacts: EditedArtifacts; applied: boolean },
   ): Promise<void> {
-    this.editedArtifacts$.next(event.artifacts);
+    const nextArtifacts = structuredClone(event.artifacts);
+    this.editedArtifacts$.next(nextArtifacts);
 
     try {
-      await firstValueFrom(this.api.saveEditedArtifacts(runId, event.artifacts as unknown as Record<string, unknown>));
+      await firstValueFrom(this.api.saveEditedArtifacts(runId, nextArtifacts as unknown as Record<string, unknown>));
     } catch {
       // Keep local edits even if persistence fails.
     }
+  }
+
+  async onChatArtifactsChanged(
+    runId: string,
+    artifacts: EditedArtifacts,
+  ): Promise<void> {
+    await this.onArtifactsAccepted(runId, { artifacts, applied: false });
+    this.activeTab$.next('workspace');
+    this.cdr.markForCheck();
   }
 
   onArtifactsRejected(): void {

@@ -51,10 +51,19 @@ interface ChatMessage {
             <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
           </svg>
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="text-sm font-bold text-devflow-text">Artifact Assistant</p>
           <p class="text-xs text-devflow-text-muted">Describe changes in plain language</p>
         </div>
+        <button
+          type="button"
+          (click)="clearChat()"
+          [disabled]="loading || messages.length === 0"
+          class="rounded-lg border border-devflow-border px-2.5 py-1 text-xs font-semibold text-devflow-text-muted transition-colors hover:border-devflow-accent hover:text-devflow-accent disabled:cursor-not-allowed disabled:opacity-40"
+          title="Clear chat history"
+        >
+          Clear
+        </button>
       </div>
 
       <!-- Messages -->
@@ -165,12 +174,20 @@ export class RunChatComponent implements OnChanges {
       loadingMsg.content = reply.explanation;
 
       if (reply.artifacts) {
-        this.current = reply.artifacts;
+        // Deep-merge returned artifacts with current to preserve unchanged sub-fields
+        this.current = this.mergeArtifacts(this.current, reply.artifacts);
         this.artifactsChanged.emit(structuredClone(this.current));
       }
-    } catch (e) {
+    } catch (e: any) {
       loadingMsg.loading = false;
-      loadingMsg.content = 'Something went wrong. Please try again.';
+      const status = e?.status;
+      if (status === 502 || status === 504) {
+        loadingMsg.content = 'The AI service is temporarily unavailable. Please try again.';
+      } else if (status === 500) {
+        loadingMsg.content = 'Server error — check that GROQ_API_KEY is configured.';
+      } else {
+        loadingMsg.content = 'Something went wrong. Please try again.';
+      }
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -178,14 +195,25 @@ export class RunChatComponent implements OnChanges {
     }
   }
 
+  clearChat(): void {
+    if (this.loading) return;
+
+    this.messages = [];
+    this.userInput = '';
+    this.cdr.markForCheck();
+  }
+
   /**
    * Call the backend /api/chat/artifacts endpoint which uses the
    * server-side Groq LLM to understand and apply artifact corrections.
    */
   private callBackend(userMessage: string): Promise<{ explanation: string; artifacts: EditedArtifacts | null }> {
-    // Build conversation history for multi-turn context
-    const conversationHistory = this.messages
-      .filter(m => !m.loading)
+    // Build conversation history for multi-turn context.
+    // Exclude the LAST user message (the current one) because the backend
+    // re-includes it with artifact context to avoid duplication.
+    const allNonLoading = this.messages.filter(m => !m.loading);
+    const conversationHistory = allNonLoading
+      .slice(0, -1)
       .map(m => ({ role: m.role, content: m.content }));
 
     const body = {
@@ -210,10 +238,35 @@ export class RunChatComponent implements OnChanges {
     });
   }
 
+  /**
+   * Deep-merge returned artifacts with the current ones so partial LLM
+   * responses don't wipe unchanged nested fields (terraform, kubernetes).
+   */
+  private mergeArtifacts(
+    base: EditedArtifacts | null,
+    updates: EditedArtifacts,
+  ): EditedArtifacts {
+    if (!base) return updates;
+
+    return {
+      yaml:       updates.yaml       ?? base.yaml,
+      dockerfile: updates.dockerfile ?? base.dockerfile,
+      terraform: {
+        ...base.terraform,
+        ...(updates.terraform ?? {}),
+      },
+      kubernetes: {
+        ...base.kubernetes,
+        ...(updates.kubernetes ?? {}),
+      },
+      metadata: updates.metadata ?? base.metadata,
+    };
+  }
+
   private scrollToBottom(): void {
     setTimeout(() => {
       const el = document.getElementById('chat-scroll');
       if (el) el.scrollTop = el.scrollHeight;
     }, 50);
   }
-}
+}
