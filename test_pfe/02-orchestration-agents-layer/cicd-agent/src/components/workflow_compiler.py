@@ -27,7 +27,15 @@ class WorkflowCompiler:
         
         # Normalize the workflow
         normalized_yaml = self._normalize_workflow(parsed)
-        compiled_yaml = yaml.dump(normalized_yaml, default_flow_style=False, sort_keys=False)
+        compiled_yaml = yaml.dump(
+            normalized_yaml,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            default_style=None,
+            indent=2,
+            width=120,
+        )
         
         # Extract dependencies
         dependencies = self._extract_dependencies(parsed)
@@ -105,7 +113,15 @@ class WorkflowCompiler:
             'dependencies': lock_file.dependencies,
         }
         
-        return yaml.dump(lock_data, default_flow_style=False, sort_keys=False)
+        return yaml.dump(
+            lock_data,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            default_style=None,
+            indent=2,
+            width=120,
+        )
     
     def verify_workflow_integrity(self, yaml_content: str, lock_file: WorkflowLockFile) -> bool:
         """Verify workflow against lock file"""

@@ -7,4 +7,5 @@ python-dotenv>=1.0.0
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 
-# No additional dependencies needed - uses standard library for subprocess, threading, queue
+# YAML normalization before Act (round-trip with stable indentation)
+PyYAML>=6.0.1

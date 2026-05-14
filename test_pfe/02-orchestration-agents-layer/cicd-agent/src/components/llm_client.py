@@ -80,7 +80,7 @@ class LLMClient:
         self.max_tokens = Config.LLM_MAX_TOKENS
         self.temperature = Config.LLM_TEMPERATURE
         self.client = None
-        self.model: str = ""
+        self.model: str = "llama-3.3-70b-versatile"
         self.fallback_models: List[str] = []
 
         self.ollama_circuit = CircuitBreaker(failure_threshold=3, recovery_timeout=60)

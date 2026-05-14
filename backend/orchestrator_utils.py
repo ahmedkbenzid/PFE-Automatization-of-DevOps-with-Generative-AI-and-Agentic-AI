@@ -52,8 +52,14 @@ def _collect_runtime_secrets() -> Dict[str, str]:
 
     if cleaned.get("DOCKERHUB_USERNAME") and not cleaned.get("DOCKER_USERNAME"):
         cleaned["DOCKER_USERNAME"] = cleaned["DOCKERHUB_USERNAME"]
+    if cleaned.get("DOCKER_USERNAME") and not cleaned.get("DOCKERHUB_USERNAME"):
+        cleaned["DOCKERHUB_USERNAME"] = cleaned["DOCKER_USERNAME"]
 
-    dockerhub_token = cleaned.get("DOCKERHUB_TOKEN") or cleaned.get("DOCKERHUB_PASSWORD")
+    dockerhub_token = (
+        cleaned.get("DOCKERHUB_TOKEN")
+        or cleaned.get("DOCKERHUB_PASSWORD")
+        or cleaned.get("DOCKER_PASSWORD")
+    )
     if dockerhub_token:
         cleaned.setdefault("DOCKERHUB_TOKEN", dockerhub_token)
         cleaned.setdefault("DOCKERHUB_PASSWORD", dockerhub_token)

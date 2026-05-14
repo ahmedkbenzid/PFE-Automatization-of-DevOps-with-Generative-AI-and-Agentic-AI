@@ -1246,9 +1246,9 @@ def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
     github_url = state.get("github_url", "")
     repo_context = state.get("repo_context") or {}
     if not github_url and isinstance(repo_context, dict):
-        ctx_url = repo_context.get("github_url") or repo_context.get("path")
-        if isinstance(ctx_url, str):
-            github_url = ctx_url
+        ctx_url = repo_context.get("github_url")
+        if isinstance(ctx_url, str) and ctx_url.strip():
+            github_url = ctx_url.strip()
 
     requested_branch = (state.get("branch_name", "") or "devops/auto-generated").replace("refs/heads/", "").strip()
     branch_name = re.sub(r"[^A-Za-z0-9._/\-]", "-", requested_branch).strip("/.-") or "devops/auto-generated"
@@ -1307,56 +1307,55 @@ def create_pr_node(state: OrchestratorState) -> Dict[str, Any]:
             call_timeout=config.MCP_GITHUB_CALL_TIMEOUT,
         )
 
-        with client:
-            base_branch = client.get_default_branch(owner=owner, repo=repo, fallback=repo_info.branch or "main")
+        base_branch = client.get_default_branch(owner=owner, repo=repo, fallback=repo_info.branch or "main")
 
-            branch_result = client.ensure_branch(
-                owner=owner,
-                repo=repo,
-                branch=branch_name,
-                base_branch=base_branch,
-            )
-            if not branch_result.get("success"):
-                return {
-                    "pr_details": {
-                        "success": False,
-                        "error": f"Failed to ensure branch '{branch_name}': {branch_result.get('error', 'Unknown error')}",
-                        "branch_result": branch_result,
-                    }
+        branch_result = client.ensure_branch(
+            owner=owner,
+            repo=repo,
+            branch=branch_name,
+            base_branch=base_branch,
+        )
+        if not branch_result.get("success"):
+            return {
+                "pr_details": {
+                    "success": False,
+                    "error": f"Failed to ensure branch '{branch_name}': {branch_result.get('error', 'Unknown error')}",
+                    "branch_result": branch_result,
                 }
+            }
 
-            publish_result = client.upsert_files(
-                owner=owner,
-                repo=repo,
-                branch=branch_name,
-                files=artifact_files,
-                commit_message="chore(devops): apply orchestrator-generated artifacts",
-            )
-            if not publish_result.get("success"):
-                return {
-                    "pr_details": {
-                        "success": False,
-                        "error": f"Failed to publish artifacts to '{branch_name}': {publish_result.get('error', 'Unknown error')}",
-                        "publish_result": publish_result,
-                    }
+        publish_result = client.upsert_files(
+            owner=owner,
+            repo=repo,
+            branch=branch_name,
+            files=artifact_files,
+            commit_message="chore(devops): apply orchestrator-generated artifacts",
+        )
+        if not publish_result.get("success"):
+            return {
+                "pr_details": {
+                    "success": False,
+                    "error": f"Failed to publish artifacts to '{branch_name}': {publish_result.get('error', 'Unknown error')}",
+                    "publish_result": publish_result,
                 }
+            }
 
-            no_artifact_changes = not publish_result.get("has_changes", True)
-            if no_artifact_changes:
-                print(
-                    "[Orchestrator] No new artifact file changes detected on target branch; "
-                    "attempting PR creation in case an existing branch PR already exists."
-                )
-
-            pr_body_with_artifacts = _build_pr_body_with_artifacts(pr_body, artifact_files)
-            pr_result = client.create_pull_request(
-                owner=owner,
-                repo=repo,
-                title=pr_title,
-                body=pr_body_with_artifacts,
-                head=branch_name,
-                base=base_branch,
+        no_artifact_changes = not publish_result.get("has_changes", True)
+        if no_artifact_changes:
+            print(
+                "[Orchestrator] No new artifact file changes detected on target branch; "
+                "attempting PR creation in case an existing branch PR already exists."
             )
+
+        pr_body_with_artifacts = _build_pr_body_with_artifacts(pr_body, artifact_files)
+        pr_result = client.create_pull_request(
+            owner=owner,
+            repo=repo,
+            title=pr_title,
+            body=pr_body_with_artifacts,
+            head=branch_name,
+            base=base_branch,
+        )
 
         pr_error_text = str(pr_result.get("error", ""))
         if (not pr_result.get("success")) and "already exists" in pr_error_text.lower():

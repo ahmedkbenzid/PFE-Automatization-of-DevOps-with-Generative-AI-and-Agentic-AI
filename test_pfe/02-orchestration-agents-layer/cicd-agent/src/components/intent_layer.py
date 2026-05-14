@@ -188,10 +188,19 @@ class IntentLayer:
         
         if requests_maven or build_system_str == "maven":
             if java_version:
-                requirement_lines.append(f"Use Maven with Java {java_version}. Build command: mvn -B -DskipTests clean package. Test command: mvn -B test.")
-                requirement_lines.append("Ensure Maven is available: use actions/setup-java@v4 with cache: maven, or add a step: run: apt-get update && apt-get install -y maven")
+                requirement_lines.append(
+                    f"Use Maven with Java {java_version}. Build command: mvn -B -DskipTests clean package. Test command: mvn -B test."
+                )
+                requirement_lines.append(
+                    "CRITICAL: actions/setup-java does NOT install Maven. "
+                    "If mvnw exists, use ./mvnw. Otherwise, install Maven in each job before mvn: "
+                    "run: sudo apt-get update && sudo apt-get install -y maven"
+                )
             else:
-                requirement_lines.append("Build and test using Maven commands (for example mvn -B clean verify). Ensure Maven is installed or cached.")
+                requirement_lines.append(
+                    "Build and test using Maven commands (for example mvn -B clean verify). "
+                    "If mvnw exists, use ./mvnw. Otherwise, install Maven before mvn commands."
+                )
         
         if requests_sonar:
             requirement_lines.append("Include SonarQube analysis steps using secrets for SONAR_TOKEN and SONAR_HOST_URL.")
@@ -211,13 +220,17 @@ class IntentLayer:
         if dockerfile_built_successfully or dockerfile_being_generated:
             requirement_lines.append(
                 "CRITICAL: The workflow MUST include a 'build-image' job that builds the Docker image from the Dockerfile. "
-                "Use 'docker build -f Dockerfile -t build-image:latest .' as the build step. "
-                "Subsequent jobs that need the build environment must add 'container: build-image:latest' and depend on the build-image job. "
-                "This ensures all build tools (Maven, Python, Node, etc.) from the Dockerfile are available during testing and building."
+                "Use 'docker build -f Dockerfile -t build-image:latest .' as the build step, then push to Docker Hub. "
+                "For subsequent test/deploy jobs, use 'runs-on: ubuntu-latest' (not container:) to avoid pull failures. "
+                "Only use 'container: <registry-image>' if the image is confirmed pushed to a registry."
             )
         
         if requests_dockerhub:
-            requirement_lines.append("Login to Docker Hub with docker/login-action and push image with docker/build-push-action.")
+            requirement_lines.append(
+                "Login to Docker Hub with docker/login-action (conditionally: if secrets.DOCKERHUB_USERNAME != '') "
+                "and push image with docker/build-push-action only when secrets are available. "
+                "Skip or comment out Docker Hub push steps if they will fail due to missing credentials."
+            )
         
         if requests_ansible:
             requirement_lines.append("Install Ansible via pip and run ansible-playbook for delivery steps.")
@@ -308,11 +321,11 @@ class IntentLayer:
         if dockerfile_being_generated or has_dockerfile:
             repo_context_block.append(f"Docker build context: '{docker_context_path}'")
         
-        # NEW: Add Docker image build guidance (workflow should build from Dockerfile)
+        # NEW: Add Docker image build guidance (workflow should build and push from Dockerfile)
         if dockerfile_built_successfully or dockerfile_being_generated:
-            repo_context_block.append(f"Docker workflow strategy: Build image during workflow execution")
+            repo_context_block.append(f"Docker workflow strategy: Build image during workflow execution and push to Docker Hub")
             repo_context_block.append(f"Build command: docker build -f Dockerfile -t build-image:latest .")
-            repo_context_block.append(f"Container usage: Add 'container: build-image:latest' to jobs that need the Docker environment")
+            repo_context_block.append(f"Test/Deploy strategy: Use 'runs-on: ubuntu-latest' (do NOT use container: build-image:latest to avoid pull failures)")
 
         knowledge_block = []
         for index, page in enumerate(knowledge_pages or [], start=1):

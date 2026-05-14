@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple, Callable
 import logging
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,8 +73,14 @@ class ExecutionPipeline:
 
         if merged.get("DOCKERHUB_USERNAME") and not merged.get("DOCKER_USERNAME"):
             merged["DOCKER_USERNAME"] = merged["DOCKERHUB_USERNAME"]
+        if merged.get("DOCKER_USERNAME") and not merged.get("DOCKERHUB_USERNAME"):
+            merged["DOCKERHUB_USERNAME"] = merged["DOCKER_USERNAME"]
 
-        dockerhub_token = merged.get("DOCKERHUB_TOKEN") or merged.get("DOCKERHUB_PASSWORD")
+        dockerhub_token = (
+            merged.get("DOCKERHUB_TOKEN")
+            or merged.get("DOCKERHUB_PASSWORD")
+            or merged.get("DOCKER_PASSWORD")
+        )
         if dockerhub_token:
             merged.setdefault("DOCKERHUB_TOKEN", dockerhub_token)
             merged.setdefault("DOCKERHUB_PASSWORD", dockerhub_token)
@@ -131,6 +139,65 @@ class ExecutionPipeline:
         if use_bind:
             common_args.append("--bind")
         return common_args
+
+    def _strip_workflow_markdown_fences(self, raw: str) -> str:
+        """Remove ``` / ```yaml wrappers so Act receives plain YAML."""
+        if not raw or not raw.strip():
+            return raw
+        lines = [ln for ln in raw.splitlines() if not ln.strip().startswith("```")]
+        return "\n".join(lines).strip()
+
+    def _regex_normalize_workflow_keys(self, body: str) -> str:
+        """Best-effort fixes when full YAML parse is not possible."""
+        out: List[str] = []
+        on_key = re.compile(r"^(\s*)['\"]on['\"]:\s*(.*)$")
+        for line in body.splitlines():
+            m = on_key.match(line)
+            if m:
+                indent, rest = m.group(1), m.group(2)
+                line = f"{indent}on:{(' ' + rest) if rest else ''}"
+            out.append(line)
+        return "\n".join(out).strip()
+
+    def _normalize_github_actions_yaml(self, content: str) -> str:
+        """
+        Parse and re-dump workflow YAML with stable indentation so Act's parser
+        sees a consistent document (fixes common LLM / loose-dump issues).
+        Falls back to light regex cleanup if parsing fails.
+        """
+        body = self._strip_workflow_markdown_fences(content)
+        if not body:
+            return content or ""
+
+        try:
+            parsed = yaml.safe_load(body)
+        except yaml.YAMLError:
+            return self._regex_normalize_workflow_keys(body).rstrip() + "\n"
+
+        if parsed is None:
+            return self._regex_normalize_workflow_keys(body).rstrip() + "\n"
+
+        if not isinstance(parsed, dict):
+            return body.rstrip() + "\n"
+
+        if True in parsed and "on" not in parsed:
+            parsed = dict(parsed)
+            parsed["on"] = parsed.pop(True)
+
+        try:
+            dumped = yaml.dump(
+                parsed,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                default_style=None,
+                indent=2,
+                width=120,
+            ).strip()
+            return dumped + "\n"
+        except Exception:
+            fixed = self._regex_normalize_workflow_keys(body)
+            return fixed.rstrip() + "\n"
 
     # ------------------------------------------------------------------
     # FIX (design): merged the two near-identical transient-error helpers
@@ -304,7 +371,17 @@ class ExecutionPipeline:
             common_args = self._build_act_common_args()
             extra_args = list(extra_act_args or [])
             workflow_file = self._resolve_workflow_file(workspace_path)
-            base_command = ["act", "-W", workflow_file, *common_args, *secret_args, *extra_args]
+            default_runner_image = os.getenv("ACT_RUNNER_IMAGE", "catthehacker/ubuntu:act-latest")
+            base_command = [
+                "act",
+                "-W",
+                workflow_file,
+                *common_args,
+                *secret_args,
+                *extra_args,
+                "-P",
+                f"ubuntu-latest={default_runner_image}",
+            ]
             attempt_summaries: List[Dict[str, Any]] = []
 
             primary_result = self._run_act_with_network_retries(
@@ -323,10 +400,11 @@ class ExecutionPipeline:
                 return primary_result
 
             fallback_images = [
-                "catthehacker/ubuntu:full-latest",
                 "catthehacker/ubuntu:act-22.04",
                 "nektos/act-environments-ubuntu:22.04",
             ]
+            if default_runner_image not in fallback_images:
+                fallback_images.insert(0, default_runner_image)
 
             latest_result = primary_result
             for image in fallback_images:
@@ -440,7 +518,10 @@ class ExecutionPipeline:
             workflow_relative = "ci.yml"  # default filename written here
             workflow_path = workspace_path / ".github" / "workflows" / workflow_relative
             workflow_path.parent.mkdir(parents=True, exist_ok=True)
-            workflow_path.write_text(cicd_workflow_content, encoding="utf-8")
+            workflow_path.write_text(
+                self._normalize_github_actions_yaml(cicd_workflow_content),
+                encoding="utf-8",
+            )
 
             dockerfile_path = workspace_path / "Dockerfile"
             has_dockerfile = bool(dockerfile_content and dockerfile_content.strip())

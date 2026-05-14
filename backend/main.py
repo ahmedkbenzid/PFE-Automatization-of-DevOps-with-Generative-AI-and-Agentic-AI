@@ -11,7 +11,11 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+
 from uuid import uuid4
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware

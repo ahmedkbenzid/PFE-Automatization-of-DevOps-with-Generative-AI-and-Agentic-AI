@@ -106,11 +106,17 @@ class SecretsManager:
 
             cleaned[key] = value
 
-        # Apply Docker Hub aliases
+        # Apply Docker Hub aliases (bi-directional for UI + workflow compatibility)
         if "DOCKERHUB_USERNAME" in cleaned and "DOCKER_USERNAME" not in cleaned:
             cleaned["DOCKER_USERNAME"] = cleaned["DOCKERHUB_USERNAME"]
+        if "DOCKER_USERNAME" in cleaned and "DOCKERHUB_USERNAME" not in cleaned:
+            cleaned["DOCKERHUB_USERNAME"] = cleaned["DOCKER_USERNAME"]
 
-        dockerhub_token = cleaned.get("DOCKERHUB_TOKEN") or cleaned.get("DOCKERHUB_PASSWORD")
+        dockerhub_token = (
+            cleaned.get("DOCKERHUB_TOKEN")
+            or cleaned.get("DOCKERHUB_PASSWORD")
+            or cleaned.get("DOCKER_PASSWORD")
+        )
         if dockerhub_token:
             cleaned.setdefault("DOCKERHUB_TOKEN", dockerhub_token)
             cleaned.setdefault("DOCKERHUB_PASSWORD", dockerhub_token)
