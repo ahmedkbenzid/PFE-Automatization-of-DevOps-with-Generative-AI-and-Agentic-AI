@@ -1,5 +1,5 @@
 import { AsyncPipe, NgIf, NgFor, NgClass, TitleCasePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ViewChild } from '@angular/core';
 import { ActivatedRoute,Router, RouterLink } from '@angular/router';
 import { BehaviorSubject, combineLatest, firstValueFrom, interval, of } from 'rxjs';
 import {
@@ -100,6 +100,8 @@ export class RunDashboardComponent {
   readonly githubUrl$ = new BehaviorSubject<string | null>(null);
 
   readonly editedArtifacts$ = new BehaviorSubject<EditedArtifacts | null>(null);
+
+  @ViewChild(ActionOptionsComponent) actionOptions?: ActionOptionsComponent;
 
   private readonly wsEvents$ = this.runId$.pipe(
     switchMap((runId) => this.websocket.connect(runId)),
@@ -291,7 +293,11 @@ export class RunDashboardComponent {
     this.sandboxStarting$.next(true);
     this.sandboxStartError$.next(null);
 
-    const editedArtifacts = this.editedArtifacts$.value;
+    const actionDraft = this.actionOptions?.getCurrentDraft();
+    const editedArtifacts = actionDraft ?? this.editedArtifacts$.value;
+    if (actionDraft) {
+      this.editedArtifacts$.next(actionDraft);
+    }
     const payload: { force: boolean; artifacts?: Record<string, unknown> } = { force: true };
     if (editedArtifacts) {
       payload.artifacts = editedArtifacts as unknown as Record<string, unknown>;

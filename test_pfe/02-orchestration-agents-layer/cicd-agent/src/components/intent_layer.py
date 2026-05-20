@@ -80,6 +80,8 @@ class IntentLayer:
             "Ensure top-level keys include: name, on, jobs.",
             "Use secure defaults and minimal permissions.",
             "Pin action versions and prefer stable action releases.",
+            "CI-only workflow: include exactly one job named 'build-image' and no additional jobs.",
+            "Do not include deploy jobs or kubectl/helm/k3s steps in this workflow.",
         ]
 
         keywords_blob = " ".join(intent.keywords).lower()
@@ -219,10 +221,10 @@ class IntentLayer:
         # NEW: If Dockerfile is being generated, create a workflow that builds and uses it
         if dockerfile_built_successfully or dockerfile_being_generated:
             requirement_lines.append(
-                "CRITICAL: The workflow MUST include a 'build-image' job that builds the Docker image from the Dockerfile. "
-                "Use 'docker build -f Dockerfile -t build-image:latest .' as the build step, then push to Docker Hub. "
-                "For subsequent test/deploy jobs, use 'runs-on: ubuntu-latest' (not container:) to avoid pull failures. "
-                "Only use 'container: <registry-image>' if the image is confirmed pushed to a registry."
+                "CRITICAL: The workflow MUST include a single 'build-image' job. "
+                "Start with actions/checkout@v4, then add stack-specific build steps based on detected repo context. "
+                "Do not hardcode Java/Maven steps unless Java is detected. "
+                "If a Dockerfile exists or is being generated, build and push the image within this job."
             )
         
         if requests_dockerhub:
@@ -233,16 +235,10 @@ class IntentLayer:
             )
         
         if requests_ansible:
-            requirement_lines.append("Install Ansible via pip and run ansible-playbook for delivery steps.")
+            requirement_lines.append("Do not run Ansible in this workflow; keep CI build-only.")
         
-        if requests_k8s:
-            requirement_lines.append("Deploy to Kubernetes by referencing the Docker Hub image tag in manifests or Ansible variables.")
-        
-        if requests_monitoring:
-            requirement_lines.append("Provision monitoring with Prometheus and Grafana using Kubernetes-native tooling (Helm/kubectl).")
-        
-        if any(token in combined for token in ["deploy", "production", "release"]):
-            requirement_lines.append("Separate build/test and deploy phases with gating conditions.")
+        if requests_k8s or requests_monitoring or any(token in combined for token in ["deploy", "production", "release"]):
+            requirement_lines.append("Do not add deploy phases or Kubernetes commands; CI pipeline must stay build-only.")
 
         if iac_output_available:
             requirement_lines.append(
@@ -325,7 +321,6 @@ class IntentLayer:
         if dockerfile_built_successfully or dockerfile_being_generated:
             repo_context_block.append(f"Docker workflow strategy: Build image during workflow execution and push to Docker Hub")
             repo_context_block.append(f"Build command: docker build -f Dockerfile -t build-image:latest .")
-            repo_context_block.append(f"Test/Deploy strategy: Use 'runs-on: ubuntu-latest' (do NOT use container: build-image:latest to avoid pull failures)")
 
         knowledge_block = []
         for index, page in enumerate(knowledge_pages or [], start=1):

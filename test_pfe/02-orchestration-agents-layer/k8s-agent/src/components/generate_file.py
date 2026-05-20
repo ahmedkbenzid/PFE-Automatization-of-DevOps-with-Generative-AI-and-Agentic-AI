@@ -90,6 +90,7 @@ class GenerateFile:
         host: str, service_port: int, container_port: int, service_type: str,
         config_env: dict, secret_env: dict, rag_hints: Optional[dict]
     ) -> KubernetesManifests:
+        service_name = f"{app_name}-service"
         namespace_doc = {
             "apiVersion": "v1", "kind": "Namespace",
             "metadata": {"name": namespace},
@@ -127,6 +128,7 @@ class GenerateFile:
                         "containers": [{
                             "name": app_name,
                             "image": image,
+                            "imagePullPolicy": "Always",
                             "ports": [{"containerPort": container_port}],
                             "env": env_entries,
                             "resources": resource_defaults,
@@ -138,7 +140,7 @@ class GenerateFile:
 
         service_doc = {
             "apiVersion": "v1", "kind": "Service",
-            "metadata": {"name": app_name, "namespace": namespace},
+            "metadata": {"name": service_name, "namespace": namespace},
             "spec": {
                 "type": service_type,
                 "selector": {"app": app_name},
@@ -154,7 +156,7 @@ class GenerateFile:
                     "pathType": "Prefix",
                     "backend": {
                         "service": {
-                            "name": app_name,
+                            "name": service_name,
                             "port": {"number": service_port}
                         }
                     }
@@ -207,6 +209,7 @@ class GenerateFile:
                 "host": host,
                 "service_port": service_port,
                 "container_port": container_port,
+                "service_name": service_name,
                 "ingress_class": K8S_CONFIG["default_ingress_class"],
                 "service_type": service_type,
                 "generator": "template",
@@ -260,6 +263,42 @@ class GenerateFile:
         ingress_doc = self._find_doc(docs, "Ingress")
         hpa_doc = self._find_doc(docs, "HorizontalPodAutoscaler")
 
+        service_name = f"{app_name}-service"
+        if isinstance(service_doc, dict):
+            metadata = service_doc.setdefault("metadata", {})
+            if isinstance(metadata, dict):
+                metadata["name"] = service_name
+            spec = service_doc.setdefault("spec", {})
+            if isinstance(spec, dict) and service_type:
+                spec["type"] = service_type
+
+        if isinstance(deployment_doc, dict):
+            pod_spec = (
+                deployment_doc
+                .get("spec", {})
+                .get("template", {})
+                .get("spec", {})
+            )
+            containers = pod_spec.get("containers") if isinstance(pod_spec, dict) else None
+            if isinstance(containers, list):
+                for container in containers:
+                    if isinstance(container, dict):
+                        container.setdefault("imagePullPolicy", "Always")
+
+        if isinstance(ingress_doc, dict):
+            rules = ingress_doc.get("spec", {}).get("rules", [])
+            if isinstance(rules, list):
+                for rule in rules:
+                    paths = rule.get("http", {}).get("paths", []) if isinstance(rule, dict) else []
+                    if isinstance(paths, list):
+                        for path in paths:
+                            backend = path.get("backend", {}) if isinstance(path, dict) else {}
+                            service = backend.get("service") if isinstance(backend, dict) else None
+                            if isinstance(service, dict):
+                                service["name"] = service_name
+                            elif isinstance(backend, dict) and "serviceName" in backend:
+                                backend["serviceName"] = service_name
+
         manifests = KubernetesManifests(
             namespace_yaml=self._to_yaml(namespace_doc) if namespace_doc else "",
             configmap_yaml=self._to_yaml(configmap_doc) if configmap_doc else "",
@@ -272,7 +311,13 @@ class GenerateFile:
             app_name=app_name,
             image=image,
             replicas=replicas,
-            metadata={"host": host, "service_port": service_port, "container_port": container_port},
+            metadata={
+                "host": host,
+                "service_port": service_port,
+                "container_port": container_port,
+                "service_name": service_name,
+                "service_type": service_type,
+            },
         )
         manifests.files = {
             "namespace.yaml": manifests.namespace_yaml,

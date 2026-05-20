@@ -114,7 +114,7 @@ def _requested_agent_count(user_prompt: str) -> int:
             "terraform", "iac", "infrastructure", "ansible", "cloudformation", "aws", "azure", "gcp",
         ],
         "k8s-agent": [
-            "kubernetes", "k8s", "helm", "kubectl",
+            "kubernetes", "k8s", "helm", "kubectl", "minikube",
         ],
     }
 
@@ -832,6 +832,7 @@ def routing_node(state: OrchestratorState) -> Dict[str, Any]:
             "routing_reasoning": reasoning,
             "target_agents": target_agents,
             "user_intent": reasoning,
+            "deploy_after_execution": bool(route_result.get("deploy_after_execution")),
             "agent_outputs": {"intent_router": route_result},
         }
 

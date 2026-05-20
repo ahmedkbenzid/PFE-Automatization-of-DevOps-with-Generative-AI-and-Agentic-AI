@@ -267,6 +267,7 @@ interface SecretGroup {
       border: 1px solid var(--border-color, #333);
       border-radius: 6px;
       color: var(--text-primary, #fff);
+      caret-color: var(--text-primary, #fff);
       font-size: 14px;
       font-family: monospace;
     }
@@ -275,6 +276,15 @@ interface SecretGroup {
       outline: none;
       border-color: var(--accent-color, #0d8cff);
       background: var(--input-bg-focus, #252525);
+      color: var(--text-primary, #fff);
+    }
+
+    .field-input:-webkit-autofill,
+    .field-input:-webkit-autofill:hover,
+    .field-input:-webkit-autofill:focus,
+    .field-input:-webkit-autofill:active {
+      -webkit-text-fill-color: var(--text-primary, #fff);
+      transition: background-color 9999s ease-out 0s;
     }
 
     .field-input::placeholder {
@@ -558,6 +568,34 @@ export class SecretsFormComponent implements OnInit {
           label: 'GitLab URL (Optional)',
           type: 'text',
           placeholder: 'https://gitlab.com',
+        },
+      ],
+    },
+    {
+      type: 'sonarqube',
+      icon: 'assets/sonarqube.png',
+      label: 'SonarQube',
+      expanded: false,
+      fields: [
+        {
+          key: 'SONAR_TOKEN',
+          label: 'SonarQube Token',
+          type: 'password',
+          placeholder: 'your-sonar-token',
+          description: 'User token for analysis authentication',
+        },
+        {
+          key: 'SONAR_HOST_URL',
+          label: 'SonarQube Host URL',
+          type: 'text',
+          placeholder: 'https://sonarqube.example.com',
+          description: 'Base URL for your SonarQube instance',
+        },
+        {
+          key: 'SONAR_PROJECT_KEY',
+          label: 'SonarQube Project Key (Optional)',
+          type: 'text',
+          placeholder: 'my-project-key',
         },
       ],
     },

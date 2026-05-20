@@ -50,6 +50,11 @@ class SecretsManager:
             "REGISTRY_PASSWORD",
             "REGISTRY_URL",
         ],
+        "sonarqube": [
+            "SONAR_TOKEN",
+            "SONAR_HOST_URL",
+            "SONAR_PROJECT_KEY",
+        ],
     }
 
     @staticmethod
@@ -226,6 +231,11 @@ class SecretsManager:
                 "KUBECONFIG_BASE64": "Base64 encoded kubeconfig",
                 "K8S_API_URL": "Kubernetes API URL",
                 "K8S_TOKEN": "Kubernetes service account token",
+            },
+            "sonarqube": {
+                "SONAR_TOKEN": "SonarQube user token",
+                "SONAR_HOST_URL": "SonarQube server URL",
+                "SONAR_PROJECT_KEY": "SonarQube project key",
             },
         }
 

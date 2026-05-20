@@ -85,6 +85,7 @@ class OrchestratorState(TypedDict, total=False):
     secondary_agents: List[str]
     routing_reasoning: str
     target_agents: List[str]  # Combined list of agents to execute
+    deploy_after_execution: bool
     complexity_score: int
     used_planner: bool
     planner_reasoning: str
@@ -173,6 +174,7 @@ def create_initial_state(
         secondary_agents=[],
         routing_reasoning="",
         target_agents=[],
+        deploy_after_execution=False,
         complexity_score=0,
         used_planner=False,
         planner_reasoning="",
@@ -204,6 +206,7 @@ def state_to_legacy_format(state: OrchestratorState) -> Dict[str, Any]:
         "repo_context": state.get("repo_context", {}),
         "agent_outputs": state.get("agent_outputs", {}),
         "errors": state.get("errors", []),
+        "deploy_after_execution": state.get("deploy_after_execution", False),
     }
 
     # Add PR details if available

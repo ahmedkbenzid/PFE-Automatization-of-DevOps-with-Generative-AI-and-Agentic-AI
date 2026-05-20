@@ -23,6 +23,17 @@ class IntentRouter:
         prompt_lower = user_prompt.lower()
         matched_agents = []
 
+        deploy_phrases = [
+            "deploy to minikube",
+            "deploy to kubernetes",
+            "deploy to k8s",
+            "deploy to cluster",
+            "run in kubernetes",
+            "deploy the app",
+            "deploy after build",
+        ]
+        deploy_after_execution = any(phrase in prompt_lower for phrase in deploy_phrases)
+
         # FIXED: Check for "complete DevOps" requests first (should trigger both docker + cicd)
         complete_devops_keywords = [
             "complete devops", "full devops", "devops configuration", "devops config",
@@ -56,7 +67,7 @@ class IntentRouter:
                 matched_agents.append(("docker-agent", "Docker configuration"))
 
         # Kubernetes keywords
-        if any(kw in prompt_lower for kw in ["kubernetes", "k8s", "helm"]):
+        if any(kw in prompt_lower for kw in ["kubernetes", "k8s", "helm", "minikube"]):
             matched_agents.append(("k8s-agent", "Kubernetes configuration"))
 
         # Infrastructure as Code - AWS/Azure/GCP imply IaC
@@ -75,7 +86,8 @@ class IntentRouter:
             return {
                 "primary_agent": primary,
                 "secondary_agents": secondary,
-                "reasoning": f"Fast-path routing: {', '.join(reasons)} requested"
+                "reasoning": f"Fast-path routing: {', '.join(reasons)} requested",
+                "deploy_after_execution": deploy_after_execution,
             }
 
         if self.llm is None:
@@ -83,6 +95,7 @@ class IntentRouter:
                 "primary_agent": "general-assistant",
                 "secondary_agents": [],
                 "reasoning": "LLM router unavailable and no keyword match; default fallback route",
+                "deploy_after_execution": deploy_after_execution,
             }
 
         # Slow-path: Use LLM for ambiguous requests
@@ -133,10 +146,14 @@ class IntentRouter:
             elif content.startswith("```"):
                 content = content[3:-3]
 
-            return json.loads(content.strip())
+            result = json.loads(content.strip())
+            if isinstance(result, dict):
+                result.setdefault("deploy_after_execution", deploy_after_execution)
+            return result
         except Exception as e:
             return {
                 "primary_agent": "error",
                 "secondary_agents": [],
-                "reasoning": f"Routing failed: {str(e)}"
+                "reasoning": f"Routing failed: {str(e)}",
+                "deploy_after_execution": deploy_after_execution,
             }

@@ -100,7 +100,7 @@ class Orchestrator:
             'docker': ['docker', 'dockerfile', 'container'],
             'cicd': ['ci/cd', 'cicd', 'pipeline', 'github actions', 'workflow'],
             'iac': ['infrastructure', 'terraform', 'cloudformation'],
-            'k8s': ['kubernetes', 'k8s', 'kubectl', 'helm']
+            'k8s': ['kubernetes', 'k8s', 'kubectl', 'helm', 'minikube']
         }
         
         artifacts_count = 0
@@ -153,7 +153,7 @@ class Orchestrator:
                 "terraform", "iac", "infrastructure", "cloudformation", "aws", "azure", "gcp",
             ],
             "k8s-agent": [
-                "kubernetes", "k8s", "helm", "kubectl",
+                "kubernetes", "k8s", "helm", "kubectl", "minikube",
             ],
         }
 

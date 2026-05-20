@@ -626,6 +626,10 @@ readonly topTabs: TabDef[] = [
     }
   }
 
+  getCurrentDraft(): EditedArtifacts {
+    return this.deepClone(this.draft);
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   get applyButtonHelp(): string {

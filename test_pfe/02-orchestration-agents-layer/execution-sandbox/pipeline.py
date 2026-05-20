@@ -88,6 +88,16 @@ class ExecutionPipeline:
 
         return merged
 
+    def _apply_act_secrets_to_env(
+        self,
+        env: Dict[str, str],
+        runtime_secrets: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Ensure Act can read secrets by exporting ACT_SECRET_* into the subprocess env."""
+        secrets = self._collect_act_secrets(runtime_secrets)
+        for key, value in secrets.items():
+            env[f"ACT_SECRET_{key}"] = value
+
     def _write_act_secret_file(self, runtime_secrets: Optional[Dict[str, str]] = None) -> Optional[str]:
         """
         FIX (security): Write secrets to a temp file instead of passing them as CLI args.
@@ -536,6 +546,7 @@ class ExecutionPipeline:
             act_env["TMP"] = str(act_temp_dir)
             act_env["TMPDIR"] = str(act_temp_dir)
             act_env["RUNNER_TEMP"] = str(act_temp_dir)
+            self._apply_act_secrets_to_env(act_env, secrets)
 
             # FIX (minor): use uuid instead of time() to avoid tag collisions
             # when two executions are launched within the same second.

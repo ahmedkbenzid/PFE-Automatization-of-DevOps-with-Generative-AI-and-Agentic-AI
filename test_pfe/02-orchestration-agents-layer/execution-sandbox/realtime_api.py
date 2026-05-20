@@ -235,6 +235,7 @@ class ExecutionRealtimeRunner:
             act_env["TMP"] = str(act_temp_dir)
             act_env["TMPDIR"] = str(act_temp_dir)
             act_env["RUNNER_TEMP"] = str(act_temp_dir)
+            self.pipeline._apply_act_secrets_to_env(act_env, request.secrets)
 
             common_args = self.pipeline._build_act_common_args()
 

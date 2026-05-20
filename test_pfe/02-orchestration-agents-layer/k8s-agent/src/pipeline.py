@@ -14,6 +14,7 @@ if __package__ is None or __package__ == "":
 
 from src.components.analyze_project import AnalyzeProject
 from src.components.generate_file import GenerateFile
+from src.components.deploy_to_cluster import DeployToCluster
 from src.components.prompt_intent_resolver import PromptIntentResolver
 from src.components.rag_kb import RAGKnowledgeBase
 from src.components.validate import Validate
@@ -30,6 +31,7 @@ class K8sPipeline:
         self.generate_file = GenerateFile()
         self.validate = Validate()
         self.write_files = WriteFiles()
+        self.deploy_to_cluster = DeployToCluster()
 
     def process_request(
         self,
@@ -53,6 +55,9 @@ class K8sPipeline:
         if not intent.get("image"):
             intent["image"] = self._infer_image(repo_context, context)
 
+        if repo_context and repo_context.get("force_nodeport"):
+            intent["service_type"] = "NodePort"
+
         rag_pages = self.rag_kb.query(
             query_text=f"{request.text} kubernetes deployment service ingress configmap secret rbac networkpolicy",
             top_k=3,
@@ -75,6 +80,13 @@ class K8sPipeline:
             write=write_output_files and manifests.is_valid,
         )
         manifests.metadata["written_files"] = written_files
+
+        if write_output_files and manifests.is_valid:
+            deploy_result = self.deploy_to_cluster.run(
+                written_files=written_files,
+                app_name=intent.get("app_name", "app"),
+            )
+            manifests.metadata["deploy_result"] = deploy_result
 
         elapsed_ms = int((time.time() - start) * 1000)
 

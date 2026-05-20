@@ -407,6 +407,7 @@ class CICDPipeline:
         languages = [str(lang).lower() for lang in (repo_context.get("languages") or [])]
         frameworks = [str(f).lower() for f in (repo_context.get("frameworks") or [])]
         build_system = str(repo_context.get("build_system") or "").lower()
+        package_managers = [str(p).lower() for p in (repo_context.get("package_managers") or [])]
         request_text = (request.text or "").lower()
 
         java_version_raw = str(repo_context.get("java_version") or "21")
@@ -417,38 +418,138 @@ class CICDPipeline:
         python_match = re.search(r"\d+\.\d+", python_version_raw)
         python_version = python_match.group(0) if python_match else "3.11"
 
-        # Monorepo layout
+        node_version = str(repo_context.get("node_version") or "20")
+        go_version = str(repo_context.get("go_version") or "1.21")
+
         frontend_dir = repo_context.get("frontend_dir") or repo_context.get("angular_dir") or ""
-        backend_dir  = repo_context.get("backend_dir") or ""
+        backend_dir = repo_context.get("backend_dir") or ""
         requirements_path = repo_context.get("python_requirements_path") or (
             f"{backend_dir}/requirements.txt" if backend_dir else "requirements.txt"
         )
-        node_version = str(repo_context.get("node_version") or "20")
-        angular_version = repo_context.get("angular_version") or ""
-
-        # ------------------------------------------------------------------
-        # Angular + Python (FastAPI / Django / Flask) monorepo
-        # ------------------------------------------------------------------
-        is_angular = "angular" in frameworks or bool(angular_version) or bool(
-            frontend_dir and re.search(r"angular", build_system)
-        )
-        is_python_backend = "python" in languages or bool(backend_dir) or any(
-            f in frameworks for f in ["fastapi", "django", "flask"]
+        node_package_path = repo_context.get("nodejs_package_path") or (
+            f"{frontend_dir}/package.json" if frontend_dir else "package.json"
         )
 
-        if is_angular and is_python_backend:
-            pkg_dir   = frontend_dir if frontend_dir else "."
-            lock_path = f"{pkg_dir}/package-lock.json"
-            angular_label = f"Angular {angular_version}" if angular_version else "Angular"
-            framework_label = next(
-                (f.capitalize() for f in ["fastapi", "django", "flask"] if f in frameworks),
-                "Python"
-            )
-            test_cmd = "pytest -q || echo 'No tests found'"
-            install_cmd = f"pip install -r {requirements_path}"
-            backend_cd = f"cd {backend_dir} && " if backend_dir else ""
+        repo_name = str(repo_context.get("repo_name") or request.repo_path or "app")
+        repo_name = repo_name.rstrip("/\\").split("/")[-1].split("\\")[-1].replace(".git", "") or "app"
 
-            return f"""name: {angular_label} + {framework_label} CI
+        dockerfile_present = bool(repo_context.get("has_dockerfile") or repo_context.get("dockerfile_being_generated"))
+        wants_docker = dockerfile_present or "docker" in request_text or "dockerhub" in request_text
+
+        is_java = "java" in languages or build_system in {"maven", "gradle"} or any("spring" in f for f in frameworks)
+        is_node = any(lang in languages for lang in ["javascript", "typescript", "node", "node.js"]) or build_system in {"npm", "yarn", "pnpm"} or any("angular" in f for f in frameworks)
+        is_python = "python" in languages or build_system in {"pip", "poetry"} or any(f in frameworks for f in ["django", "fastapi", "flask"])
+        is_php = "php" in languages or "composer" in package_managers or any("laravel" in f for f in frameworks)
+        is_go = "go" in languages
+
+        steps: List[str] = [
+            "      - uses: actions/checkout@v4",
+        ]
+
+        if is_node and is_python and frontend_dir:
+            steps.extend([
+                "      - uses: actions/setup-node@v4",
+                "        with:",
+                f"          node-version: '{node_version}'",
+                "          cache: npm",
+                f"          cache-dependency-path: {frontend_dir}/package-lock.json",
+                "      - name: Install frontend dependencies",
+                f"        run: npm ci --prefix {frontend_dir}",
+                "      - name: Build frontend",
+                f"        run: npm run build --prefix {frontend_dir}",
+                "      - uses: actions/setup-python@v5",
+                "        with:",
+                f"          python-version: '{python_version}'",
+                "      - name: Install backend dependencies",
+                "        run: |",
+                "          python -m pip install --upgrade pip",
+                f"          if [ -f {requirements_path} ]; then pip install -r {requirements_path}; fi",
+                "      - name: Run backend tests",
+                "        run: |",
+                f"          if [ -d {backend_dir or '.'}/tests ]; then pytest -q; else echo \"No tests directory\"; fi",
+            ])
+        elif is_java:
+            cache_key = "gradle" if build_system == "gradle" else "maven"
+            build_cmd = "./gradlew build" if build_system == "gradle" else "mvn -B clean verify"
+            steps.extend([
+                "      - uses: actions/setup-java@v4",
+                "        with:",
+                f"          java-version: '{java_version}'",
+                "          distribution: temurin",
+                f"          cache: {cache_key}",
+                "      - name: Build",
+                f"        run: {build_cmd}",
+            ])
+        elif is_node:
+            steps.extend([
+                "      - uses: actions/setup-node@v4",
+                "        with:",
+                f"          node-version: '{node_version}'",
+                "          cache: npm",
+                f"          cache-dependency-path: {node_package_path}",
+                "      - name: Install dependencies",
+                "        run: npm ci",
+                "      - name: Build",
+                "        run: npm run build --if-present",
+            ])
+        elif is_python:
+            steps.extend([
+                "      - uses: actions/setup-python@v5",
+                "        with:",
+                f"          python-version: '{python_version}'",
+                "      - name: Install dependencies",
+                "        run: |",
+                "          python -m pip install --upgrade pip",
+                f"          if [ -f {requirements_path} ]; then pip install -r {requirements_path}; fi",
+                "      - name: Run tests",
+                "        run: |",
+                "          if [ -d tests ]; then pytest -q; else echo \"No tests directory\"; fi",
+            ])
+        elif is_php:
+            steps.extend([
+                "      - uses: shivammathur/setup-php@v2",
+                "        with:",
+                "          php-version: '8.2'",
+                "      - name: Install dependencies",
+                "        run: composer install --no-interaction --no-progress",
+                "      - name: Run tests",
+                "        run: |",
+                "          if [ -f vendor/bin/phpunit ]; then vendor/bin/phpunit; else echo \"No phpunit configured\"; fi",
+            ])
+        elif is_go:
+            steps.extend([
+                "      - uses: actions/setup-go@v5",
+                "        with:",
+                f"          go-version: '{go_version}'",
+                "      - name: Build",
+                "        run: go build ./...",
+                "      - name: Test",
+                "        run: go test ./...",
+            ])
+        else:
+            steps.extend([
+                "      - name: Build",
+                "        run: echo \"Build step\"",
+            ])
+
+        if wants_docker:
+            steps.extend([
+                "      - name: Docker Hub login",
+                "        if: secrets.DOCKERHUB_USERNAME != ''",
+                "        uses: docker/login-action@v3",
+                "        with:",
+                "          username: ${{ secrets.DOCKERHUB_USERNAME }}",
+                "          password: ${{ secrets.DOCKERHUB_TOKEN }}",
+                "      - name: Build and push image",
+                "        uses: docker/build-push-action@v5",
+                "        with:",
+                "          context: .",
+                "          push: ${{ secrets.DOCKERHUB_USERNAME != '' }}",
+                f"          tags: ${{{{ secrets.DOCKERHUB_USERNAME }}}}/{repo_name}:latest",
+            ])
+
+        steps_block = "\n".join(steps)
+        return f"""name: CI Build
 on:
   push:
     branches: [main]
@@ -456,138 +557,10 @@ on:
     branches: [main]
 
 jobs:
-  build-frontend:
-    name: Build Angular Frontend
+  build-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '{node_version}'
-          cache: npm
-          cache-dependency-path: {lock_path}
-      - name: Install dependencies
-        run: npm ci --prefix {pkg_dir}
-      - name: Build frontend
-        run: npm run build --prefix {pkg_dir}
-
-  test-backend:
-    name: Test {framework_label} Backend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '{python_version}'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r {requirements_path}
-      - name: Run tests
-        run: |
-          {backend_cd}{test_cmd}
-"""
-
-        # ------------------------------------------------------------------
-        # Java (Maven / Gradle)
-        # ------------------------------------------------------------------
-        if "java" in languages or build_system in {"maven", "gradle"}:
-            return f"""name: Java CI/CD
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '{java_version}'
-          distribution: temurin
-          cache: maven
-      - name: Build and test
-        run: mvn -B clean verify
-
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: build-test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build image
-        run: docker build -t app:latest .
-"""
-
-        # ------------------------------------------------------------------
-        # Generic Python
-        # ------------------------------------------------------------------
-        if "python" in languages or build_system in {"pip", "poetry"}:
-            deploy_block = ""
-            if any(word in request_text for word in ["deploy", "deployment", "release", "production"]):
-                deploy_block = """
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [test, docker-build]
-    steps:
-      - name: Deploy placeholder
-        run: echo \"Add deployment command here\"
-"""
-
-            req_install = f"pip install -r {requirements_path}" if requirements_path else \
-                "if [ -f requirements.txt ]; then pip install -r requirements.txt; fi"
-            return f"""name: Python CI/CD
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '{python_version}'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          {req_install}
-      - name: Run tests
-        run: |
-          if [ -d tests ]; then pytest -q; else echo \"No tests directory\"; fi
-
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build image
-        run: docker build -t app:latest .
-{deploy_block}
-"""
-
-        # ------------------------------------------------------------------
-        # Generic fallback
-        # ------------------------------------------------------------------
-        return """name: CI Workflow
-on:
-  push:
-    branches: [main]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: echo \"Build step\"
+{steps_block}
 """
 
     def _infer_preferred_languages(
